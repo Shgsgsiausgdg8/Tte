@@ -50,6 +50,12 @@ async function startServer() {
       appType: "spa",
     });
     app.use(vite.middlewares);
+  } else {
+    // Serve static files in production
+    app.use(express.static(path.join(process.cwd(), "dist")));
+    app.get("*", (req, res) => {
+      res.sendFile(path.join(process.cwd(), "dist", "index.html"));
+    });
   }
 
   server.listen(PORT, "0.0.0.0", () => {
