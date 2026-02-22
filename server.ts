@@ -38,6 +38,28 @@ async function startServer() {
     bot.isTrading = !bot.isTrading;
     res.json({ status: bot.isTrading });
   });
+  app.post("/api/bot/manual-trade", async (req, res) => {
+    const { action } = req.body;
+    if (action === 'BUY' || action === 'SELL') {
+      const signal = {
+        type: action,
+        price: bot.price,
+        tp1: action === 'BUY' ? bot.price + (bot.settings.targetsTicks?.tpTicks || 18) * (bot.settings.market?.tickValueToman || 23000) : bot.price - (bot.settings.targetsTicks?.tpTicks || 18) * (bot.settings.market?.tickValueToman || 23000),
+        sl: action === 'BUY' ? bot.price - (bot.settings.targetsTicks?.stopTicks || 12) * (bot.settings.market?.tickValueToman || 23000) : bot.price + (bot.settings.targetsTicks?.stopTicks || 12) * (bot.settings.market?.tickValueToman || 23000),
+        score: 10,
+        reasons: ['Manual Trade']
+      };
+      await bot.enterTrade(signal);
+      res.json({ success: true });
+    } else {
+      res.status(400).json({ error: 'Invalid action' });
+    }
+  });
+  app.post("/api/bot/close-all", async (req, res) => {
+    const promises = Array.from(bot.openPositions.keys()).map(id => bot.closeTrade(id, 'manual_close_all'));
+    await Promise.all(promises);
+    res.json({ success: true });
+  });
   app.get("/api/bot/settings", (req, res) => res.json(bot.settings));
   app.post("/api/bot/settings", (req, res) => {
     bot.saveSettings(req.body);

@@ -79,6 +79,18 @@ export default function Dashboard() {
     await fetch('/api/bot/toggle', { method: 'POST' });
   };
 
+  const manualTrade = async (action: 'BUY' | 'SELL') => {
+    await fetch('/api/bot/manual-trade', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action })
+    });
+  };
+
+  const closeAllTrades = async () => {
+    await fetch('/api/bot/close-all', { method: 'POST' });
+  };
+
   const saveSettings = async () => {
     await fetch('/api/bot/settings', {
       method: 'POST',
@@ -125,6 +137,50 @@ export default function Dashboard() {
         </div>
         
         <div className="flex items-center gap-6">
+          <div className="hidden md:flex items-center gap-4 border-r border-white/10 pr-6 mr-2">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-slate-500 font-mono uppercase">تلگرام</span>
+              <button 
+                onClick={() => {
+                  const newSettings = { ...botState.settings, telegram: { ...botState.settings.telegram, enabled: !botState.settings.telegram?.enabled } };
+                  fetch('/api/bot/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newSettings) });
+                }}
+                className={`w-8 h-4 rounded-full transition-colors relative ${botState.settings?.telegram?.enabled ? 'bg-emerald-500' : 'bg-slate-700'}`}
+              >
+                <motion.div animate={{ x: botState.settings?.telegram?.enabled ? 16 : 2 }} className="w-3 h-3 bg-white rounded-full absolute top-0.5" />
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-slate-500 font-mono uppercase">Trailing</span>
+              <button 
+                onClick={() => {
+                  const newSettings = { ...botState.settings, targetsTicks: { ...botState.settings.targetsTicks, trailing: { ...botState.settings.targetsTicks?.trailing, enabled: !botState.settings.targetsTicks?.trailing?.enabled } } };
+                  fetch('/api/bot/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newSettings) });
+                }}
+                className={`w-8 h-4 rounded-full transition-colors relative ${botState.settings?.targetsTicks?.trailing?.enabled ? 'bg-emerald-500' : 'bg-slate-700'}`}
+              >
+                <motion.div animate={{ x: botState.settings?.targetsTicks?.trailing?.enabled ? 16 : 2 }} className="w-3 h-3 bg-white rounded-full absolute top-0.5" />
+              </button>
+            </div>
+          </div>
+          <div className="hidden md:block text-right">
+            <select 
+              value={botState.settings?.activeStrategy || 'SCALP'}
+              onChange={(e) => {
+                const newSettings = { ...botState.settings, activeStrategy: e.target.value };
+                fetch('/api/bot/settings', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(newSettings)
+                });
+              }}
+              className="bg-white/5 border border-white/5 rounded-xl px-3 py-1.5 text-xs text-emerald-500 font-bold outline-none cursor-pointer"
+            >
+              <option value="SCALP">استراتژی اسکالپ</option>
+              <option value="QUANT">استراتژی کوانت</option>
+              <option value="TREND">استراتژی ترند</option>
+            </select>
+          </div>
           <div className="hidden md:block text-right">
             <p className="text-[10px] text-slate-500 font-mono uppercase tracking-wider mb-1">موجودی حساب</p>
             <p className="text-xl font-black font-mono text-white">
@@ -319,20 +375,101 @@ export default function Dashboard() {
             className="bg-[#0f0f0f] border border-white/5 rounded-[2.5rem] p-8 shadow-2xl"
           >
             <h2 className="text-xs font-bold text-white uppercase tracking-[0.3em] mb-8 flex items-center gap-3">
-              <Clock className="w-5 h-5 text-slate-500" />
-              گزارشات لحظه‌ای
+              <Activity className="w-5 h-5 text-slate-500" />
+              کنترل دستی و آمار
             </h2>
-            <div className="space-y-4 max-h-[300px] overflow-y-auto custom-scrollbar" dir="ltr">
-              {[
-                { time: '14:20:01', msg: 'Bot engine v4.2 initialized.', type: 'sys' },
-                { time: '14:20:05', msg: 'WebSocket connected to FarazGold.', type: 'sys' },
-                { time: '14:21:12', msg: `Indicators updated: RSI=${botState.indicators.rsi?.toFixed(1)}`, type: 'strat' }
-              ].map((log, i) => (
-                <div key={i} className="flex gap-4 text-[10px] font-mono">
-                  <span className="text-slate-600 shrink-0">{log.time}</span>
-                  <span className={log.type === 'sys' ? 'text-blue-400' : 'text-slate-400'}>{log.msg}</span>
+            
+            {/* Manual Trading */}
+            <div className="grid grid-cols-2 gap-4 mb-8">
+              <button 
+                onClick={() => manualTrade('BUY')}
+                className="bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 text-emerald-500 py-3 rounded-2xl font-bold text-sm transition-all"
+              >
+                خرید دستی (BUY)
+              </button>
+              <button 
+                onClick={() => manualTrade('SELL')}
+                className="bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-rose-500 py-3 rounded-2xl font-bold text-sm transition-all"
+              >
+                فروش دستی (SELL)
+              </button>
+              <button 
+                onClick={closeAllTrades}
+                className="col-span-2 bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-2xl font-bold text-sm transition-all"
+              >
+                بستن تمام پوزیشن‌ها
+              </button>
+            </div>
+
+            {/* Statistics */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-white/5 rounded-2xl p-4">
+                <p className="text-[10px] text-slate-500 font-mono uppercase mb-1">تعداد کل معاملات</p>
+                <p className="text-xl font-bold text-white">{botState.totalTrades || 0}</p>
+              </div>
+              <div className="bg-white/5 rounded-2xl p-4">
+                <p className="text-[10px] text-slate-500 font-mono uppercase mb-1">وین ریت (Win Rate)</p>
+                <p className="text-xl font-bold text-emerald-500">
+                  {botState.totalTrades > 0 ? Math.round((botState.winningTrades / botState.totalTrades) * 100) : 0}%
+                </p>
+              </div>
+              <div className="bg-white/5 rounded-2xl p-4">
+                <p className="text-[10px] text-slate-500 font-mono uppercase mb-1">معاملات سودده</p>
+                <p className="text-xl font-bold text-emerald-500">{botState.winningTrades || 0}</p>
+              </div>
+              <div className="bg-white/5 rounded-2xl p-4">
+                <p className="text-[10px] text-slate-500 font-mono uppercase mb-1">معاملات ضررده</p>
+                <p className="text-xl font-bold text-rose-500">{botState.losingTrades || 0}</p>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Trade History */}
+          <motion.div 
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.3 }}
+            className="bg-[#0f0f0f] border border-white/5 rounded-[2.5rem] p-8 shadow-2xl"
+          >
+            <div className="flex justify-between items-center mb-8">
+              <h2 className="text-xs font-bold text-white uppercase tracking-[0.3em] flex items-center gap-3">
+                <Clock className="w-5 h-5 text-slate-500" />
+                تاریخچه معاملات
+              </h2>
+              <button 
+                onClick={() => {
+                  const csvContent = "data:text/csv;charset=utf-8," 
+                    + "Type,Entry,Exit,PnL,Reason\n"
+                    + (botState.closedPositions || []).map((p: any) => `${p.type},${p.entry},${p.exitPrice},${p.pnl},${p.reason}`).join("\n");
+                  const encodedUri = encodeURI(csvContent);
+                  const link = document.createElement("a");
+                  link.setAttribute("href", encodedUri);
+                  link.setAttribute("download", "trade_history.csv");
+                  document.body.appendChild(link);
+                  link.click();
+                }}
+                className="text-[10px] bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-lg transition-colors"
+              >
+                دانلود CSV
+              </button>
+            </div>
+            <div className="space-y-3 max-h-[300px] overflow-y-auto custom-scrollbar" dir="rtl">
+              {(botState.closedPositions || []).slice().reverse().map((pos: any, i: number) => (
+                <div key={i} className="flex justify-between items-center bg-white/5 p-3 rounded-xl">
+                  <div className="flex items-center gap-3">
+                    <span className={`text-[10px] font-bold px-2 py-1 rounded-md ${pos.type === 'BUY' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-rose-500/20 text-rose-500'}`}>
+                      {pos.type}
+                    </span>
+                    <span className="text-xs font-mono text-slate-400">{formatPrice(pos.pnl)}</span>
+                  </div>
+                  <div className="text-left">
+                    <span className="text-[10px] text-slate-500">{new Date(pos.exitTime).toLocaleTimeString('fa-IR')}</span>
+                  </div>
                 </div>
               ))}
+              {(!botState.closedPositions || botState.closedPositions.length === 0) && (
+                <p className="text-center text-slate-500 text-xs py-4">تاریخچه‌ای موجود نیست</p>
+              )}
             </div>
           </motion.div>
         </div>

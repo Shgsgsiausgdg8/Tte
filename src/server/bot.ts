@@ -22,6 +22,10 @@ export class FarazGoldBot {
   strategy: Strategy;
   lastTradeTime: number = 0;
   dailyPnL: number = 0;
+  totalTrades: number = 0;
+  winningTrades: number = 0;
+  losingTrades: number = 0;
+  closedPositions: any[] = [];
   settings: any;
   tgBot: TelegramBot | null = null;
   
@@ -115,6 +119,10 @@ export class FarazGoldBot {
         const data = fs.readFileSync(STATE_FILE, 'utf8');
         const state = JSON.parse(data);
         this.dailyPnL = state.dailyPnL || 0;
+        this.totalTrades = state.totalTrades || 0;
+        this.winningTrades = state.winningTrades || 0;
+        this.losingTrades = state.losingTrades || 0;
+        this.closedPositions = state.closedPositions || [];
       }
     } catch (e) {}
   }
@@ -124,6 +132,10 @@ export class FarazGoldBot {
       const state = {
         dailyPnL: this.dailyPnL,
         lastTradeTime: this.lastTradeTime,
+        totalTrades: this.totalTrades,
+        winningTrades: this.winningTrades,
+        losingTrades: this.losingTrades,
+        closedPositions: this.closedPositions.slice(-50) // Keep last 50
       };
       fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
     } catch (e) {}
@@ -139,6 +151,10 @@ export class FarazGoldBot {
     if (key !== this.dailyDateKey) {
       this.dailyDateKey = key;
       this.dailyPnL = 0;
+      this.totalTrades = 0;
+      this.winningTrades = 0;
+      this.losingTrades = 0;
+      this.closedPositions = [];
       this.dailyStartBalance = this.portfolio?.balance || 0;
       this.saveState();
       this.sendTelegramReport();
@@ -617,6 +633,20 @@ export class FarazGoldBot {
     }
 
     this.dailyPnL += pnl;
+    this.totalTrades++;
+    if (pnl > 0) this.winningTrades++;
+    else if (pnl < 0) this.losingTrades++;
+    
+    const closedPos = {
+      ...pos,
+      exitPrice: closePrice,
+      exitTime: new Date(),
+      pnl,
+      reason
+    };
+    this.closedPositions.push(closedPos);
+    if (this.closedPositions.length > 50) this.closedPositions.shift();
+
     this.openPositions.delete(id);
     this.saveState();
     
@@ -653,7 +683,11 @@ export class FarazGoldBot {
       marketStatus: this.marketStatus,
       isConnected: this.isConnected,
       openPositions: Array.from(this.openPositions.values()),
+      closedPositions: this.closedPositions,
       dailyPnL: this.dailyPnL,
+      totalTrades: this.totalTrades,
+      winningTrades: this.winningTrades,
+      losingTrades: this.losingTrades,
       indicators: this.strategy.indicators,
       settings: this.settings,
       portfolio: this.portfolio,
