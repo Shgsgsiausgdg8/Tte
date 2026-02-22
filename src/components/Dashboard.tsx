@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import Chart from 'react-apexcharts';
 import { Activity, TrendingUp, TrendingDown, AlertCircle, Clock, Power, ShieldCheck, Settings, Send, Save, X, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -120,7 +120,7 @@ export default function Dashboard() {
           </motion.div>
           <div>
             <h1 className="text-2xl font-black tracking-tighter text-white">MAZAANEH <span className="text-emerald-500">PRO</span></h1>
-            <p className="text-[10px] text-slate-500 font-mono uppercase tracking-[0.2em]">نسخه ۴.۲ - اسکالپر الگوریتمیک</p>
+            <p className="text-[10px] text-slate-500 font-mono uppercase tracking-[0.2em]">نسخه ۴.۳ - اسکالپر الگوریتمیک</p>
           </div>
         </div>
         
@@ -198,33 +198,60 @@ export default function Dashboard() {
                 ))}
               </div>
             </div>
-            <div className="h-[400px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={history}>
-                  <defs>
-                    <linearGradient id="lineGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1a1a1a" vertical={false} />
-                  <XAxis dataKey="time" stroke="#333" tick={{ fontSize: 9, fontFamily: 'monospace' }} axisLine={false} tickLine={false} />
-                  <YAxis domain={['auto', 'auto']} stroke="#333" orientation="right" tick={{ fontSize: 9, fontFamily: 'monospace' }} axisLine={false} tickLine={false} />
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: '#0a0a0a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', fontSize: '12px', fontFamily: 'monospace' }}
-                    itemStyle={{ color: '#10b981' }}
-                  />
-                  <Line 
-                    type="stepAfter" 
-                    dataKey="price" 
-                    stroke="#10b981" 
-                    strokeWidth={3} 
-                    dot={false} 
-                    isAnimationActive={false}
-                    shadow="0 0 20px rgba(16, 185, 129, 0.5)"
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+            <div className="h-[400px] w-full" dir="ltr">
+              <Chart
+                options={{
+                  chart: {
+                    type: 'candlestick',
+                    background: 'transparent',
+                    toolbar: { show: false },
+                    animations: { enabled: false }
+                  },
+                  theme: { mode: 'dark' },
+                  plotOptions: {
+                    candlestick: {
+                      colors: {
+                        upward: '#10b981',
+                        downward: '#f43f5e'
+                      },
+                      wick: {
+                        useFillColor: true
+                      }
+                    }
+                  },
+                  xaxis: {
+                    type: 'datetime',
+                    labels: {
+                      style: { colors: '#64748b', fontFamily: 'monospace' },
+                      datetimeUTC: false,
+                    },
+                    axisBorder: { show: false },
+                    axisTicks: { show: false }
+                  },
+                  yaxis: {
+                    tooltip: { enabled: true },
+                    labels: {
+                      style: { colors: '#64748b', fontFamily: 'monospace' },
+                      formatter: (val) => val.toLocaleString('fa-IR')
+                    }
+                  },
+                  grid: {
+                    borderColor: '#1e293b',
+                    strokeDashArray: 4,
+                  },
+                  tooltip: {
+                    theme: 'dark',
+                    x: { format: 'HH:mm' }
+                  }
+                }}
+                series={[{
+                  name: 'قیمت',
+                  data: botState.candles || []
+                }]}
+                type="candlestick"
+                height="100%"
+                width="100%"
+              />
             </div>
           </motion.div>
         </div>
@@ -363,13 +390,32 @@ export default function Dashboard() {
                     <div className="mt-4 space-y-4">
                       <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">سرور</label>
-                          <input 
-                            type="text" 
-                            value="فراز گلد"
-                            disabled
-                            className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm text-slate-400 outline-none cursor-not-allowed"
-                          />
+                          <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">تایم فریم</label>
+                          <select 
+                            value={settings.timeframe?.value || 60}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value);
+                              const label = e.target.options[e.target.selectedIndex].text;
+                              setSettings({ ...settings, timeframe: { value: val, label } });
+                            }}
+                            className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm text-slate-200 outline-none focus:border-emerald-500/50 transition-all appearance-none"
+                          >
+                            <option value="1">۱ ثانیه</option>
+                            <option value="2">۲ ثانیه</option>
+                            <option value="3">۳ ثانیه</option>
+                            <option value="4">۴ ثانیه</option>
+                            <option value="5">۵ ثانیه</option>
+                            <option value="10">۱۰ ثانیه</option>
+                            <option value="15">۱۵ ثانیه</option>
+                            <option value="30">۳۰ ثانیه</option>
+                            <option value="60">۱ دقیقه</option>
+                            <option value="120">۲ دقیقه</option>
+                            <option value="180">۳ دقیقه</option>
+                            <option value="240">۴ دقیقه</option>
+                            <option value="300">۵ دقیقه</option>
+                            <option value="900">۱۵ دقیقه</option>
+                            <option value="3600">۱ ساعت</option>
+                          </select>
                         </div>
                         <div>
                           <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">وضعیت اتصال</label>
@@ -464,29 +510,62 @@ export default function Dashboard() {
                   <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-3">
                     <TrendingUp className="w-4 h-4" /> تنظیمات شبیه‌ساز بازار
                   </h3>
-                  <div className="grid grid-cols-2 gap-6">
-                    <div>
-                      <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">نوسان (Volatility)</label>
-                      <input 
-                        type="number" 
-                        value={settings.simulation?.volatility || 5000}
-                        onChange={(e) => setSettings({ ...settings, simulation: { ...settings.simulation, volatility: parseInt(e.target.value) } })}
-                        className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">روند کلی (-1 تا 1)</label>
-                      <input 
-                        type="number" 
-                        step="0.1"
-                        min="-1"
-                        max="1"
-                        value={settings.simulation?.trend || 0}
-                        onChange={(e) => setSettings({ ...settings, simulation: { ...settings.simulation, trend: parseFloat(e.target.value) } })}
-                        className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none"
-                      />
+                  <div className="grid grid-cols-2 gap-6 mb-4">
+                    <div className="col-span-2">
+                      <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">حالت شبیه‌ساز</label>
+                      <div className="flex gap-4">
+                        <button
+                          onClick={() => setSettings({ ...settings, simulation: { ...settings.simulation, mode: 'RANDOM' } })}
+                          className={`flex-1 p-3 rounded-xl border transition-all text-sm font-bold ${settings.simulation?.mode !== 'BACKTEST' ? 'bg-emerald-500/10 border-emerald-500 text-emerald-500' : 'bg-white/5 border-white/5 text-slate-500'}`}
+                        >
+                          تولید تصادفی
+                        </button>
+                        <button
+                          onClick={() => setSettings({ ...settings, simulation: { ...settings.simulation, mode: 'BACKTEST' } })}
+                          className={`flex-1 p-3 rounded-xl border transition-all text-sm font-bold ${settings.simulation?.mode === 'BACKTEST' ? 'bg-emerald-500/10 border-emerald-500 text-emerald-500' : 'bg-white/5 border-white/5 text-slate-500'}`}
+                        >
+                          بک‌تست (داده‌های ذخیره شده)
+                        </button>
+                      </div>
                     </div>
                   </div>
+                  {settings.simulation?.mode === 'BACKTEST' ? (
+                    <div className="grid grid-cols-1 gap-6">
+                      <div>
+                        <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">سرعت پخش (میلی‌ثانیه)</label>
+                        <input 
+                          type="number" 
+                          value={settings.simulation?.speedMs || 100}
+                          onChange={(e) => setSettings({ ...settings, simulation: { ...settings.simulation, speedMs: parseInt(e.target.value) } })}
+                          className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-6">
+                      <div>
+                        <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">نوسان (Volatility)</label>
+                        <input 
+                          type="number" 
+                          value={settings.simulation?.volatility || 5000}
+                          onChange={(e) => setSettings({ ...settings, simulation: { ...settings.simulation, volatility: parseInt(e.target.value) } })}
+                          className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">روند کلی (-1 تا 1)</label>
+                        <input 
+                          type="number" 
+                          step="0.1"
+                          min="-1"
+                          max="1"
+                          value={settings.simulation?.trend || 0}
+                          onChange={(e) => setSettings({ ...settings, simulation: { ...settings.simulation, trend: parseFloat(e.target.value) } })}
+                          className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </section>
 
                 {/* Telegram Settings */}

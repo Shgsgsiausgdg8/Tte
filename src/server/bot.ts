@@ -35,6 +35,9 @@ export class FarazGoldBot {
   dailyStartBalance: number = 0;
   dailyDateKey: string = '';
   
+  currentCandle: any = null;
+  lastCandleTime: number = 0;
+  
   simulationInterval: NodeJS.Timeout | null = null;
   wsReconnectTimer: NodeJS.Timeout | null = null;
   pingTimer: NodeJS.Timeout | null = null;
@@ -76,7 +79,10 @@ export class FarazGoldBot {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36',
           'Accept': 'application/json, text/plain, */*',
+          'Accept-Language': 'en-GB,en-US;q=0.9,en;q=0.8,fa;q=0.7',
           'Content-Type': 'application/json',
+          'Origin': auth.baseUrl,
+          'Referer': `${auth.baseUrl}/room/`,
           'X-CSRFToken': auth.csrftoken,
           'X-Requested-With': 'XMLHttpRequest',
           'Cookie': cookies
@@ -184,9 +190,10 @@ export class FarazGoldBot {
   }
 
   async sendTelegramReport() {
-    const report = `📊 *گزارش عملکرد روزانه*
+    const report = `📊 *گزارش عملکرد دوره‌ای*
 💰 سود/ضرر امروز: ${this.dailyPnL.toLocaleString('fa-IR')} تومان
 📈 قیمت نهایی: ${this.price.toLocaleString('fa-IR')}
+🛒 پوزیشن‌های باز: ${this.openPositions.size}
 📅 تاریخ: ${this.dailyDateKey}`;
     await this.sendTelegramMessage(report);
   }
@@ -205,8 +212,16 @@ export class FarazGoldBot {
     this.mainLoopTimer = setInterval(() => {
       this.resetDailyIfNeeded();
       this.checkTargetsAndStops();
-      if (this.settings.source === 'API' && Date.now() % 30000 < 1000) {
+      
+      const now = Date.now();
+      
+      if (this.settings.source === 'API' && now % 30000 < 1000) {
         this.updatePortfolio();
+      }
+      
+      // Send periodic report every hour
+      if (now % 3600000 < 1000) {
+        this.sendTelegramReport();
       }
     }, 1000);
   }
@@ -241,14 +256,22 @@ export class FarazGoldBot {
         headers: {
           'Cookie': cookies,
           'Origin': auth.baseUrl,
+          'Referer': `${auth.baseUrl}/room/`,
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-CSRFToken': auth.csrftoken,
           'User-Agent': 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36'
         }
       });
       
+      this.ws.on('unexpected-response', (req, res) => {
+        console.error(`WS unexpected-response: ${res.statusCode}`);
+      });
+
       this.ws.on('open', () => {
         console.log("Connected to FarazGold WS.");
         this.isConnected = true;
         this.reconnectAttempts = 0;
+        this.sendTelegramMessage('🟢 *اتصال به سرور فرازگلد برقرار شد*');
         
         this.ws?.send(JSON.stringify({
           action: 'subscribe',
@@ -270,11 +293,14 @@ export class FarazGoldBot {
           }
 
           if (msg.bars && msg.bars['1']) {
-            const bars = msg.bars['1'];
-            if (Array.isArray(bars)) {
-              bars.forEach(bar => this.processCandle(bar));
-            } else {
-              this.processCandle(bars);
+            const timeframeValue = this.settings.timeframe?.value || 60;
+            if (timeframeValue === 60) {
+              const bars = msg.bars['1'];
+              if (Array.isArray(bars)) {
+                bars.forEach(bar => this.processCandle(bar));
+              } else {
+                this.processCandle(bars);
+              }
             }
           }
 
@@ -325,6 +351,9 @@ export class FarazGoldBot {
       });
 
       this.ws.on('close', () => {
+        if (this.isConnected) {
+          this.sendTelegramMessage('🔴 *ارتباط با سرور فرازگلد قطع شد*');
+        }
         this.isConnected = false;
         this.stopPingLoop();
         this.scheduleReconnect();
@@ -390,6 +419,31 @@ export class FarazGoldBot {
   updatePrice(newPrice: number) {
     if (newPrice <= 0 || newPrice === this.price) return;
     this.price = newPrice;
+    
+    const now = Date.now();
+    const timeframeMs = (this.settings.timeframe?.value || 60) * 1000;
+    const candleTime = Math.floor(now / timeframeMs) * timeframeMs;
+
+    if (!this.currentCandle || candleTime > this.lastCandleTime) {
+      if (this.currentCandle) {
+        this.processCandle(this.currentCandle);
+      }
+      this.currentCandle = {
+        open: newPrice,
+        high: newPrice,
+        low: newPrice,
+        close: newPrice,
+        volume: 1,
+        t: candleTime
+      };
+      this.lastCandleTime = candleTime;
+    } else {
+      this.currentCandle.high = Math.max(this.currentCandle.high, newPrice);
+      this.currentCandle.low = Math.min(this.currentCandle.low, newPrice);
+      this.currentCandle.close = newPrice;
+      this.currentCandle.volume += 1;
+    }
+
     this.checkForSignal();
   }
 
@@ -397,6 +451,35 @@ export class FarazGoldBot {
     if (this.simulationInterval) clearInterval(this.simulationInterval);
     this.marketStatus = 'OPEN';
     
+    if (this.settings.simulation?.mode === 'BACKTEST') {
+      try {
+        const marketFile = path.join(process.cwd(), 'logs', 'market.jsonl');
+        if (fs.existsSync(marketFile)) {
+          const content = fs.readFileSync(marketFile, 'utf8');
+          const lines = content.split('\n').filter(l => l.trim());
+          let i = 0;
+          this.simulationInterval = setInterval(() => {
+            if (i < lines.length) {
+              try {
+                const c = JSON.parse(lines[i]);
+                this.price = c.c;
+                this.processCandle(c);
+                i++;
+              } catch (e) {}
+            } else {
+              clearInterval(this.simulationInterval!);
+              console.log("Backtest finished.");
+            }
+          }, this.settings.simulation?.speedMs || 100);
+          return;
+        } else {
+          console.warn("Backtest mode selected but market.jsonl not found. Falling back to random simulation.");
+        }
+      } catch (e) {
+        console.error("Backtest Error:", e);
+      }
+    }
+
     this.price = this.settings.simulation?.basePrice || 18500000;
     this.simulationInterval = setInterval(() => {
       try {
@@ -513,7 +596,9 @@ export class FarazGoldBot {
     if (this.settings.source === 'API' && this.api) {
       try {
         if (pos.transactionId) {
-          await this.api.post(`/room/api/close-futures-transaction/${pos.transactionId}/`, {});
+          await this.api.post(`/room/api/close-futures-transaction/${pos.transactionId}/`, {}, {
+            headers: { 'Accept': '*/*', 'X-Requested-With': 'XMLHttpRequest' }
+          });
         } else {
           const closeAction = isBuy ? 'sell' : 'buy';
           await this.api.post('/room/api/submit-order/', {
@@ -552,6 +637,16 @@ export class FarazGoldBot {
   }
 
   getState() {
+    const candles = this.closes.map((c, i) => ({
+      x: new Date(Date.now() - (this.closes.length - i) * 60000).getTime(), // Approximate time
+      y: [
+        this.closes[i-1] || c, // Open (approximate if not stored)
+        this.highs[i],         // High
+        this.lows[i],          // Low
+        c                      // Close
+      ]
+    })).slice(-50); // Send last 50 candles
+
     return {
       price: this.price,
       isTrading: this.isTrading,
@@ -561,7 +656,8 @@ export class FarazGoldBot {
       dailyPnL: this.dailyPnL,
       indicators: this.strategy.indicators,
       settings: this.settings,
-      portfolio: this.portfolio
+      portfolio: this.portfolio,
+      candles: candles
     };
   }
 }

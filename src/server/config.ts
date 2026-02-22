@@ -85,6 +85,14 @@ export const config = {
   },
 
   // ==========================================
+  // ⏱️ Timeframe Settings
+  // ==========================================
+  timeframe: {
+    value: 60, // in seconds (e.g., 1, 2, 5, 60, 300, 3600)
+    label: '1m'
+  },
+
+  // ==========================================
   // 🤖 Strategy Settings
   // ==========================================
   activeStrategy: 'SCALP' as 'SCALP' | 'QUANT' | 'TREND',
