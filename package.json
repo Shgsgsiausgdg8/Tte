@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "vite build",
-    "build:server": "tsc server.ts --outDir dist --module esnext --target esnext --moduleResolution node --esModuleInterop --allowSyntheticDefaultImports",
+    "build": "vite build && npm run build:server",
+    "build:server": "tsc server.ts --outDir dist --module esnext --target esnext --moduleResolution bundler --esModuleInterop --allowSyntheticDefaultImports",
     "start": "node dist/server.js",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit"
