@@ -1,0 +1,15 @@
+{
+  "telegram": {
+    "enabled": false,
+    "botToken": "",
+    "chatId": ""
+  },
+  "strategy": {
+    "rsi": { "enabled": true, "period": 5, "oversold": 40, "overbought": 60 },
+    "ema": { "enabled": true, "fast": 3, "slow": 8 }
+  },
+  "risk": {
+    "maxOpenPositions": 2,
+    "maxDailyRisk": 8
+  }
+}
