@@ -87,7 +87,7 @@ export class FarazGoldBot {
   }
 
   setupAxios() {
-    const auth = this.settings.api || defaultConfig.auth;
+    const auth = { ...defaultConfig.auth, ...(this.settings.api || {}) };
     const cookies = `csrftoken=${auth.csrftoken}; sessionid=${auth.sessionid}`;
     
     this.api = axios.create({
@@ -316,7 +316,7 @@ export class FarazGoldBot {
       this.ws.terminate();
     }
 
-    const auth = this.settings.api || defaultConfig.auth;
+    const auth = { ...defaultConfig.auth, ...(this.settings.api || {}) };
     const url = auth.wsUrl;
     const cookies = `csrftoken=${auth.csrftoken}; sessionid=${auth.sessionid}`;
     
