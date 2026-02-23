@@ -27,6 +27,7 @@ export class FarazGoldBot {
   winningTrades: number = 0;
   losingTrades: number = 0;
   closedPositions: any[] = [];
+  logs: any[] = [];
   settings: any;
   tgBot: TelegramBot | null = null;
   
@@ -66,11 +67,23 @@ export class FarazGoldBot {
     this.recorder = new DataRecorder(this.settings.dataRecorder || defaultConfig.dataRecorder);
     
     this.autoTuneTimer = scheduleOptimization(this.settings, (level: string, msg: string) => {
-      console.log(`[AutoTune] ${level}: ${msg}`);
+      this.log(`[AutoTune] ${level}: ${msg}`, level === 'error' ? 'ERROR' : 'INFO');
       if (level === 'info' && msg.includes('Applied patch')) {
         this.strategy = new Strategy(this.settings);
       }
     });
+  }
+
+  log(message: string, type: 'INFO' | 'SUCCESS' | 'ERROR' | 'SIGNAL' | 'WS' = 'INFO') {
+    const logEntry = {
+      id: Date.now() + Math.random(),
+      time: new Date().toLocaleTimeString('fa-IR'),
+      message,
+      type
+    };
+    this.logs.push(logEntry);
+    if (this.logs.length > 100) this.logs.shift();
+    console.log(`[${logEntry.time}] [${type}] ${message}`);
   }
 
   setupAxios() {
@@ -175,7 +188,7 @@ export class FarazGoldBot {
     this.recorder = new DataRecorder(newSettings.dataRecorder);
 
     if (sourceChanged) {
-      console.log("Price source settings changed. Restarting source...");
+      this.log("Price source settings changed. Restarting source...", "INFO");
       this.connectToExternalWS();
     }
   }
@@ -184,8 +197,9 @@ export class FarazGoldBot {
     if (this.settings.telegram?.enabled && this.settings.telegram?.botToken) {
       try {
         this.tgBot = new TelegramBot(this.settings.telegram.botToken, { polling: false });
+        this.log("Telegram Bot initialized.", "INFO");
       } catch (e) {
-        console.error("Telegram Init Error:", e);
+        this.log(`Telegram Init Error: ${e}`, "ERROR");
       }
     } else {
       this.tgBot = null;
@@ -197,7 +211,7 @@ export class FarazGoldBot {
       try {
         await this.tgBot.sendMessage(this.settings.telegram.chatId, msg, { parse_mode: 'Markdown' });
       } catch (e) {
-        console.error("Telegram Send Error:", e);
+        this.log(`Telegram Send Error: ${e}`, "ERROR");
       }
     }
   }
@@ -212,7 +226,7 @@ export class FarazGoldBot {
   }
 
   async start() {
-    console.log("Bot engine v4.3 PRO starting...");
+    this.log("Bot engine v4.3 PRO starting...", "INFO");
     
     // Force API source
     this.settings.source = 'API';
@@ -243,7 +257,7 @@ export class FarazGoldBot {
     try {
       const to = Math.floor(Date.now() / 1000);
       const from = to - (24 * 60 * 60); // Last 24 hours
-      console.log(`Fetching historical bars from ${from} to ${to}...`);
+      this.log(`Fetching historical bars from ${from} to ${to}...`, "INFO");
       
       const response = await this.api.get('/room/api/get-bars/', {
         params: {
@@ -255,7 +269,7 @@ export class FarazGoldBot {
       });
 
       if (Array.isArray(response.data)) {
-        console.log(`Received ${response.data.length} historical bars.`);
+        this.log(`Received ${response.data.length} historical bars.`, "SUCCESS");
         // Clear existing data to avoid duplicates if restarting
         this.closes = [];
         this.highs = [];
@@ -275,11 +289,11 @@ export class FarazGoldBot {
           this.price = this.closes[this.closes.length - 1];
         }
         
-        console.log("Historical data loaded into bot state.");
+        this.log("Historical data loaded into bot state.", "SUCCESS");
         this.checkForSignal();
       }
     } catch (error) {
-      console.error("Historical Bars Fetch Error:", error);
+      this.log(`Historical Bars Fetch Error: ${error}`, "ERROR");
     }
   }
 
@@ -292,7 +306,7 @@ export class FarazGoldBot {
         this.dailyStartBalance = this.portfolio.balance || 0;
       }
     } catch (error) {
-      console.error("Portfolio Update Error:", error);
+      this.log(`Portfolio Update Error: ${error}`, "ERROR");
     }
   }
 
@@ -306,7 +320,7 @@ export class FarazGoldBot {
     const url = auth.wsUrl;
     const cookies = `csrftoken=${auth.csrftoken}; sessionid=${auth.sessionid}`;
     
-    console.log(`Connecting to FarazGold WS: ${url}`);
+    this.log(`Connecting to FarazGold WS...`, "WS");
     
     try {
       this.ws = new WebSocket(url, {
@@ -321,11 +335,11 @@ export class FarazGoldBot {
       });
       
       this.ws.on('unexpected-response', (req, res) => {
-        console.error(`WS unexpected-response: ${res.statusCode}`);
+        this.log(`WS unexpected-response: ${res.statusCode}`, "ERROR");
       });
 
       this.ws.on('open', () => {
-        console.log("Connected to FarazGold WS.");
+        this.log("Connected to FarazGold WS.", "WS");
         this.isConnected = true;
         this.reconnectAttempts = 0;
         this.sendTelegramMessage('🟢 *اتصال به سرور فرازگلد برقرار شد*');
@@ -404,7 +418,7 @@ export class FarazGoldBot {
       });
 
       this.ws.on('error', (err) => {
-        console.error("WS Error:", err);
+        this.log(`WS Error: ${err.message}`, "ERROR");
       });
 
       this.ws.on('close', () => {
@@ -412,12 +426,13 @@ export class FarazGoldBot {
           this.sendTelegramMessage('🔴 *ارتباط با سرور فرازگلد قطع شد*');
         }
         this.isConnected = false;
+        this.log("WS Connection Closed.", "WS");
         this.stopPingLoop();
         this.scheduleReconnect();
       });
 
     } catch (e) {
-      console.error("WS Connection Failed:", e);
+      this.log(`WS Connection Failed: ${e}`, "ERROR");
       this.scheduleReconnect();
     }
   }
@@ -520,6 +535,7 @@ export class FarazGoldBot {
 
     const result = this.strategy.analyze(history, this.openPositions.size, this.price);
     if (result.signal) {
+      this.log(`Signal Detected: ${result.signal.type} (${result.signal.pattern}) Score: ${result.signal.score}`, "SIGNAL");
       this.recorder.recordSignal({ ...result.signal, price: this.price });
       this.enterTrade(result.signal);
     }
@@ -550,6 +566,7 @@ export class FarazGoldBot {
         if (ok) {
           const id = Date.now();
           this.openPositions.set(id, { ...signal, id, entryTime: new Date(), status: 'open', units: 1 });
+          this.log(`Trade Executed: ${signal.type} at ${this.price}`, "SUCCESS");
           this.sendTelegramMessage(`🚀 *معامله جدید باز شد*
 نوع: ${signal.type === 'BUY' ? 'خرید 🟢' : 'فروش 🔴'}
 قیمت: ${this.price.toLocaleString('fa-IR')}
@@ -557,11 +574,12 @@ export class FarazGoldBot {
 حد ضرر: ${signal.sl.toLocaleString('fa-IR')}`);
         }
       } catch (e) {
-        console.error("Trade Entry Error:", e);
+        this.log(`Trade Entry Error: ${e}`, "ERROR");
       }
     } else {
       const id = Date.now();
       this.openPositions.set(id, { ...signal, id, entryTime: new Date(), status: 'open', units: 1 });
+      this.log(`Trade Executed (SIM/OFFLINE): ${signal.type} at ${this.price}`, "SUCCESS");
     }
   }
 
@@ -598,6 +616,8 @@ export class FarazGoldBot {
     const pos = this.openPositions.get(id);
     if (!pos) return;
 
+    this.log(`Closing Trade ${id} (${reason}) at ${this.price}`, "INFO");
+
     const isBuy = pos.type === 'BUY';
     const closePrice = this.price;
     const pnl = isBuy ? (closePrice - pos.entry) : (pos.entry - closePrice);
@@ -621,7 +641,7 @@ export class FarazGoldBot {
           });
         }
       } catch (e) {
-        console.error("Close Trade API Error:", e);
+        this.log(`Close Trade API Error: ${e}`, "ERROR");
       }
     }
 
@@ -684,7 +704,8 @@ export class FarazGoldBot {
       indicators: this.strategy.indicators,
       settings: this.settings,
       portfolio: this.portfolio,
-      candles: candles
+      candles: candles,
+      logs: this.logs
     };
   }
 }

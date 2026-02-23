@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Chart from 'react-apexcharts';
-import { Activity, TrendingUp, TrendingDown, AlertCircle, Clock, Power, ShieldCheck, Settings, Send, Save, X, ChevronRight } from 'lucide-react';
+import { Activity, TrendingUp, TrendingDown, AlertCircle, Clock, Power, ShieldCheck, Settings, Send, Save, X, ChevronRight, Terminal } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const formatPrice = (price: number) => {
@@ -122,22 +122,39 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-[#050505] text-slate-200 font-sans selection:bg-emerald-500/30 overflow-x-hidden">
       {/* Header */}
-      <header className="border-b border-white/5 bg-[#0a0a0a]/80 backdrop-blur-xl px-8 py-5 flex items-center justify-between sticky top-0 z-40">
-        <div className="flex items-center gap-4">
-          <motion.div 
-            whileHover={{ rotate: 180 }}
-            className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20"
-          >
-            <Activity className="w-6 h-6 text-white" />
-          </motion.div>
-          <div>
-            <h1 className="text-2xl font-black tracking-tighter text-white">MAZAANEH <span className="text-emerald-500">PRO</span></h1>
-            <p className="text-[10px] text-slate-500 font-mono uppercase tracking-[0.2em]">نسخه ۴.۳ - اسکالپر الگوریتمیک</p>
+      <header className="border-b border-white/5 bg-[#0a0a0a]/80 backdrop-blur-xl px-4 sm:px-8 py-4 sm:py-5 flex flex-col sm:flex-row items-center justify-between sticky top-0 z-40 gap-4 sm:gap-0">
+        <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-start">
+          <div className="flex items-center gap-4">
+            <motion.div 
+              whileHover={{ rotate: 180 }}
+              className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20"
+            >
+              <Activity className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+            </motion.div>
+            <div>
+              <h1 className="text-lg sm:text-2xl font-black tracking-tighter text-white">MAZAANEH <span className="text-emerald-500">PRO</span></h1>
+              <p className="text-[8px] sm:text-[10px] text-slate-500 font-mono uppercase tracking-[0.2em]">نسخه ۴.۳ - اسکالپر الگوریتمیک</p>
+            </div>
+          </div>
+          
+          <div className="flex sm:hidden items-center gap-3">
+            <button 
+              onClick={() => setShowSettings(true)}
+              className="p-2 bg-white/5 rounded-xl text-slate-400 hover:text-white transition-colors"
+            >
+              <Settings className="w-5 h-5" />
+            </button>
+            <button 
+              onClick={toggleTrading}
+              className={`p-2 rounded-xl transition-all ${botState.isTrading ? 'bg-rose-500/20 text-rose-500' : 'bg-emerald-500/20 text-emerald-500'}`}
+            >
+              <Power className="w-5 h-5" />
+            </button>
           </div>
         </div>
         
-        <div className="flex items-center gap-6">
-          <div className="hidden md:flex items-center gap-4 border-r border-white/10 pr-6 mr-2">
+        <div className="flex items-center gap-4 sm:gap-6 w-full sm:w-auto justify-center sm:justify-end">
+          <div className="hidden sm:flex items-center gap-4 border-r border-white/10 pr-6 mr-2">
             <div className="flex items-center gap-2">
               <span className="text-[10px] text-slate-500 font-mono uppercase">تلگرام</span>
               <button 
@@ -213,10 +230,10 @@ export default function Dashboard() {
         </div>
       </header>
 
-      <main className="p-8 max-w-[1800px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8" dir="rtl">
+      <main className="p-4 sm:p-8 max-w-[1800px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8" dir="rtl">
         {/* Main Chart Section */}
-        <div className="lg:col-span-8 space-y-8">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+        <div className="lg:col-span-8 space-y-6 sm:space-y-8">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
             {[
               { label: 'قیمت لحظه‌ای', value: formatPrice(botState.price), icon: TrendingUp, color: 'text-white' },
               { label: 'شاخص RSI', value: botState.indicators.rsi?.toFixed(2), icon: Activity, color: botState.indicators.rsi > 60 ? 'text-rose-500' : botState.indicators.rsi < 40 ? 'text-emerald-500' : 'text-white' },
@@ -227,13 +244,13 @@ export default function Dashboard() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.1 }}
                 key={i} 
-                className="bg-[#0f0f0f] border border-white/5 rounded-3xl p-6 hover:border-emerald-500/30 transition-colors group"
+                className="bg-[#0f0f0f] border border-white/5 rounded-2xl sm:rounded-3xl p-5 sm:p-6 hover:border-emerald-500/30 transition-colors group"
               >
-                <div className="flex items-center justify-between mb-4">
-                  <p className="text-[10px] text-slate-500 font-mono uppercase tracking-widest">{stat.label}</p>
-                  <stat.icon className="w-4 h-4 text-slate-600 group-hover:text-emerald-500 transition-colors" />
+                <div className="flex items-center justify-between mb-3 sm:mb-4">
+                  <p className="text-[9px] sm:text-[10px] text-slate-500 font-mono uppercase tracking-widest">{stat.label}</p>
+                  <stat.icon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-600 group-hover:text-emerald-500 transition-colors" />
                 </div>
-                <p className={`text-3xl font-black font-mono tracking-tighter ${stat.color}`}>{stat.value}</p>
+                <p className={`text-2xl sm:text-3xl font-black font-mono tracking-tighter ${stat.color}`}>{stat.value}</p>
               </motion.div>
             ))}
           </div>
@@ -241,21 +258,21 @@ export default function Dashboard() {
           <motion.div 
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-[#0f0f0f] border border-white/5 rounded-[2.5rem] p-8 h-[550px] shadow-2xl relative overflow-hidden"
+            className="bg-[#0f0f0f] border border-white/5 rounded-2xl sm:rounded-[2.5rem] p-4 sm:p-8 h-[400px] sm:h-[550px] shadow-2xl relative overflow-hidden"
           >
             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-emerald-500/50 to-transparent" />
-            <div className="flex items-center justify-between mb-8">
-              <h2 className="text-xs font-bold text-white uppercase tracking-[0.3em] flex items-center gap-3">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 sm:mb-8 gap-4 sm:gap-0">
+              <h2 className="text-[10px] sm:text-xs font-bold text-white uppercase tracking-[0.2em] sm:tracking-[0.3em] flex items-center gap-3">
                 <div className={`w-2 h-2 rounded-full ${botState.marketStatus === 'OPEN' ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
                 {botState.marketStatus === 'OPEN' ? 'تغییرات قیمت در لحظه (زنده)' : 'بازار در حال حاضر بسته است'}
               </h2>
-              <div className="flex gap-2" dir="ltr">
+              <div className="flex gap-2 w-full sm:w-auto justify-end" dir="ltr">
                 {['1M', '5M', '15M'].map(t => (
-                  <button key={t} className={`px-4 py-1.5 rounded-full text-[10px] font-bold transition-all ${t === '1M' ? 'bg-emerald-500 text-white' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}>{t}</button>
+                  <button key={t} className={`px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-[9px] sm:text-[10px] font-bold transition-all ${t === '1M' ? 'bg-emerald-500 text-white' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}>{t}</button>
                 ))}
               </div>
             </div>
-            <div className="h-[400px] w-full" dir="ltr">
+            <div className="h-[280px] sm:h-[400px] w-full" dir="ltr">
               <Chart
                 options={{
                   chart: {
@@ -314,14 +331,14 @@ export default function Dashboard() {
         </div>
 
         {/* Sidebar Section */}
-        <div className="lg:col-span-4 space-y-8">
+        <div className="lg:col-span-4 space-y-6 sm:space-y-8">
           <motion.div 
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
-            className="bg-[#0f0f0f] border border-white/5 rounded-[2.5rem] p-8 shadow-2xl"
+            className="bg-[#0f0f0f] border border-white/5 rounded-2xl sm:rounded-[2.5rem] p-6 sm:p-8 shadow-2xl"
           >
-            <h2 className="text-xs font-bold text-white uppercase tracking-[0.3em] mb-8 flex items-center gap-3">
-              <ShieldCheck className="w-5 h-5 text-emerald-500" />
+            <h2 className="text-[10px] sm:text-xs font-bold text-white uppercase tracking-[0.2em] sm:tracking-[0.3em] mb-6 sm:mb-8 flex items-center gap-3">
+              <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-500" />
               پوزیشن‌های باز
             </h2>
             <div className="space-y-4">
@@ -332,38 +349,38 @@ export default function Dashboard() {
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, scale: 0.9 }}
-                    className="bg-white/5 border border-white/5 rounded-3xl p-5 relative group overflow-hidden"
+                    className="bg-white/5 border border-white/5 rounded-2xl sm:rounded-3xl p-4 sm:p-5 relative group overflow-hidden"
                   >
                     <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 blur-3xl rounded-full -mr-12 -mt-12" />
-                    <div className="flex justify-between items-center mb-4">
+                    <div className="flex justify-between items-center mb-3 sm:mb-4">
                       <div className="flex flex-col">
-                        <span className={`text-[10px] font-black px-3 py-1 rounded-full w-fit ${pos.type === 'BUY' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-rose-500/20 text-rose-500'}`}>
+                        <span className={`text-[9px] sm:text-[10px] font-black px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full w-fit ${pos.type === 'BUY' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-rose-500/20 text-rose-500'}`}>
                           {pos.type}
                         </span>
-                        <span className="text-[9px] text-slate-400 mt-1 font-mono uppercase">{pos.pattern || 'EMA CROSS'}</span>
+                        <span className="text-[8px] sm:text-[9px] text-slate-400 mt-1 font-mono uppercase">{pos.pattern || 'EMA CROSS'}</span>
                       </div>
-                      <span className="text-[10px] text-slate-500 font-mono">{new Date(pos.entryTime).toLocaleTimeString('fa-IR')}</span>
+                      <span className="text-[9px] sm:text-[10px] text-slate-500 font-mono">{new Date(pos.entryTime).toLocaleTimeString('fa-IR')}</span>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <p className="text-[9px] text-slate-500 uppercase font-mono mb-1">ورود</p>
-                        <p className="text-sm font-bold font-mono text-white">{formatPrice(pos.entry)}</p>
+                        <p className="text-[8px] sm:text-[9px] text-slate-500 uppercase font-mono mb-1">ورود</p>
+                        <p className="text-xs sm:text-sm font-bold font-mono text-white">{formatPrice(pos.entry)}</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-[9px] text-slate-500 uppercase font-mono mb-1">حد سود / ضرر</p>
-                        <p className="text-[10px] font-bold font-mono text-emerald-500">{formatPrice(pos.tp1 || pos.tp)}</p>
-                        <p className="text-[10px] font-bold font-mono text-rose-500">{formatPrice(pos.sl)}</p>
+                        <p className="text-[8px] sm:text-[9px] text-slate-500 uppercase font-mono mb-1">حد سود / ضرر</p>
+                        <p className="text-[9px] sm:text-[10px] font-bold font-mono text-emerald-500">{formatPrice(pos.tp1 || pos.tp)}</p>
+                        <p className="text-[9px] sm:text-[10px] font-bold font-mono text-rose-500">{formatPrice(pos.sl)}</p>
                       </div>
                     </div>
                   </motion.div>
                 ))}
               </AnimatePresence>
               {botState.openPositions.length === 0 && (
-                <div className="text-center py-12">
-                  <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Clock className="w-6 h-6 text-slate-600" />
+                <div className="text-center py-8 sm:py-12">
+                  <div className="w-12 h-12 sm:w-16 sm:h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Clock className="w-5 h-5 sm:w-6 sm:h-6 text-slate-600" />
                   </div>
-                  <p className="text-slate-500 text-xs font-mono italic">در انتظار سیگنال بازار...</p>
+                  <p className="text-slate-500 text-[10px] sm:text-xs font-mono italic">در انتظار سیگنال بازار...</p>
                 </div>
               )}
             </div>
@@ -373,54 +390,54 @@ export default function Dashboard() {
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.2 }}
-            className="bg-[#0f0f0f] border border-white/5 rounded-[2.5rem] p-8 shadow-2xl"
+            className="bg-[#0f0f0f] border border-white/5 rounded-2xl sm:rounded-[2.5rem] p-6 sm:p-8 shadow-2xl"
           >
-            <h2 className="text-xs font-bold text-white uppercase tracking-[0.3em] mb-8 flex items-center gap-3">
-              <Activity className="w-5 h-5 text-slate-500" />
+            <h2 className="text-[10px] sm:text-xs font-bold text-white uppercase tracking-[0.2em] sm:tracking-[0.3em] mb-6 sm:mb-8 flex items-center gap-3">
+              <Activity className="w-4 h-4 sm:w-5 sm:h-5 text-slate-500" />
               کنترل دستی و آمار
             </h2>
             
             {/* Manual Trading */}
-            <div className="grid grid-cols-2 gap-4 mb-8">
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-6 sm:mb-8">
               <button 
                 onClick={() => manualTrade('BUY')}
-                className="bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 text-emerald-500 py-3 rounded-2xl font-bold text-sm transition-all"
+                className="bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 text-emerald-500 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm transition-all"
               >
                 خرید دستی (BUY)
               </button>
               <button 
                 onClick={() => manualTrade('SELL')}
-                className="bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-rose-500 py-3 rounded-2xl font-bold text-sm transition-all"
+                className="bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-rose-500 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm transition-all"
               >
                 فروش دستی (SELL)
               </button>
               <button 
                 onClick={closeAllTrades}
-                className="col-span-2 bg-slate-800 hover:bg-slate-700 text-white py-3 rounded-2xl font-bold text-sm transition-all"
+                className="col-span-2 bg-slate-800 hover:bg-slate-700 text-white py-2.5 sm:py-3 rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm transition-all"
               >
                 بستن تمام پوزیشن‌ها
               </button>
             </div>
 
             {/* Statistics */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-white/5 rounded-2xl p-4">
-                <p className="text-[10px] text-slate-500 font-mono uppercase mb-1">تعداد کل معاملات</p>
-                <p className="text-xl font-bold text-white">{botState.totalTrades || 0}</p>
+            <div className="grid grid-cols-2 gap-3 sm:gap-4">
+              <div className="bg-white/5 rounded-xl sm:rounded-2xl p-3 sm:p-4">
+                <p className="text-[8px] sm:text-[10px] text-slate-500 font-mono uppercase mb-1">تعداد کل معاملات</p>
+                <p className="text-lg sm:text-xl font-bold text-white">{botState.totalTrades || 0}</p>
               </div>
-              <div className="bg-white/5 rounded-2xl p-4">
-                <p className="text-[10px] text-slate-500 font-mono uppercase mb-1">وین ریت (Win Rate)</p>
-                <p className="text-xl font-bold text-emerald-500">
+              <div className="bg-white/5 rounded-xl sm:rounded-2xl p-3 sm:p-4">
+                <p className="text-[8px] sm:text-[10px] text-slate-500 font-mono uppercase mb-1">وین ریت (Win Rate)</p>
+                <p className="text-lg sm:text-xl font-bold text-emerald-500">
                   {botState.totalTrades > 0 ? Math.round((botState.winningTrades / botState.totalTrades) * 100) : 0}%
                 </p>
               </div>
-              <div className="bg-white/5 rounded-2xl p-4">
-                <p className="text-[10px] text-slate-500 font-mono uppercase mb-1">معاملات سودده</p>
-                <p className="text-xl font-bold text-emerald-500">{botState.winningTrades || 0}</p>
+              <div className="bg-white/5 rounded-xl sm:rounded-2xl p-3 sm:p-4">
+                <p className="text-[8px] sm:text-[10px] text-slate-500 font-mono uppercase mb-1">معاملات سودده</p>
+                <p className="text-lg sm:text-xl font-bold text-emerald-500">{botState.winningTrades || 0}</p>
               </div>
-              <div className="bg-white/5 rounded-2xl p-4">
-                <p className="text-[10px] text-slate-500 font-mono uppercase mb-1">معاملات ضررده</p>
-                <p className="text-xl font-bold text-rose-500">{botState.losingTrades || 0}</p>
+              <div className="bg-white/5 rounded-xl sm:rounded-2xl p-3 sm:p-4">
+                <p className="text-[8px] sm:text-[10px] text-slate-500 font-mono uppercase mb-1">معاملات ضررده</p>
+                <p className="text-lg sm:text-xl font-bold text-rose-500">{botState.losingTrades || 0}</p>
               </div>
             </div>
           </motion.div>
@@ -430,11 +447,11 @@ export default function Dashboard() {
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.3 }}
-            className="bg-[#0f0f0f] border border-white/5 rounded-[2.5rem] p-8 shadow-2xl"
+            className="bg-[#0f0f0f] border border-white/5 rounded-2xl sm:rounded-[2.5rem] p-6 sm:p-8 shadow-2xl"
           >
-            <div className="flex justify-between items-center mb-8">
-              <h2 className="text-xs font-bold text-white uppercase tracking-[0.3em] flex items-center gap-3">
-                <Clock className="w-5 h-5 text-slate-500" />
+            <div className="flex justify-between items-center mb-6 sm:mb-8">
+              <h2 className="text-[10px] sm:text-xs font-bold text-white uppercase tracking-[0.2em] sm:tracking-[0.3em] flex items-center gap-3">
+                <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-slate-500" />
                 تاریخچه معاملات
               </h2>
               <button 
@@ -448,28 +465,72 @@ export default function Dashboard() {
                   link.setAttribute("download", "trade_history.csv");
                   document.body.appendChild(link);
                   link.click();
+                  document.body.removeChild(link);
                 }}
-                className="text-[10px] bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-lg transition-colors"
+                className="text-[9px] sm:text-[10px] bg-white/5 hover:bg-white/10 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg transition-colors"
               >
                 دانلود CSV
               </button>
             </div>
-            <div className="space-y-3 max-h-[300px] overflow-y-auto custom-scrollbar" dir="rtl">
+            <div className="space-y-3 max-h-[250px] sm:max-h-[300px] overflow-y-auto custom-scrollbar" dir="rtl">
               {(botState.closedPositions || []).slice().reverse().map((pos: any, i: number) => (
-                <div key={i} className="flex justify-between items-center bg-white/5 p-3 rounded-xl">
+                <div key={i} className="flex justify-between items-center bg-white/5 p-2.5 sm:p-3 rounded-xl sm:rounded-2xl">
                   <div className="flex items-center gap-3">
-                    <span className={`text-[10px] font-bold px-2 py-1 rounded-md ${pos.type === 'BUY' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-rose-500/20 text-rose-500'}`}>
+                    <span className={`text-[9px] sm:text-[10px] font-bold px-2 py-0.5 sm:py-1 rounded-md ${pos.type === 'BUY' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-rose-500/20 text-rose-500'}`}>
                       {pos.type}
                     </span>
-                    <span className="text-xs font-mono text-slate-400">{formatPrice(pos.pnl)}</span>
+                    <span className="text-[10px] sm:text-xs font-mono text-slate-400">{formatPrice(pos.pnl)}</span>
                   </div>
                   <div className="text-left">
-                    <span className="text-[10px] text-slate-500">{new Date(pos.exitTime).toLocaleTimeString('fa-IR')}</span>
+                    <span className="text-[9px] sm:text-[10px] text-slate-500">{new Date(pos.exitTime).toLocaleTimeString('fa-IR')}</span>
                   </div>
                 </div>
               ))}
               {(!botState.closedPositions || botState.closedPositions.length === 0) && (
-                <p className="text-center text-slate-500 text-xs py-4">تاریخچه‌ای موجود نیست</p>
+                <p className="text-center text-slate-500 text-[10px] sm:text-xs py-4">تاریخچه‌ای موجود نیست</p>
+              )}
+            </div>
+          </motion.div>
+        </div>
+
+        {/* Terminal Log Section */}
+        <div className="lg:col-span-12">
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="bg-[#0a0a0a] border border-white/5 rounded-2xl sm:rounded-[2.5rem] p-6 sm:p-8 shadow-2xl overflow-hidden"
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-[10px] sm:text-xs font-bold text-white uppercase tracking-[0.2em] sm:tracking-[0.3em] flex items-center gap-3">
+                <Terminal className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-500" />
+                مانیتورینگ و لاگ سیستم
+              </h2>
+              <div className="flex gap-2">
+                <div className="w-2 h-2 rounded-full bg-rose-500" />
+                <div className="w-2 h-2 rounded-full bg-amber-500" />
+                <div className="w-2 h-2 rounded-full bg-emerald-500" />
+              </div>
+            </div>
+            
+            <div className="bg-black/50 rounded-xl p-4 font-mono text-[10px] sm:text-xs h-[200px] overflow-y-auto custom-scrollbar space-y-2 border border-white/5" dir="ltr">
+              {(botState.logs || []).slice().reverse().map((log: any) => (
+                <div key={log.id} className="flex gap-3 border-b border-white/5 pb-1 last:border-0">
+                  <span className="text-slate-600 shrink-0">[{log.time}]</span>
+                  <span className={`font-bold shrink-0 ${
+                    log.type === 'ERROR' ? 'text-rose-500' : 
+                    log.type === 'SUCCESS' ? 'text-emerald-500' : 
+                    log.type === 'SIGNAL' ? 'text-amber-500' : 
+                    log.type === 'WS' ? 'text-blue-500' : 
+                    'text-slate-400'
+                  }`}>
+                    [{log.type}]
+                  </span>
+                  <span className="text-slate-300 break-all">{log.message}</span>
+                </div>
+              ))}
+              {(!botState.logs || botState.logs.length === 0) && (
+                <div className="text-slate-600 italic">در انتظار دریافت لاگ از سیستم...</div>
               )}
             </div>
           </motion.div>
@@ -491,19 +552,19 @@ export default function Dashboard() {
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative w-full max-w-2xl bg-[#0f0f0f] border border-white/10 rounded-[3rem] p-10 shadow-3xl overflow-hidden"
+              className="relative w-full max-w-2xl bg-[#0f0f0f] border border-white/10 rounded-2xl sm:rounded-[3rem] p-6 sm:p-10 shadow-3xl overflow-hidden"
             >
-              <div className="flex items-center justify-between mb-10" dir="rtl">
-                <h2 className="text-xl font-black text-white flex items-center gap-4">
-                  <Settings className="w-6 h-6 text-emerald-500" />
+              <div className="flex items-center justify-between mb-6 sm:mb-10" dir="rtl">
+                <h2 className="text-lg sm:text-xl font-black text-white flex items-center gap-4">
+                  <Settings className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-500" />
                   تنظیمات پیشرفته ربات
                 </h2>
                 <button onClick={() => setShowSettings(false)} className="p-2 hover:bg-white/5 rounded-full transition-colors">
-                  <X className="w-6 h-6 text-slate-500" />
+                  <X className="w-5 h-5 sm:w-6 sm:h-6 text-slate-500" />
                 </button>
               </div>
 
-              <div className="space-y-8 max-h-[60vh] overflow-y-auto pr-4 custom-scrollbar" dir="rtl">
+              <div className="space-y-6 sm:space-y-8 max-h-[70vh] overflow-y-auto pr-2 sm:pr-4 custom-scrollbar" dir="rtl">
                 {/* Data Source Selection */}
                 <section>
                   <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-3">
@@ -700,14 +761,14 @@ export default function Dashboard() {
                   </h3>
                   
                   {settings.activeStrategy === 'SCALP' && (
-                    <div className="grid grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                       <div>
                         <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">دوره RSI</label>
                         <input 
                           type="number" 
                           value={settings.strategy?.indicators?.rsi?.period || 5}
                           onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, indicators: { ...settings.strategy?.indicators, rsi: { ...settings.strategy?.indicators?.rsi, period: parseInt(e.target.value) } } } })}
-                          className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none"
+                          className="w-full bg-white/5 border border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-2.5 sm:py-3 text-sm outline-none focus:border-emerald-500/50"
                         />
                       </div>
                       <div>
@@ -716,17 +777,17 @@ export default function Dashboard() {
                           type="number" 
                           value={settings.strategy?.indicators?.ema?.fast || 3}
                           onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, indicators: { ...settings.strategy?.indicators, ema: { ...settings.strategy?.indicators?.ema, fast: parseInt(e.target.value) } } } })}
-                          className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none"
+                          className="w-full bg-white/5 border border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-2.5 sm:py-3 text-sm outline-none focus:border-emerald-500/50"
                         />
                       </div>
                     </div>
                   )}
 
                   {settings.activeStrategy === 'FAST' && (
-                    <div className="grid grid-cols-2 gap-6">
-                      <div className="col-span-2 bg-emerald-500/5 p-4 rounded-2xl border border-emerald-500/20">
-                        <p className="text-[10px] text-emerald-500 font-bold mb-1">توضیح استراتژی فوق سریع</p>
-                        <p className="text-[11px] text-slate-400">این استراتژی از دوره‌های بسیار کوتاه (EMA 5/13 و RSI 7) برای شناسایی سریع‌ترین نوسانات بازار استفاده می‌کند. مناسب برای بازارهای پر نوسان.</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                      <div className="col-span-1 sm:col-span-2 bg-emerald-500/5 p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-emerald-500/20">
+                        <p className="text-[9px] sm:text-[10px] text-emerald-500 font-bold mb-1">توضیح استراتژی فوق سریع</p>
+                        <p className="text-[10px] sm:text-[11px] text-slate-400">این استراتژی از دوره‌های بسیار کوتاه (EMA 5/13 و RSI 7) برای شناسایی سریع‌ترین نوسانات بازار استفاده می‌کند. مناسب برای بازارهای پر نوسان.</p>
                       </div>
                       <div>
                         <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">حداقل امتیاز سیگنال</label>
@@ -734,7 +795,7 @@ export default function Dashboard() {
                           type="number" 
                           value={settings.strategy?.minSignalScore || 1}
                           onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, minSignalScore: parseInt(e.target.value) } })}
-                          className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-emerald-500/50"
+                          className="w-full bg-white/5 border border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-2.5 sm:py-3 text-sm outline-none focus:border-emerald-500/50"
                         />
                       </div>
                       <div>
@@ -743,21 +804,21 @@ export default function Dashboard() {
                           type="number" 
                           value={settings.strategy?.tradeCooldown || 8}
                           onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, tradeCooldown: parseInt(e.target.value) } })}
-                          className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-emerald-500/50"
+                          className="w-full bg-white/5 border border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-2.5 sm:py-3 text-sm outline-none focus:border-emerald-500/50"
                         />
                       </div>
                     </div>
                   )}
 
                   {settings.activeStrategy === 'QUANT' && (
-                    <div className="grid grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                       <div>
                         <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">MA سریع (روند)</label>
                         <input 
                           type="number" 
                           value={settings.strategy?.quant?.maFast || 50}
                           onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, quant: { ...settings.strategy?.quant, maFast: parseInt(e.target.value) } } })}
-                          className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none"
+                          className="w-full bg-white/5 border border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-2.5 sm:py-3 text-sm outline-none focus:border-emerald-500/50"
                         />
                       </div>
                       <div>
@@ -766,7 +827,7 @@ export default function Dashboard() {
                           type="number" 
                           value={settings.strategy?.quant?.maSlow || 200}
                           onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, quant: { ...settings.strategy?.quant, maSlow: parseInt(e.target.value) } } })}
-                          className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none"
+                          className="w-full bg-white/5 border border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-2.5 sm:py-3 text-sm outline-none focus:border-emerald-500/50"
                         />
                       </div>
                       <div>
@@ -776,7 +837,7 @@ export default function Dashboard() {
                           step="0.1"
                           value={settings.strategy?.quant?.riskRewardRatio || 2}
                           onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, quant: { ...settings.strategy?.quant, riskRewardRatio: parseFloat(e.target.value) } } })}
-                          className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none"
+                          className="w-full bg-white/5 border border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-2.5 sm:py-3 text-sm outline-none focus:border-emerald-500/50"
                         />
                       </div>
                       <div>
@@ -785,21 +846,21 @@ export default function Dashboard() {
                           type="number" 
                           value={settings.strategy?.quant?.swingLength || 5}
                           onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, quant: { ...settings.strategy?.quant, swingLength: parseInt(e.target.value) } } })}
-                          className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none"
+                          className="w-full bg-white/5 border border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-2.5 sm:py-3 text-sm outline-none focus:border-emerald-500/50"
                         />
                       </div>
                     </div>
                   )}
 
                   {settings.activeStrategy === 'TREND' && (
-                    <div className="grid grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                       <div>
                         <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">MA سریع</label>
                         <input 
                           type="number" 
                           value={settings.strategy?.trend?.maFast || 20}
                           onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, trend: { ...settings.strategy?.trend, maFast: parseInt(e.target.value) } } })}
-                          className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none"
+                          className="w-full bg-white/5 border border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-2.5 sm:py-3 text-sm outline-none focus:border-emerald-500/50"
                         />
                       </div>
                       <div>
@@ -808,7 +869,7 @@ export default function Dashboard() {
                           type="number" 
                           value={settings.strategy?.trend?.maSlow || 50}
                           onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, trend: { ...settings.strategy?.trend, maSlow: parseInt(e.target.value) } } })}
-                          className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none"
+                          className="w-full bg-white/5 border border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-2.5 sm:py-3 text-sm outline-none focus:border-emerald-500/50"
                         />
                       </div>
                     </div>
@@ -816,13 +877,19 @@ export default function Dashboard() {
                 </section>
               </div>
 
-              <div className="mt-10 flex gap-4">
+              <div className="mt-6 sm:mt-10 flex flex-col sm:flex-row gap-3 sm:gap-4">
                 <button 
                   onClick={saveSettings}
-                  className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-black py-4 rounded-2xl transition-all flex items-center justify-center gap-3 shadow-xl shadow-emerald-500/20"
+                  className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-black py-3 sm:py-4 rounded-xl sm:rounded-2xl transition-all flex items-center justify-center gap-3 shadow-xl shadow-emerald-500/20 text-sm sm:text-base"
                 >
-                  <Save className="w-5 h-5" />
+                  <Save className="w-4 h-4 sm:w-5 sm:h-5" />
                   ذخیره تنظیمات
+                </button>
+                <button 
+                  onClick={() => setShowSettings(false)}
+                  className="flex-1 bg-white/5 hover:bg-white/10 text-slate-400 py-3 sm:py-4 rounded-xl sm:rounded-2xl transition-all text-sm sm:text-base"
+                >
+                  انصراف
                 </button>
               </div>
             </motion.div>
