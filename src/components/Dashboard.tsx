@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Chart from 'react-apexcharts';
-import { Activity, TrendingUp, TrendingDown, AlertCircle, Clock, Power, ShieldCheck, Settings, Send, Save, X, ChevronRight, Terminal } from 'lucide-react';
+import { Activity, TrendingUp, TrendingDown, AlertCircle, Clock, Power, ShieldCheck, Settings, Send, Save, X, ChevronRight, Terminal, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const formatPrice = (price: number) => {
@@ -11,6 +11,7 @@ export default function Dashboard() {
   const [botState, setBotState] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [showSettings, setShowSettings] = useState(false);
+  const [showLogs, setShowLogs] = useState(true);
   const [settings, setSettings] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -214,6 +215,17 @@ export default function Dashboard() {
           
           <div className="flex items-center gap-2 bg-white/5 p-1.5 rounded-2xl border border-white/5">
             <button 
+              onClick={async () => {
+                if (window.confirm('آیا از ریست کردن آمار امروز اطمینان دارید؟')) {
+                  await fetch('/api/bot/reset-stats', { method: 'POST' });
+                }
+              }}
+              title="ریست آمار"
+              className="p-2.5 rounded-xl hover:bg-white/5 transition-colors text-slate-400 hover:text-white"
+            >
+              <RefreshCw className="w-5 h-5" />
+            </button>
+            <button 
               onClick={() => setShowSettings(true)}
               className="p-2.5 rounded-xl hover:bg-white/5 transition-colors text-slate-400 hover:text-white"
             >
@@ -236,7 +248,7 @@ export default function Dashboard() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
             {[
               { label: 'قیمت لحظه‌ای', value: formatPrice(botState.price), icon: TrendingUp, color: 'text-white' },
-              { label: 'شاخص RSI', value: botState.indicators.rsi?.toFixed(2), icon: Activity, color: botState.indicators.rsi > 60 ? 'text-rose-500' : botState.indicators.rsi < 40 ? 'text-emerald-500' : 'text-white' },
+              { label: 'شاخص RSI', value: botState.indicators?.rsi ? botState.indicators.rsi.toFixed(2) : '---', icon: Activity, color: botState.indicators?.rsi > 60 ? 'text-rose-500' : botState.indicators?.rsi < 40 ? 'text-emerald-500' : 'text-white' },
               { label: 'معاملات فعال', value: botState.openPositions.length, icon: ShieldCheck, color: 'text-emerald-500' }
             ].map((stat, i) => (
               <motion.div 
@@ -266,12 +278,27 @@ export default function Dashboard() {
                 <div className={`w-2 h-2 rounded-full ${botState.marketStatus === 'OPEN' ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
                 {botState.marketStatus === 'OPEN' ? 'تغییرات قیمت در لحظه (زنده)' : 'بازار در حال حاضر بسته است'}
               </h2>
-              <div className="flex gap-2 w-full sm:w-auto justify-end" dir="ltr">
-                {['1M', '5M', '15M'].map(t => (
-                  <button key={t} className={`px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-[9px] sm:text-[10px] font-bold transition-all ${t === '1M' ? 'bg-emerald-500 text-white' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}>{t}</button>
-                ))}
+              <div className="flex items-center gap-4">
+                {botState.marketAnalysis && (
+                  <div className="hidden sm:flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-xl border border-white/5">
+                    <span className="text-[9px] text-slate-500">وضعیت بازار:</span>
+                    <span className={`text-[10px] font-bold ${botState.marketAnalysis.color}`}>{botState.marketAnalysis.trend}</span>
+                  </div>
+                )}
+                <div className="flex gap-2 w-full sm:w-auto justify-end" dir="ltr">
+                  {['1M', '5M', '15M'].map(t => (
+                    <button key={t} className={`px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-[9px] sm:text-[10px] font-bold transition-all ${t === '1M' ? 'bg-emerald-500 text-white' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}>{t}</button>
+                  ))}
+                </div>
               </div>
             </div>
+            
+            {botState.marketAnalysis && (
+              <div className="sm:hidden mb-4 bg-white/5 p-3 rounded-xl border border-white/5 text-[10px] text-slate-400">
+                <span className="font-bold text-slate-300">تحلیل:</span> {botState.marketAnalysis.analysis}
+              </div>
+            )}
+            
             <div className="h-[280px] sm:h-[400px] w-full" dir="ltr">
               <Chart
                 options={{
@@ -327,6 +354,15 @@ export default function Dashboard() {
                 width="100%"
               />
             </div>
+            {botState.marketAnalysis && (
+              <div className="hidden sm:block absolute bottom-6 left-8 bg-[#0a0a0a]/80 backdrop-blur-md p-4 rounded-2xl border border-white/10 max-w-md shadow-2xl">
+                <div className="flex items-center gap-2 mb-2">
+                  <Activity className="w-4 h-4 text-emerald-500" />
+                  <span className="text-[10px] font-bold text-white uppercase tracking-widest">تحلیل هوشمند بازار</span>
+                </div>
+                <p className="text-xs text-slate-300 leading-relaxed">{botState.marketAnalysis.analysis}</p>
+              </div>
+            )}
           </motion.div>
         </div>
 
@@ -506,33 +542,43 @@ export default function Dashboard() {
                 <Terminal className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-500" />
                 مانیتورینگ و لاگ سیستم
               </h2>
-              <div className="flex gap-2">
-                <div className="w-2 h-2 rounded-full bg-rose-500" />
-                <div className="w-2 h-2 rounded-full bg-amber-500" />
-                <div className="w-2 h-2 rounded-full bg-emerald-500" />
+              <div className="flex items-center gap-4">
+                <button 
+                  onClick={() => setShowLogs(!showLogs)}
+                  className={`text-[9px] sm:text-[10px] px-3 py-1.5 rounded-lg transition-colors ${showLogs ? 'bg-emerald-500/20 text-emerald-500' : 'bg-white/5 text-slate-400'}`}
+                >
+                  {showLogs ? 'روشن' : 'خاموش'}
+                </button>
+                <div className="flex gap-2">
+                  <div className="w-2 h-2 rounded-full bg-rose-500" />
+                  <div className="w-2 h-2 rounded-full bg-amber-500" />
+                  <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                </div>
               </div>
             </div>
             
-            <div className="bg-black/50 rounded-xl p-4 font-mono text-[10px] sm:text-xs h-[200px] overflow-y-auto custom-scrollbar space-y-2 border border-white/5" dir="ltr">
-              {(botState.logs || []).slice().reverse().map((log: any) => (
-                <div key={log.id} className="flex gap-3 border-b border-white/5 pb-1 last:border-0">
-                  <span className="text-slate-600 shrink-0">[{log.time}]</span>
-                  <span className={`font-bold shrink-0 ${
-                    log.type === 'ERROR' ? 'text-rose-500' : 
-                    log.type === 'SUCCESS' ? 'text-emerald-500' : 
-                    log.type === 'SIGNAL' ? 'text-amber-500' : 
-                    log.type === 'WS' ? 'text-blue-500' : 
-                    'text-slate-400'
-                  }`}>
-                    [{log.type}]
-                  </span>
-                  <span className="text-slate-300 break-all">{log.message}</span>
-                </div>
-              ))}
-              {(!botState.logs || botState.logs.length === 0) && (
-                <div className="text-slate-600 italic">در انتظار دریافت لاگ از سیستم...</div>
-              )}
-            </div>
+            {showLogs && (
+              <div className="bg-black/50 rounded-xl p-4 font-mono text-[10px] sm:text-xs h-[200px] overflow-y-auto custom-scrollbar space-y-2 border border-white/5" dir="ltr">
+                {(botState.logs || []).slice().reverse().map((log: any) => (
+                  <div key={log.id} className="flex gap-3 border-b border-white/5 pb-1 last:border-0">
+                    <span className="text-slate-600 shrink-0">[{log.time}]</span>
+                    <span className={`font-bold shrink-0 ${
+                      log.type === 'ERROR' ? 'text-rose-500' : 
+                      log.type === 'SUCCESS' ? 'text-emerald-500' : 
+                      log.type === 'SIGNAL' ? 'text-amber-500' : 
+                      log.type === 'WS' ? 'text-blue-500' : 
+                      'text-slate-400'
+                    }`}>
+                      [{log.type}]
+                    </span>
+                    <span className="text-slate-300 break-all">{log.message}</span>
+                  </div>
+                ))}
+                {(!botState.logs || botState.logs.length === 0) && (
+                  <div className="text-slate-600 italic">در انتظار دریافت لاگ از سیستم...</div>
+                )}
+              </div>
+            )}
           </motion.div>
         </div>
       </main>
@@ -754,6 +800,33 @@ export default function Dashboard() {
                   </div>
                 </section>
 
+                <section>
+                  <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-3">
+                    <ShieldCheck className="w-4 h-4" /> فیلترها و محدودیت‌ها
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                    <div>
+                      <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">حداکثر پوزیشن همزمان</label>
+                      <input 
+                        type="number" 
+                        value={settings.strategy?.filters?.maxPositions || 3}
+                        onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, filters: { ...settings.strategy?.filters, maxPositions: parseInt(e.target.value) } } })}
+                        className="w-full bg-white/5 border border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-2.5 sm:py-3 text-sm outline-none focus:border-emerald-500/50"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">حداکثر معامله در ۱۰ دقیقه</label>
+                      <input 
+                        type="number" 
+                        value={settings.strategy?.filters?.maxTradesPer10Min || 2}
+                        onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, filters: { ...settings.strategy?.filters, maxTradesPer10Min: parseInt(e.target.value) } } })}
+                        className="w-full bg-white/5 border border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-2.5 sm:py-3 text-sm outline-none focus:border-emerald-500/50"
+                      />
+                      <p className="text-[8px] text-slate-500 mt-1">برای جلوگیری از اورتریدینگ (Overtrading)</p>
+                    </div>
+                  </div>
+                </section>
+
                 {/* Strategy Parameters */}
                 <section>
                   <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-3">
@@ -879,8 +952,20 @@ export default function Dashboard() {
 
               <div className="mt-6 sm:mt-10 flex flex-col sm:flex-row gap-3 sm:gap-4">
                 <button 
+                  onClick={async () => {
+                    if (window.confirm('آیا از راه‌اندازی مجدد ربات اطمینان دارید؟')) {
+                      await fetch('/api/bot/restart', { method: 'POST' });
+                      setShowSettings(false);
+                    }
+                  }}
+                  className="flex-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 font-black py-3 sm:py-4 rounded-xl sm:rounded-2xl transition-all flex items-center justify-center gap-3 text-sm sm:text-base border border-rose-500/20"
+                >
+                  <RefreshCw className="w-4 h-4 sm:w-5 sm:h-5" />
+                  راه‌اندازی مجدد موتور
+                </button>
+                <button 
                   onClick={saveSettings}
-                  className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-black py-3 sm:py-4 rounded-xl sm:rounded-2xl transition-all flex items-center justify-center gap-3 shadow-xl shadow-emerald-500/20 text-sm sm:text-base"
+                  className="flex-[2] bg-emerald-500 hover:bg-emerald-600 text-white font-black py-3 sm:py-4 rounded-xl sm:rounded-2xl transition-all flex items-center justify-center gap-3 shadow-xl shadow-emerald-500/20 text-sm sm:text-base"
                 >
                   <Save className="w-4 h-4 sm:w-5 sm:h-5" />
                   ذخیره تنظیمات

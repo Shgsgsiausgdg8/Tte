@@ -678,7 +678,12 @@ export class FarazGoldBot {
 
     const isBuy = pos.type === 'BUY';
     const closePrice = this.price;
-    const pnl = isBuy ? (closePrice - pos.entry) : (pos.entry - closePrice);
+    const entryPrice = pos.entry || pos.price;
+    const priceDiff = isBuy ? (closePrice - entryPrice) : (entryPrice - closePrice);
+    
+    const tickSize = Number(this.settings.market?.tickSize ?? 1);
+    const tickValue = Number(this.settings.market?.tickValueToman ?? 23000);
+    const pnl = (priceDiff / tickSize) * tickValue * (pos.units || 1);
 
     if (this.settings.source === 'API' && this.api) {
       try {
@@ -725,16 +730,39 @@ export class FarazGoldBot {
       tOpen: pos.entryTime.getTime(),
       tClose: Date.now(),
       side: pos.type,
-      entry: pos.entry,
+      entry: pos.entry || pos.price,
       exit: closePrice,
       units: pos.units || 1,
-      pnl: pnl,
+      pnl: pnl || 0,
       reason: reason
     });
 
     this.sendTelegramMessage(`🏁 *معامله بسته شد* (${reason})
 سود/ضرر: ${pnl.toLocaleString('fa-IR')} تومان
 سود کل امروز: ${this.dailyPnL.toLocaleString('fa-IR')}`);
+  }
+
+  getMarketAnalysis() {
+    const rsi = this.strategy.indicators.rsi || 50;
+    const emaFast = this.strategy.indicators.emaFast || this.price;
+    const emaSlow = this.strategy.indicators.emaSlow || this.price;
+    
+    let trend = 'رنج (خنثی)';
+    let color = 'text-slate-400';
+    if (emaFast > emaSlow * 1.0005) {
+      trend = 'صعودی 🟢';
+      color = 'text-emerald-500';
+    } else if (emaFast < emaSlow * 0.9995) {
+      trend = 'نزولی 🔴';
+      color = 'text-rose-500';
+    }
+
+    let analysis = `بازار در وضعیت ${trend} قرار دارد. `;
+    if (rsi > 70) analysis += 'شاخص RSI در منطقه اشباع خرید است و احتمال اصلاح قیمت وجود دارد. ';
+    else if (rsi < 30) analysis += 'شاخص RSI در منطقه اشباع فروش است و احتمال برگشت قیمت وجود دارد. ';
+    else analysis += 'شاخص RSI در محدوده نرمال است. ';
+
+    return { trend, color, analysis };
   }
 
   getState() {
@@ -763,7 +791,8 @@ export class FarazGoldBot {
       settings: this.settings,
       portfolio: this.portfolio,
       candles: candles,
-      logs: this.logs
+      logs: this.logs,
+      marketAnalysis: this.getMarketAnalysis()
     };
   }
 }

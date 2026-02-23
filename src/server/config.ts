@@ -109,6 +109,7 @@ export const config = {
     },
     filters: {
       maxPositions: 3,
+      maxTradesPer10Min: 2,
       minVolatility: 0,
       maxVolatility: 1000,
       minAtrPercent: 0.005

@@ -65,6 +65,20 @@ async function startServer() {
     bot.saveSettings(req.body);
     res.json({ success: true });
   });
+  app.post("/api/bot/reset-stats", (req, res) => {
+    bot.dailyPnL = 0;
+    bot.totalTrades = 0;
+    bot.winningTrades = 0;
+    bot.losingTrades = 0;
+    bot.closedPositions = [];
+    bot.saveState();
+    res.json({ success: true });
+  });
+  app.post("/api/bot/restart", (req, res) => {
+    // Restart the bot engine
+    bot.connectToExternalWS();
+    res.json({ success: true });
+  });
 
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
