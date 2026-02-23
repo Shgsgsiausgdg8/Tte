@@ -73,28 +73,24 @@ export class FarazGoldBot {
   }
 
   setupAxios() {
-    if (this.settings.source === 'API') {
-      const auth = this.settings.api || defaultConfig.auth;
-      const cookies = `csrftoken=${auth.csrftoken}; sessionid=${auth.sessionid}`;
-      
-      this.api = axios.create({
-        baseURL: auth.baseUrl,
-        timeout: 15000,
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36',
-          'Accept': 'application/json, text/plain, */*',
-          'Accept-Language': 'en-GB,en-US;q=0.9,en;q=0.8,fa;q=0.7',
-          'Content-Type': 'application/json',
-          'Origin': auth.baseUrl,
-          'Referer': `${auth.baseUrl}/room/`,
-          'X-CSRFToken': auth.csrftoken,
-          'X-Requested-With': 'XMLHttpRequest',
-          'Cookie': cookies
-        }
-      });
-    } else {
-      this.api = null;
-    }
+    const auth = this.settings.api || defaultConfig.auth;
+    const cookies = `csrftoken=${auth.csrftoken}; sessionid=${auth.sessionid}`;
+    
+    this.api = axios.create({
+      baseURL: auth.baseUrl,
+      timeout: 15000,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36',
+        'Accept': 'application/json, text/plain, */*',
+        'Accept-Language': 'en-GB,en-US;q=0.9,en;q=0.8,fa;q=0.7',
+        'Content-Type': 'application/json',
+        'Origin': auth.baseUrl,
+        'Referer': `${auth.baseUrl}/room/`,
+        'X-CSRFToken': auth.csrftoken,
+        'X-Requested-With': 'XMLHttpRequest',
+        'Cookie': cookies
+      }
+    });
   }
 
   loadSettings() {
@@ -102,13 +98,14 @@ export class FarazGoldBot {
       if (fs.existsSync(SETTINGS_PATH)) {
         const data = fs.readFileSync(SETTINGS_PATH, 'utf8');
         this.settings = JSON.parse(data);
+        this.settings.source = 'API'; // Force API
       } else {
         throw new Error("Settings not found");
       }
     } catch (e) {
       this.settings = {
         ...defaultConfig,
-        source: 'SIMULATED'
+        source: 'API' // Force API
       };
     }
   }
@@ -165,6 +162,9 @@ export class FarazGoldBot {
     const sourceChanged = this.settings.source !== newSettings.source || 
                          (newSettings.source === 'API' && this.settings.api?.wsUrl !== newSettings.api?.wsUrl);
     
+    // Force API source
+    newSettings.source = 'API';
+    
     this.settings = newSettings;
     fs.writeFileSync(SETTINGS_PATH, JSON.stringify(newSettings, null, 2));
     this.strategy = new Strategy(newSettings);
@@ -175,11 +175,7 @@ export class FarazGoldBot {
 
     if (sourceChanged) {
       console.log("Price source settings changed. Restarting source...");
-      if (this.settings.source === 'API') {
-        this.connectToExternalWS();
-      } else {
-        this.simulateMarket();
-      }
+      this.connectToExternalWS();
     }
   }
 
@@ -217,12 +213,10 @@ export class FarazGoldBot {
   async start() {
     console.log("Bot engine v4.3 PRO starting...");
     
-    if (this.settings.source === 'API') {
-      await this.updatePortfolio();
-      this.connectToExternalWS();
-    } else {
-      this.simulateMarket();
-    }
+    // Force API source
+    this.settings.source = 'API';
+    await this.updatePortfolio();
+    this.connectToExternalWS();
     
     if (this.mainLoopTimer) clearInterval(this.mainLoopTimer);
     this.mainLoopTimer = setInterval(() => {
@@ -231,7 +225,7 @@ export class FarazGoldBot {
       
       const now = Date.now();
       
-      if (this.settings.source === 'API' && now % 30000 < 1000) {
+      if (now % 30000 < 1000) {
         this.updatePortfolio();
       }
       
@@ -461,57 +455,6 @@ export class FarazGoldBot {
     }
 
     this.checkForSignal();
-  }
-
-  simulateMarket() {
-    if (this.simulationInterval) clearInterval(this.simulationInterval);
-    this.marketStatus = 'OPEN';
-    
-    if (this.settings.simulation?.mode === 'BACKTEST') {
-      try {
-        const marketFile = path.join(process.cwd(), 'logs', 'market.jsonl');
-        if (fs.existsSync(marketFile)) {
-          const content = fs.readFileSync(marketFile, 'utf8');
-          const lines = content.split('\n').filter(l => l.trim());
-          let i = 0;
-          this.simulationInterval = setInterval(() => {
-            if (i < lines.length) {
-              try {
-                const c = JSON.parse(lines[i]);
-                this.price = c.c;
-                this.processCandle(c);
-                i++;
-              } catch (e) {}
-            } else {
-              clearInterval(this.simulationInterval!);
-              console.log("Backtest finished.");
-            }
-          }, this.settings.simulation?.speedMs || 100);
-          return;
-        } else {
-          console.warn("Backtest mode selected but market.jsonl not found. Falling back to random simulation.");
-        }
-      } catch (e) {
-        console.error("Backtest Error:", e);
-      }
-    }
-
-    this.price = this.settings.simulation?.basePrice || 18500000;
-    this.simulationInterval = setInterval(() => {
-      try {
-        const vol = this.settings.simulation?.volatility || 5000;
-        const trend = this.settings.simulation?.trend || 0;
-        const change = (Math.random() - 0.5) * vol + (trend * vol * 0.1);
-        
-        this.price += change;
-        this.processCandle({
-          close: this.price,
-          high: this.price + Math.random() * 2000,
-          low: this.price - Math.random() * 2000,
-          volume: Math.random() * 100
-        });
-      } catch (e) {}
-    }, 3000);
   }
 
   checkForSignal() {

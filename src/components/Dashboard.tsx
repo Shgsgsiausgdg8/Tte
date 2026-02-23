@@ -508,91 +508,74 @@ export default function Dashboard() {
                   <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-3">
                     <Activity className="w-4 h-4" /> منبع داده (قیمت)
                   </h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    {[
-                      { id: 'SIMULATED', label: 'شبیه‌ساز داخلی', desc: 'تولید قیمت تصادفی' },
-                      { id: 'API', label: 'وب‌سوکت خارجی', desc: 'اتصال به منبع زنده' }
-                    ].map(source => (
-                      <button
-                        key={source.id}
-                        onClick={() => setSettings({ ...settings, source: source.id })}
-                        className={`p-4 rounded-2xl border transition-all text-right ${settings.source === source.id ? 'bg-emerald-500/10 border-emerald-500 text-white' : 'bg-white/5 border-white/5 text-slate-500'}`}
-                      >
-                        <p className="text-xs font-bold">{source.label}</p>
-                        <p className="text-[9px] opacity-60">{source.desc}</p>
-                      </button>
-                    ))}
-                  </div>
-                  {settings.source === 'API' && (
-                    <div className="mt-4 space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">تایم فریم</label>
-                          <select 
-                            value={settings.timeframe?.value || 60}
-                            onChange={(e) => {
-                              const val = parseInt(e.target.value);
-                              const label = e.target.options[e.target.selectedIndex].text;
-                              setSettings({ ...settings, timeframe: { value: val, label } });
-                            }}
-                            className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm text-slate-200 outline-none focus:border-emerald-500/50 transition-all appearance-none"
-                          >
-                            <option value="1">۱ ثانیه</option>
-                            <option value="2">۲ ثانیه</option>
-                            <option value="3">۳ ثانیه</option>
-                            <option value="4">۴ ثانیه</option>
-                            <option value="5">۵ ثانیه</option>
-                            <option value="10">۱۰ ثانیه</option>
-                            <option value="15">۱۵ ثانیه</option>
-                            <option value="30">۳۰ ثانیه</option>
-                            <option value="60">۱ دقیقه</option>
-                            <option value="120">۲ دقیقه</option>
-                            <option value="180">۳ دقیقه</option>
-                            <option value="240">۴ دقیقه</option>
-                            <option value="300">۵ دقیقه</option>
-                            <option value="900">۱۵ دقیقه</option>
-                            <option value="3600">۱ ساعت</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">وضعیت اتصال</label>
-                          <div className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm text-emerald-500 flex items-center gap-2">
-                            {botState?.isConnected ? (
-                              <>
-                                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                                متصل
-                              </>
-                            ) : (
-                              <>
-                                <div className="w-2 h-2 rounded-full bg-rose-500" />
-                                قطع / در حال اتصال...
-                              </>
-                            )}
-                          </div>
-                        </div>
+                  <div className="mt-4 space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">تایم فریم</label>
+                        <select 
+                          value={settings.timeframe?.value || 60}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value);
+                            const label = e.target.options[e.target.selectedIndex].text;
+                            setSettings({ ...settings, timeframe: { value: val, label } });
+                          }}
+                          className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm text-slate-200 outline-none focus:border-emerald-500/50 transition-all appearance-none"
+                        >
+                          <option value="1">۱ ثانیه</option>
+                          <option value="2">۲ ثانیه</option>
+                          <option value="3">۳ ثانیه</option>
+                          <option value="4">۴ ثانیه</option>
+                          <option value="5">۵ ثانیه</option>
+                          <option value="10">۱۰ ثانیه</option>
+                          <option value="15">۱۵ ثانیه</option>
+                          <option value="30">۳۰ ثانیه</option>
+                          <option value="60">۱ دقیقه</option>
+                          <option value="120">۲ دقیقه</option>
+                          <option value="180">۳ دقیقه</option>
+                          <option value="240">۴ دقیقه</option>
+                          <option value="300">۵ دقیقه</option>
+                          <option value="900">۱۵ دقیقه</option>
+                          <option value="3600">۱ ساعت</option>
+                        </select>
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">CSRF Token</label>
-                          <input 
-                            type="password" 
-                            value={settings.api?.csrftoken || ''}
-                            onChange={(e) => setSettings({ ...settings, api: { ...settings.api, csrftoken: e.target.value } })}
-                            className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm focus:border-emerald-500/50 outline-none transition-all"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">Session ID</label>
-                          <input 
-                            type="password" 
-                            value={settings.api?.sessionid || ''}
-                            onChange={(e) => setSettings({ ...settings, api: { ...settings.api, sessionid: e.target.value } })}
-                            className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm focus:border-emerald-500/50 outline-none transition-all"
-                          />
+                      <div>
+                        <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">وضعیت اتصال</label>
+                        <div className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm text-emerald-500 flex items-center gap-2">
+                          {botState?.isConnected ? (
+                            <>
+                              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                              متصل
+                            </>
+                          ) : (
+                            <>
+                              <div className="w-2 h-2 rounded-full bg-rose-500" />
+                              قطع / در حال اتصال...
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
-                  )}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">CSRF Token</label>
+                        <input 
+                          type="password" 
+                          value={settings.api?.csrftoken || ''}
+                          onChange={(e) => setSettings({ ...settings, api: { ...settings.api, csrftoken: e.target.value } })}
+                          className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm focus:border-emerald-500/50 outline-none transition-all"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">Session ID</label>
+                        <input 
+                          type="password" 
+                          value={settings.api?.sessionid || ''}
+                          onChange={(e) => setSettings({ ...settings, api: { ...settings.api, sessionid: e.target.value } })}
+                          className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm focus:border-emerald-500/50 outline-none transition-all"
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </section>
 
 
@@ -640,69 +623,6 @@ export default function Dashboard() {
                       />
                     </div>
                   </div>
-                </section>
-
-                {/* Simulation Settings */}
-                <section>
-                  <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-3">
-                    <TrendingUp className="w-4 h-4" /> تنظیمات شبیه‌ساز بازار
-                  </h3>
-                  <div className="grid grid-cols-2 gap-6 mb-4">
-                    <div className="col-span-2">
-                      <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">حالت شبیه‌ساز</label>
-                      <div className="flex gap-4">
-                        <button
-                          onClick={() => setSettings({ ...settings, simulation: { ...settings.simulation, mode: 'RANDOM' } })}
-                          className={`flex-1 p-3 rounded-xl border transition-all text-sm font-bold ${settings.simulation?.mode !== 'BACKTEST' ? 'bg-emerald-500/10 border-emerald-500 text-emerald-500' : 'bg-white/5 border-white/5 text-slate-500'}`}
-                        >
-                          تولید تصادفی
-                        </button>
-                        <button
-                          onClick={() => setSettings({ ...settings, simulation: { ...settings.simulation, mode: 'BACKTEST' } })}
-                          className={`flex-1 p-3 rounded-xl border transition-all text-sm font-bold ${settings.simulation?.mode === 'BACKTEST' ? 'bg-emerald-500/10 border-emerald-500 text-emerald-500' : 'bg-white/5 border-white/5 text-slate-500'}`}
-                        >
-                          بک‌تست (داده‌های ذخیره شده)
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                  {settings.simulation?.mode === 'BACKTEST' ? (
-                    <div className="grid grid-cols-1 gap-6">
-                      <div>
-                        <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">سرعت پخش (میلی‌ثانیه)</label>
-                        <input 
-                          type="number" 
-                          value={settings.simulation?.speedMs || 100}
-                          onChange={(e) => setSettings({ ...settings, simulation: { ...settings.simulation, speedMs: parseInt(e.target.value) } })}
-                          className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none"
-                        />
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-2 gap-6">
-                      <div>
-                        <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">نوسان (Volatility)</label>
-                        <input 
-                          type="number" 
-                          value={settings.simulation?.volatility || 5000}
-                          onChange={(e) => setSettings({ ...settings, simulation: { ...settings.simulation, volatility: parseInt(e.target.value) } })}
-                          className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">روند کلی (-1 تا 1)</label>
-                        <input 
-                          type="number" 
-                          step="0.1"
-                          min="-1"
-                          max="1"
-                          value={settings.simulation?.trend || 0}
-                          onChange={(e) => setSettings({ ...settings, simulation: { ...settings.simulation, trend: parseFloat(e.target.value) } })}
-                          className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none"
-                        />
-                      </div>
-                    </div>
-                  )}
                 </section>
 
                 {/* Telegram Settings */}
