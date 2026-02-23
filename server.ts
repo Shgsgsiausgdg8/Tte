@@ -28,7 +28,7 @@ async function startServer() {
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'UPDATE', data: bot.getState() }));
       }
-    }, 1000);
+    }, 500);
     ws.on("close", () => clearInterval(interval));
   });
 

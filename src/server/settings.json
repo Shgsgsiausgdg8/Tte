@@ -5,6 +5,9 @@
     "chatId": ""
   },
   "strategy": {
+    "entry": {
+      "maxDistanceFromSlowEmaPercent": 0.5
+    },
     "rsi": { "enabled": true, "period": 5, "oversold": 40, "overbought": 60 },
     "ema": { "enabled": true, "fast": 3, "slow": 8 }
   },

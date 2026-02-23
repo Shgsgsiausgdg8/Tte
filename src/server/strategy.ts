@@ -75,7 +75,7 @@ export class Strategy {
     this.calculateIndicators(closes, highs, lows, volumes);
 
     const ind = this.indicators;
-    const cfg = this.config.strategy?.indicators || {};
+    const cfg = this.config.strategy?.indicators || this.config.strategy || {};
 
     if (!ind.rsi || !ind.emaFast || !ind.emaSlow) return { signal: null, reason: 'Indicators not ready' };
 
@@ -105,34 +105,46 @@ export class Strategy {
     const maxDistPct = Number(entryCfg.maxDistanceFromSlowEmaPercent ?? 0.08);
     const maxDist = (maxDistPct / 100);
 
-    const nearSlowForBuy = price >= emaSlow * (1 - maxDist);
-    const nearSlowForSell = price <= emaSlow * (1 + maxDist);
+    const nearSlowForBuy = true; // Relaxed for more trades
+    const nearSlowForSell = true; // Relaxed for more trades
 
     if (trendUp && nearSlowForBuy) {
-      if (rsi <= (cfg.rsi?.oversold || 40)) {
+      if (rsi <= (cfg.rsi?.oversold || 45)) {
         type = 'BUY';
         score += 2;
         reasons.push(`RSI Pullback (${rsi.toFixed(1)})`);
       }
-      if (!type && rsi < 55 && momentumUp && price >= emaFast) {
+      if (!type && rsi < 60 && momentumUp && price >= emaFast) {
         type = 'BUY';
         score += 1;
         reasons.push('Momentum Reversal');
+      }
+      // Aggressive EMA cross
+      if (!type && emaFast > emaSlow && closes[closes.length - 2] <= emaSlow) {
+        type = 'BUY';
+        score += 1;
+        reasons.push('EMA Cross Up');
       }
       if (type) {
         reasons.push('Trend Up (EMA Fast > Slow)');
         if (momentumUp) { score += 1; reasons.push('Green Candle'); }
       }
     } else if (trendDown && nearSlowForSell) {
-      if (rsi >= (cfg.rsi?.overbought || 60)) {
+      if (rsi >= (cfg.rsi?.overbought || 55)) {
         type = 'SELL';
         score += 2;
         reasons.push(`RSI Pullback (${rsi.toFixed(1)})`);
       }
-      if (!type && rsi > 45 && momentumDown && price <= emaFast) {
+      if (!type && rsi > 40 && momentumDown && price <= emaFast) {
         type = 'SELL';
         score += 1;
         reasons.push('Momentum Reversal');
+      }
+      // Aggressive EMA cross
+      if (!type && emaFast < emaSlow && closes[closes.length - 2] >= emaSlow) {
+        type = 'SELL';
+        score += 1;
+        reasons.push('EMA Cross Down');
       }
       if (type) {
         reasons.push('Trend Down (EMA Fast < Slow)');
@@ -478,13 +490,14 @@ export class Strategy {
   }
 
   calculateIndicators(closes: number[], highs: number[], lows: number[], volumes: number[]) {
-    const cfg = this.config.strategy?.indicators || {};
+    const cfg = this.config.strategy?.indicators || this.config.strategy || {};
     if (cfg.rsi?.enabled) this.indicators.rsi = this.calculateRSI(closes, cfg.rsi.period);
     if (cfg.ema?.enabled) {
       this.indicators.emaFast = this.calculateEMA(closes, cfg.ema.fast);
       this.indicators.emaSlow = this.calculateEMA(closes, cfg.ema.slow);
     }
     if (cfg.atr?.enabled) this.indicators.atr = this.calculateATR(highs, lows, closes, cfg.atr.period);
+    else this.indicators.atr = this.calculateATR(highs, lows, closes, 14); // Default ATR
   }
 
   calculateRSI(prices: number[], period: number = 14) {

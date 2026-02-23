@@ -48,7 +48,7 @@ export class FarazGoldBot {
   wsReconnectTimer: NodeJS.Timeout | null = null;
   pingTimer: NodeJS.Timeout | null = null;
   mainLoopTimer: NodeJS.Timeout | null = null;
-  marketStatus: 'OPEN' | 'CLOSED' = 'CLOSED';
+  marketStatus: 'OPEN' | 'CLOSED' = 'OPEN'; // Default to OPEN so it trades even if status is not received
 
   recorder: DataRecorder;
   autoTuneTimer: NodeJS.Timeout | null = null;
@@ -111,8 +111,21 @@ export class FarazGoldBot {
     try {
       if (fs.existsSync(SETTINGS_PATH)) {
         const data = fs.readFileSync(SETTINGS_PATH, 'utf8');
-        this.settings = JSON.parse(data);
-        this.settings.source = 'API'; // Force API
+        const parsed = JSON.parse(data);
+        // Deep merge with defaultConfig
+        this.settings = {
+          ...defaultConfig,
+          ...parsed,
+          strategy: {
+            ...defaultConfig.strategy,
+            ...(parsed.strategy || {})
+          },
+          api: {
+            ...defaultConfig.api,
+            ...(parsed.api || {})
+          },
+          source: 'API' // Force API
+        };
       } else {
         throw new Error("Settings not found");
       }
@@ -305,8 +318,15 @@ export class FarazGoldBot {
       if (this.dailyStartBalance === 0) {
         this.dailyStartBalance = this.portfolio.balance || 0;
       }
-    } catch (error) {
-      this.log(`Portfolio Update Error: ${error}`, "ERROR");
+    } catch (error: any) {
+      if (error?.code === 'EAI_AGAIN' || error?.message?.includes('EAI_AGAIN')) {
+        // Suppress frequent DNS errors
+        if (Math.random() < 0.05) {
+          this.log(`Portfolio Update: Network/DNS issue connecting to server.`, "INFO");
+        }
+      } else {
+        this.log(`Portfolio Update Error: ${error.message || error}`, "ERROR");
+      }
     }
   }
 
@@ -317,10 +337,10 @@ export class FarazGoldBot {
     }
 
     const auth = { ...defaultConfig.auth, ...(this.settings.api || {}) };
-    const url = auth.wsUrl;
+    const url = auth.wsUrl || 'wss://demo.farazgold.com/ws/';
     const cookies = `csrftoken=${auth.csrftoken}; sessionid=${auth.sessionid}`;
     
-    this.log(`Connecting to FarazGold WS...`, "WS");
+    this.log(`Connecting to FarazGold WS: ${url}`, "WS");
     
     try {
       this.ws = new WebSocket(url, {
@@ -359,6 +379,28 @@ export class FarazGoldBot {
         try {
           const msg = JSON.parse(data.toString());
           
+          if (Array.isArray(msg)) {
+            // It might be an array of candles directly
+            if (msg.length > 0 && (msg[0].c !== undefined || msg[0].close !== undefined)) {
+              this.log(`Received array of ${msg.length} candles`, "WS");
+              msg.forEach(bar => this.processCandle(bar, true));
+              this.checkForSignal();
+            }
+            return;
+          }
+
+          // Debug log for first few messages or specific keys
+          if (msg.bars) {
+            this.log(`Received bars: ${Array.isArray(msg.bars['1']) ? msg.bars['1'].length : 1} candles`, "WS");
+          } else if (msg.history) {
+            this.log(`Received history: ${Array.isArray(msg.history) ? msg.history.length : 'unknown'} candles`, "WS");
+            // Handle alternative history format
+            if (Array.isArray(msg.history)) {
+               msg.history.forEach((bar: any) => this.processCandle(bar, true));
+               this.checkForSignal();
+            }
+          }
+          
           if (msg.market_status) {
             this.marketStatus = msg.market_status === 'open' ? 'OPEN' : 'CLOSED';
           }
@@ -368,7 +410,8 @@ export class FarazGoldBot {
             if (timeframeValue === 60) {
               const bars = msg.bars['1'];
               if (Array.isArray(bars)) {
-                bars.forEach(bar => this.processCandle(bar));
+                bars.forEach(bar => this.processCandle(bar, true));
+                this.checkForSignal();
               } else {
                 this.processCandle(bars);
               }
@@ -463,7 +506,7 @@ export class FarazGoldBot {
     }, delay);
   }
 
-  processCandle(candle: any) {
+  processCandle(candle: any, skipSignalCheck: boolean = false) {
     const close = parseFloat(candle.close || candle.c);
     const high = parseFloat(candle.high || candle.h);
     const low = parseFloat(candle.low || candle.l);
@@ -487,7 +530,9 @@ export class FarazGoldBot {
       }
       
       this.recorder.recordCandle({ t: time, o: candle.open || candle.o || close, h: high, l: low, c: close, v: volume });
-      this.checkForSignal();
+      if (!skipSignalCheck) {
+        this.checkForSignal();
+      }
     }
   }
 
@@ -522,8 +567,15 @@ export class FarazGoldBot {
     this.checkForSignal();
   }
 
+  lastSignalCheckTime: number = 0;
+
   checkForSignal() {
     if (!this.isTrading || this.marketStatus === 'CLOSED' || this.closes.length < 20) return;
+    
+    const now = Date.now();
+    // Throttle signal check to at most once per second to save CPU
+    if (now - this.lastSignalCheckTime < 1000) return;
+    this.lastSignalCheckTime = now;
     
     const history = this.closes.map((c, i) => ({
       price: c,
@@ -534,10 +586,16 @@ export class FarazGoldBot {
     }));
 
     const result = this.strategy.analyze(history, this.openPositions.size, this.price);
+    
     if (result.signal) {
-      this.log(`Signal Detected: ${result.signal.type} (${result.signal.pattern}) Score: ${result.signal.score}`, "SIGNAL");
+      this.log(`Signal Detected: ${result.signal.type} (${result.signal.pattern || 'SCALP'}) Score: ${result.signal.score}`, "SIGNAL");
       this.recorder.recordSignal({ ...result.signal, price: this.price });
       this.enterTrade(result.signal);
+    } else if (result.reason && result.reason !== 'No signal' && result.reason !== 'Indicators not ready') {
+      // Log reason occasionally or if it's important
+      if (Math.random() < 0.01) { // 1% of the time to avoid flooding
+        this.log(`Analysis: ${result.reason}`, "INFO");
+      }
     }
   }
 
@@ -688,7 +746,7 @@ export class FarazGoldBot {
         this.lows[i],          // Low
         c                      // Close
       ]
-    })).slice(-200); // Send last 200 candles
+    })).slice(-50); // Send last 50 candles to keep UI fast
 
     return {
       price: this.price,

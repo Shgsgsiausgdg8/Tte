@@ -6,7 +6,7 @@ export const config = {
     csrftoken: process.env.FARAZGOLD_CSRF || 'GTiZlvd8jNoMuko3nkjjU0lhC8m6Yy3m',
     sessionid: process.env.FARAZGOLD_SESSION || 'njmnqc7hfkeyayowprwheqc73lvp98as',
     baseUrl: process.env.FARAZGOLD_BASEURL || 'https://demo.farazgold.com',
-    wsUrl: process.env.FARAZGOLD_WSURL || 'wss://demo.farazgold.com/ws/',
+    wsUrl: process.env.FARAZGOLD_WSURL || 'wss://demo.farazgold.com/room/api/get-bars-ws/?symbol=mazane&resolution=1&history=300',
     wsAutoDiscover: true,
   },
 
@@ -99,7 +99,7 @@ export const config = {
   strategy: {
     enabled: true,
     entry: {
-      maxDistanceFromSlowEmaPercent: 0.08
+      maxDistanceFromSlowEmaPercent: 0.5
     },
     tradeCooldown: 8,
     minSignalScore: 1,
