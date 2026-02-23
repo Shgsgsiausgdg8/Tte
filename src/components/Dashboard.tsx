@@ -132,8 +132,8 @@ export default function Dashboard() {
               <Activity className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
             </motion.div>
             <div>
-              <h1 className="text-lg sm:text-2xl font-black tracking-tighter text-white">MAZAANEH <span className="text-emerald-500">PRO</span></h1>
-              <p className="text-[8px] sm:text-[10px] text-slate-500 font-mono uppercase tracking-[0.2em]">نسخه ۴.۳ - اسکالپر الگوریتمیک</p>
+              <h1 className="text-lg sm:text-2xl font-black tracking-tighter text-white">FARAZ <span className="text-emerald-500">GOLD</span></h1>
+              <p className="text-[8px] sm:text-[10px] text-slate-500 font-mono uppercase tracking-[0.2em]">ربات اسکالپر الگوریتمیک - نسخه ۴.۳</p>
             </div>
           </div>
           
