@@ -17,6 +17,7 @@ export class FarazGoldBot {
   highs: number[] = [];
   lows: number[] = [];
   volumes: number[] = [];
+  timestamps: number[] = [];
   isTrading: boolean = true;
   openPositions: Map<number, any> = new Map();
   strategy: Strategy;
@@ -216,6 +217,7 @@ export class FarazGoldBot {
     // Force API source
     this.settings.source = 'API';
     await this.updatePortfolio();
+    await this.fetchHistoricalBars();
     this.connectToExternalWS();
     
     if (this.mainLoopTimer) clearInterval(this.mainLoopTimer);
@@ -234,6 +236,51 @@ export class FarazGoldBot {
         this.sendTelegramReport();
       }
     }, 1000);
+  }
+
+  async fetchHistoricalBars() {
+    if (!this.api) return;
+    try {
+      const to = Math.floor(Date.now() / 1000);
+      const from = to - (24 * 60 * 60); // Last 24 hours
+      console.log(`Fetching historical bars from ${from} to ${to}...`);
+      
+      const response = await this.api.get('/room/api/get-bars/', {
+        params: {
+          symbol: 'mazane',
+          from: from,
+          to: to,
+          resolution: 1
+        }
+      });
+
+      if (Array.isArray(response.data)) {
+        console.log(`Received ${response.data.length} historical bars.`);
+        // Clear existing data to avoid duplicates if restarting
+        this.closes = [];
+        this.highs = [];
+        this.lows = [];
+        this.volumes = [];
+        this.timestamps = [];
+        
+        for (const bar of response.data) {
+          this.closes.push(bar.close);
+          this.highs.push(bar.high);
+          this.lows.push(bar.low);
+          this.volumes.push(bar.volume || 1);
+          this.timestamps.push(bar.time * 1000); // API returns seconds, we need ms
+        }
+        
+        if (this.closes.length > 0) {
+          this.price = this.closes[this.closes.length - 1];
+        }
+        
+        console.log("Historical data loaded into bot state.");
+        this.checkForSignal();
+      }
+    } catch (error) {
+      console.error("Historical Bars Fetch Error:", error);
+    }
   }
 
   async updatePortfolio() {
@@ -406,6 +453,7 @@ export class FarazGoldBot {
     const high = parseFloat(candle.high || candle.h);
     const low = parseFloat(candle.low || candle.l);
     const volume = parseFloat(candle.volume || candle.v || 0);
+    const time = candle.time ? candle.time * 1000 : (candle.t || Date.now());
 
     if (close > 0) {
       this.price = close;
@@ -413,15 +461,17 @@ export class FarazGoldBot {
       this.highs.push(high);
       this.lows.push(low);
       this.volumes.push(volume);
+      this.timestamps.push(time);
 
-      if (this.closes.length > 300) {
+      if (this.closes.length > 500) {
         this.closes.shift();
         this.highs.shift();
         this.lows.shift();
         this.volumes.shift();
+        this.timestamps.shift();
       }
       
-      this.recorder.recordCandle({ t: Date.now(), o: candle.open || candle.o || close, h: high, l: low, c: close, v: volume });
+      this.recorder.recordCandle({ t: time, o: candle.open || candle.o || close, h: high, l: low, c: close, v: volume });
       this.checkForSignal();
     }
   }
@@ -465,7 +515,7 @@ export class FarazGoldBot {
       high: this.highs[i],
       low: this.lows[i],
       volume: this.volumes[i],
-      time: Date.now()
+      time: this.timestamps[i] || Date.now()
     }));
 
     const result = this.strategy.analyze(history, this.openPositions.size, this.price);
@@ -611,14 +661,14 @@ export class FarazGoldBot {
 
   getState() {
     const candles = this.closes.map((c, i) => ({
-      x: new Date(Date.now() - (this.closes.length - i) * 60000).getTime(), // Approximate time
+      x: this.timestamps[i] || (Date.now() - (this.closes.length - i) * 60000),
       y: [
         this.closes[i-1] || c, // Open (approximate if not stored)
         this.highs[i],         // High
         this.lows[i],          // Low
         c                      // Close
       ]
-    })).slice(-50); // Send last 50 candles
+    })).slice(-200); // Send last 200 candles
 
     return {
       price: this.price,

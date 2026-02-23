@@ -177,6 +177,7 @@ export default function Dashboard() {
               className="bg-white/5 border border-white/5 rounded-xl px-3 py-1.5 text-xs text-emerald-500 font-bold outline-none cursor-pointer"
             >
               <option value="SCALP">استراتژی اسکالپ</option>
+              <option value="FAST">استراتژی فوق سریع</option>
               <option value="QUANT">استراتژی کوانت</option>
               <option value="TREND">استراتژی ترند</option>
             </select>
@@ -676,6 +677,7 @@ export default function Dashboard() {
                   <div className="grid grid-cols-3 gap-4">
                     {[
                       { id: 'SCALP', label: 'اسکالپر پرو', desc: 'مبتنی بر RSI و EMA' },
+                      { id: 'FAST', label: 'فوق سریع', desc: 'واکنش سریع به نوسان' },
                       { id: 'QUANT', label: 'کوانت', desc: 'پرایس اکشن و الگوها' },
                       { id: 'TREND', label: 'ترند فالووینگ', desc: 'کراس MA و MACD' }
                     ].map(type => (
@@ -694,7 +696,7 @@ export default function Dashboard() {
                 {/* Strategy Parameters */}
                 <section>
                   <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-3">
-                    <Activity className="w-4 h-4" /> پارامترهای استراتژی ({settings.activeStrategy === 'SCALP' ? 'اسکالپر' : settings.activeStrategy === 'QUANT' ? 'کوانت' : 'ترند'})
+                    <Activity className="w-4 h-4" /> پارامترهای استراتژی ({settings.activeStrategy === 'SCALP' ? 'اسکالپر' : settings.activeStrategy === 'FAST' ? 'فوق سریع' : settings.activeStrategy === 'QUANT' ? 'کوانت' : 'ترند'})
                   </h3>
                   
                   {settings.activeStrategy === 'SCALP' && (
@@ -715,6 +717,33 @@ export default function Dashboard() {
                           value={settings.strategy?.indicators?.ema?.fast || 3}
                           onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, indicators: { ...settings.strategy?.indicators, ema: { ...settings.strategy?.indicators?.ema, fast: parseInt(e.target.value) } } } })}
                           className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {settings.activeStrategy === 'FAST' && (
+                    <div className="grid grid-cols-2 gap-6">
+                      <div className="col-span-2 bg-emerald-500/5 p-4 rounded-2xl border border-emerald-500/20">
+                        <p className="text-[10px] text-emerald-500 font-bold mb-1">توضیح استراتژی فوق سریع</p>
+                        <p className="text-[11px] text-slate-400">این استراتژی از دوره‌های بسیار کوتاه (EMA 5/13 و RSI 7) برای شناسایی سریع‌ترین نوسانات بازار استفاده می‌کند. مناسب برای بازارهای پر نوسان.</p>
+                      </div>
+                      <div>
+                        <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">حداقل امتیاز سیگنال</label>
+                        <input 
+                          type="number" 
+                          value={settings.strategy?.minSignalScore || 1}
+                          onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, minSignalScore: parseInt(e.target.value) } })}
+                          className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-emerald-500/50"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">کول‌داون (ثانیه)</label>
+                        <input 
+                          type="number" 
+                          value={settings.strategy?.tradeCooldown || 8}
+                          onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, tradeCooldown: parseInt(e.target.value) } })}
+                          className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-emerald-500/50"
                         />
                       </div>
                     </div>

@@ -38,6 +38,8 @@ export class Strategy {
       result = this.analyzeQuant(priceHistory, currentPrice);
     } else if (activeStrategy === 'TREND') {
       result = this.analyzeTrend(priceHistory, currentPrice);
+    } else if (activeStrategy === 'FAST') {
+      result = this.analyzeFast(priceHistory, currentPrice);
     }
 
     if (result?.signal) {
@@ -351,6 +353,61 @@ export class Strategy {
     };
 
     return { signal, reason: 'Trend signal OK' };
+  }
+
+  // ==========================================
+  // 4. FAST STRATEGY (Short EMA + RSI + Momentum)
+  // ==========================================
+  analyzeFast(priceHistory: any[], currentPrice: number) {
+    const closes = priceHistory.map(p => p.price);
+    const highs = priceHistory.map(p => p.high ?? p.price);
+    const lows = priceHistory.map(p => p.low ?? p.price);
+    const price = currentPrice || closes[closes.length - 1];
+
+    // Very short periods for fast reaction
+    const rsi = this.calculateRSI(closes, 7);
+    const emaFast = this.calculateEMA(closes, 5);
+    const emaSlow = this.calculateEMA(closes, 13);
+    
+    const lastClose = closes[closes.length - 1];
+    const prevClose = closes[closes.length - 2] || lastClose;
+    const momentum = lastClose - prevClose;
+
+    let type: 'BUY' | 'SELL' | null = null;
+    let reasons: string[] = [];
+    let score = 0;
+
+    // Aggressive Buy
+    if (price > emaFast && emaFast > emaSlow) {
+      if (rsi < 45 && momentum > 0) {
+        type = 'BUY';
+        score = 2;
+        reasons.push('Fast EMA Cross', 'RSI Oversold Pullback');
+      } else if (rsi < 60 && momentum > 0 && lastClose > emaFast) {
+        type = 'BUY';
+        score = 1;
+        reasons.push('Fast Momentum');
+      }
+    } 
+    // Aggressive Sell
+    else if (price < emaFast && emaFast < emaSlow) {
+      if (rsi > 55 && momentum < 0) {
+        type = 'SELL';
+        score = 2;
+        reasons.push('Fast EMA Cross', 'RSI Overbought Pullback');
+      } else if (rsi > 40 && momentum < 0 && lastClose < emaFast) {
+        type = 'SELL';
+        score = 1;
+        reasons.push('Fast Momentum');
+      }
+    }
+
+    if (!type || score < 1) return { signal: null, reason: 'No fast signal' };
+
+    const atr = this.calculateATR(highs, lows, closes, 7);
+    const signal = this.createSignal(type, price, score, reasons, atr, 'FAST');
+    
+    return { signal, reason: 'Fast signal OK' };
   }
 
   // ==========================================
