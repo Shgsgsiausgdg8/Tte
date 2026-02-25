@@ -7,6 +7,8 @@ export class Strategy {
   signals: any[] = [];
   minSignalScore: number;
   cooldown: number;
+  tickHistory: { price: number, time: number }[] = [];
+  roundNumberHit: { price: number, time: number } | null = null;
 
   constructor(config: any) {
     this.config = config;
@@ -14,23 +16,23 @@ export class Strategy {
     this.cooldown = (config.strategy?.tradeCooldown || 10) * 1000;
   }
 
-  analyze(priceHistory: any[], openPositionsCount: number, currentPrice: number) {
+  analyze(priceHistory: any[], openPositionsCount: number, currentPrice: number, dryRun: boolean = false) {
     if (!Array.isArray(priceHistory) || priceHistory.length < 50) {
       return { signal: null, reason: `Waiting for data... (${priceHistory?.length || 0}/50)` };
     }
 
     const now = Date.now();
 
-    if (now - this.lastSignalTime < this.cooldown) {
+    if (!dryRun && now - this.lastSignalTime < this.cooldown) {
       return { signal: null, reason: 'Cooldown active' };
     }
 
-    if (openPositionsCount >= (this.config.strategy?.filters?.maxPositions ?? 999)) {
+    if (!dryRun && openPositionsCount >= (this.config.strategy?.filters?.maxPositions ?? 999)) {
       return { signal: null, reason: 'Max positions reached' };
     }
 
     const maxTradesPer10Min = this.config.strategy?.filters?.maxTradesPer10Min || 0;
-    if (maxTradesPer10Min > 0) {
+    if (!dryRun && maxTradesPer10Min > 0) {
       const tenMinsAgo = now - 10 * 60 * 1000;
       const recentSignals = this.signals.filter(s => s.timestamp > tenMinsAgo);
       if (recentSignals.length >= maxTradesPer10Min) {
@@ -41,6 +43,22 @@ export class Strategy {
     const activeStrategy = this.config.activeStrategy || 'SCALP';
     let result: any = null;
 
+    // Always calculate indicators for dashboard/UI
+    const closes = priceHistory.map(p => p.price);
+    const highs = priceHistory.map(p => p.high ?? p.price);
+    const lows = priceHistory.map(p => p.low ?? p.price);
+    const volumes = priceHistory.map(p => p.volume ?? 0);
+    this.calculateIndicators(closes, highs, lows, volumes);
+    
+    // Detect regime for all strategies
+    this.indicators.regime = this.detectMarketRegime(highs, lows, closes);
+
+    // Update tick history for numerical strategy
+    if (!dryRun) {
+      this.tickHistory.push({ price: currentPrice, time: now });
+      this.tickHistory = this.tickHistory.filter(t => now - t.time <= 10000); // Keep last 10s
+    }
+
     if (activeStrategy === 'SCALP') {
       result = this.analyzeScalp(priceHistory, currentPrice);
     } else if (activeStrategy === 'QUANT') {
@@ -49,9 +67,13 @@ export class Strategy {
       result = this.analyzeTrend(priceHistory, currentPrice);
     } else if (activeStrategy === 'FAST') {
       result = this.analyzeFast(priceHistory, currentPrice);
+    } else if (activeStrategy === 'NUMERICAL') {
+      result = this.analyzeNumerical(currentPrice);
+    } else if (activeStrategy === 'HST') {
+      result = this.analyzeHST(priceHistory, currentPrice);
     }
 
-    if (result?.signal) {
+    if (result?.signal && !dryRun) {
       const anti = this.config.strategy?.antiSpam || {};
       if (anti.enabled && this.lastSignalType === result.signal.type) {
         const minMs = (anti.minMinutesBetweenSameSideSignals || 2) * 60 * 1000;
@@ -175,7 +197,7 @@ export class Strategy {
     const lows = priceHistory.map(p => p.low ?? p.price);
     const price = currentPrice || closes[closes.length - 1];
 
-    const qCfg = this.config.strategy?.quant || { maFast: 50, maSlow: 200, swingLength: 5, patternTolerancePct: 0.05 };
+    const qCfg = this.config.strategy?.quant || { maFast: 50, maSlow: 200, swingLength: 5, patternTolerancePct: 0.1 };
     
     const ma50 = this.calculateSMA(closes, qCfg.maFast || 50);
     const ma200 = this.calculateSMA(closes, qCfg.maSlow || 200);
@@ -186,7 +208,7 @@ export class Strategy {
     const trendDown = ma50 < ma200;
     
     // Find Swings
-    const swings = this.findSwings(highs, lows, qCfg.swingLength || 5);
+    const swings = this.findSwings(highs, lows, qCfg.swingLength || 3); // Reduced swing length for more signals
     if (swings.highs.length < 2 || swings.lows.length < 2) return { signal: null, reason: 'Not enough swings' };
 
     let type: 'BUY' | 'SELL' | null = null;
@@ -196,7 +218,7 @@ export class Strategy {
     let sl = 0;
     let tp = 0;
 
-    const tol = (qCfg.patternTolerancePct || 0.05) / 100;
+    const tol = (qCfg.patternTolerancePct || 0.1) / 100; // Increased tolerance
     const rr = qCfg.riskRewardRatio || 2;
 
     // Double Bottom (W) - Buy Pattern
@@ -432,38 +454,343 @@ export class Strategy {
   }
 
   // ==========================================
+  // 5. NUMERICAL SCALPING STRATEGY (Faraz Gold)
+  // ==========================================
+  analyzeNumerical(currentPrice: number) {
+    const now = Date.now();
+    const cfg = this.config.strategy?.numerical || {
+      spreadThreshold: 14,
+      takeProfitPips: 10,
+      stopLossPips: 8,
+      roundNumberMagnet: 5,
+      volumePerStep: 1,
+      roundNumberBase: 10000
+    };
+
+    const tickSize = Number(this.config.market?.tickSize ?? 1000);
+    const roundBase = cfg.roundNumberBase || 10000;
+
+    // 1. Calculate Momentum (last 5 seconds)
+    const last5SecTicks = this.tickHistory.filter(t => now - t.time <= 5000);
+    let upCount = 0;
+    let downCount = 0;
+    let totalGrowth = 0;
+    let totalDrop = 0;
+
+    for (let i = 1; i < last5SecTicks.length; i++) {
+      const diff = last5SecTicks[i].price - last5SecTicks[i - 1].price;
+      if (diff > 0) {
+        upCount++;
+        totalGrowth += diff;
+      } else if (diff < 0) {
+        downCount++;
+        totalDrop += Math.abs(diff);
+      }
+    }
+
+    const momentumUp = upCount >= 3 && totalGrowth >= (6 * tickSize);
+    const momentumDown = downCount >= 3 && totalDrop >= (6 * tickSize);
+
+    // 2. Identify Round Numbers
+    const roundNumber = Math.round(currentPrice / roundBase) * roundBase;
+    const distToRound = Math.abs(currentPrice - roundNumber);
+
+    let type: 'BUY' | 'SELL' | null = null;
+    let patternName = '';
+    let reasons: string[] = [];
+
+    // Track round number hits (within magnet distance)
+    const magnetDist = (cfg.roundNumberMagnet || 5) * tickSize;
+    if (distToRound <= magnetDist) {
+      if (!this.roundNumberHit || this.roundNumberHit.price !== roundNumber) {
+        this.roundNumberHit = { price: roundNumber, time: now };
+      }
+    }
+
+    // A) Breakout Strategy
+    if (currentPrice >= roundNumber + (2 * tickSize) && momentumUp) {
+      if (this.roundNumberHit && this.roundNumberHit.price === roundNumber && now - this.roundNumberHit.time < 10000) {
+        type = 'BUY';
+        patternName = 'Round Number Breakout (Long)';
+        reasons.push('Price crossed RN + 2', 'Momentum Up');
+      }
+    } else if (currentPrice <= roundNumber - (2 * tickSize) && momentumDown) {
+      if (this.roundNumberHit && this.roundNumberHit.price === roundNumber && now - this.roundNumberHit.time < 10000) {
+        type = 'SELL';
+        patternName = 'Round Number Breakout (Short)';
+        reasons.push('Price crossed RN - 2', 'Momentum Down');
+      }
+    }
+
+    // B) Rejection Strategy
+    if (!type && this.roundNumberHit && this.roundNumberHit.price === roundNumber) {
+      const timeSinceHit = now - this.roundNumberHit.time;
+      if (timeSinceHit >= 3000 && timeSinceHit <= 8000) {
+        if (currentPrice <= roundNumber - (2 * tickSize)) {
+          type = 'SELL';
+          patternName = 'Round Number Rejection (Short)';
+          reasons.push('Failed to break RN up', 'Reversed 2 ticks');
+        } else if (currentPrice >= roundNumber + (2 * tickSize)) {
+          type = 'BUY';
+          patternName = 'Round Number Rejection (Long)';
+          reasons.push('Failed to break RN down', 'Reversed 2 ticks');
+        }
+      }
+    }
+
+    if (!type) return { signal: null, reason: 'No numerical signal' };
+
+    this.roundNumberHit = null;
+
+    const sl = type === 'BUY' ? currentPrice - (cfg.stopLossPips * tickSize) : currentPrice + (cfg.stopLossPips * tickSize);
+    const tp = type === 'BUY' ? currentPrice + (cfg.takeProfitPips * tickSize) : currentPrice - (cfg.takeProfitPips * tickSize);
+
+    const signal = {
+      type,
+      entry: currentPrice,
+      sl,
+      tp1: tp,
+      score: 3,
+      reasons,
+      confidence: 85,
+      timestamp: now,
+      pattern: patternName,
+      strategy: 'NUMERICAL',
+      indicators: { 
+        momentumUp, 
+        momentumDown, 
+        roundNumber,
+        rsi: this.indicators.rsi?.toFixed(1),
+        emaFast: this.indicators.emaFast?.toFixed(0),
+        emaSlow: this.indicators.emaSlow?.toFixed(0),
+        atr: this.indicators.atr?.toFixed(0)
+      }
+    };
+
+    return { signal, reason: 'Numerical signal OK' };
+  }
+
+  // ==========================================
+  // 6. HST STRATEGY (Hull + SuperTrend)
+  // ==========================================
+  analyzeHST(priceHistory: any[], currentPrice: number) {
+    const closes = priceHistory.map(p => p.price);
+    const highs = priceHistory.map(p => p.high ?? p.high ?? p.price);
+    const lows = priceHistory.map(p => p.low ?? p.low ?? p.price);
+    const price = currentPrice || closes[closes.length - 1];
+
+    const hstCfg = this.config.strategy?.hst || { 
+      hmaLength: 55, 
+      stPeriod: 10, 
+      stMultiplier: 3,
+      requireCloseAboveHMA: true,
+      mode: 'NORMAL'
+    };
+
+    const regime = this.indicators.regime || this.detectMarketRegime(highs, lows, closes);
+    
+    let hmaLength = hstCfg.hmaLength || 55;
+    let stPeriod = hstCfg.stPeriod || 10;
+    let stMultiplier = hstCfg.stMultiplier || 3;
+
+    // Dynamic adjustment based on regime and mode
+    if (hstCfg.mode === 'AGGRESSIVE') {
+      stMultiplier *= 0.85; 
+      hmaLength = Math.round(hmaLength * 0.75);
+    } else if (hstCfg.mode === 'PRECISION') {
+      stMultiplier *= 1.15;
+      hmaLength = Math.round(hmaLength * 1.25);
+    }
+
+    // Regime based adjustments
+    if (regime === 'RANGING') {
+      stMultiplier *= 1.2; // Be more careful in range
+    } else if (regime === 'TRENDING') {
+      stMultiplier *= 0.95; // Be more aggressive in trend
+    }
+
+    // We need enough data
+    if (closes.length < hmaLength + 10 || closes.length < stPeriod * 2) {
+      return { signal: null, reason: 'Not enough data for HST' };
+    }
+
+    // 1. Calculate HMA
+    const hmaValues = this.calculateHMA(closes, hmaLength);
+    if (!hmaValues || hmaValues.length < 2) return { signal: null, reason: 'HMA not ready' };
+    
+    const currentHMA = hmaValues[hmaValues.length - 1];
+    const prevHMA = hmaValues[hmaValues.length - 2];
+    const hmaSlope = currentHMA - prevHMA;
+    const prevHmaSlope = hmaValues.length > 2 ? prevHMA - hmaValues[hmaValues.length - 3] : hmaSlope;
+
+    // 2. Calculate SuperTrend
+    const stValues = this.calculateSuperTrend(highs, lows, closes, stPeriod, stMultiplier);
+    if (!stValues || stValues.length < 2) return { signal: null, reason: 'SuperTrend not ready' };
+
+    const currentST = stValues[stValues.length - 1];
+    
+    // Update indicators for dashboard
+    this.indicators.hma = currentHMA;
+    this.indicators.st = currentST.value;
+    this.indicators.stDir = currentST.direction;
+    
+    let type: 'BUY' | 'SELL' | null = null;
+    let reasons: string[] = [];
+    let score = 0;
+
+    // Entry Rules
+    const hmaTurnsPositive = prevHmaSlope <= 0 && hmaSlope > 0;
+    const hmaTurnsNegative = prevHmaSlope >= 0 && hmaSlope < 0;
+    
+    const isBullishST = currentST.direction === 1;
+    const isBearishST = currentST.direction === -1;
+
+    // Long Entry
+    if (isBullishST && price > currentST.value) {
+      const hmaCondition = hmaSlope > 0 && (!hstCfg.requireCloseAboveHMA || price > currentHMA);
+      
+      if (hmaCondition) {
+        const prevST = stValues[stValues.length - 2];
+        const justCrossedST = closes[closes.length - 2] <= prevST.value && price > currentST.value;
+        
+        if (hmaTurnsPositive || justCrossedST || (hstCfg.mode === 'AGGRESSIVE' && hmaSlope > 0)) {
+          type = 'BUY';
+          score = hstCfg.mode === 'AGGRESSIVE' ? 2 : 3;
+          reasons.push('SuperTrend Bullish', hmaTurnsPositive ? 'HMA Turned Up' : 'Trend Continuation');
+        }
+      }
+    }
+
+    // Short Entry
+    if (isBearishST && price < currentST.value) {
+      const hmaCondition = hmaSlope < 0 && (!hstCfg.requireCloseAboveHMA || price < currentHMA);
+      
+      if (hmaCondition) {
+        const prevST = stValues[stValues.length - 2];
+        const justCrossedST = closes[closes.length - 2] >= prevST.value && price < currentST.value;
+        
+        if (hmaTurnsNegative || justCrossedST || (hstCfg.mode === 'AGGRESSIVE' && hmaSlope < 0)) {
+          type = 'SELL';
+          score = hstCfg.mode === 'AGGRESSIVE' ? 2 : 3;
+          reasons.push('SuperTrend Bearish', hmaTurnsNegative ? 'HMA Turned Down' : 'Trend Continuation');
+        }
+      }
+    }
+
+    // Range Filter: In PRECISION mode, don't trade if RANGING
+    if (hstCfg.mode === 'PRECISION' && regime === 'RANGING' && type) {
+      return { signal: null, reason: 'Skipped: Ranging market in Precision mode' };
+    }
+
+    if (!type) return { signal: null, reason: 'No HST signal' };
+
+    const atr = this.indicators.atr || this.calculateATR(highs, lows, closes, 14);
+    const signal = this.createSignal(type, price, score, reasons, atr, 'HST');
+    
+    return { signal, reason: 'HST signal OK' };
+  }
+
+  detectMarketRegime(highs: number[], lows: number[], closes: number[]) {
+    if (closes.length < 30) return 'UNKNOWN';
+    
+    const adx = this.calculateADX(highs, lows, closes, 14);
+    this.indicators.adx = adx;
+
+    if (adx > 25) return 'TRENDING';
+    if (adx < 20) return 'RANGING';
+    
+    // Secondary check: Bollinger Band width or price consolidation
+    const sma = this.calculateSMA(closes, 20);
+    let sumSq = 0;
+    const last20 = closes.slice(-20);
+    for (const p of last20) sumSq += Math.pow(p - sma, 2);
+    const stdDev = Math.sqrt(sumSq / 20);
+    const bbWidth = (stdDev * 4) / sma * 100;
+
+    if (bbWidth < 0.1) return 'RANGING'; // Very tight range
+    
+    return 'NORMAL';
+  }
+
+  calculateADX(highs: number[], lows: number[], closes: number[], period: number = 14) {
+    if (closes.length < period * 2) return 20;
+
+    let tr: number[] = [];
+    let dmPlus: number[] = [];
+    let dmMinus: number[] = [];
+
+    for (let i = 1; i < closes.length; i++) {
+      const h = highs[i];
+      const l = lows[i];
+      const ph = highs[i - 1];
+      const pl = lows[i - 1];
+      const pc = closes[i - 1];
+
+      const trVal = Math.max(h - l, Math.abs(h - pc), Math.abs(l - pc));
+      tr.push(trVal);
+
+      const moveUp = h - ph;
+      const moveDown = pl - l;
+
+      if (moveUp > moveDown && moveUp > 0) dmPlus.push(moveUp);
+      else dmPlus.push(0);
+
+      if (moveDown > moveUp && moveDown > 0) dmMinus.push(moveDown);
+      else dmMinus.push(0);
+    }
+
+    const smoothTR = this.calculateEMA(tr, period);
+    const smoothPlus = this.calculateEMA(dmPlus, period);
+    const smoothMinus = this.calculateEMA(dmMinus, period);
+
+    const diPlus = 100 * (smoothPlus / smoothTR);
+    const diMinus = 100 * (smoothMinus / smoothTR);
+
+    const dx = 100 * Math.abs(diPlus - diMinus) / (diPlus + diMinus);
+    
+    // This is a simplification, real ADX is smoothed DX
+    return dx || 20;
+  }
+
+  // ==========================================
   // UTILS
   // ==========================================
   createSignal(type: 'BUY' | 'SELL', price: number, score: number, reasons: string[], atr: number, strategyName: string) {
     const market = this.config.market || {};
-    const tt = this.config.targetsTicks || {};
-
     const tickSize = Number(market.tickSize ?? 1);
-    const tickValue = Number(market.tickValueToman ?? 23000);
-    const spreadTicks = Number(market.spreadTicks ?? 2);
+    
+    // Smart SL/TP based on ATR (Volatility)
+    // If ATR is not provided or too small, fallback to ticks
+    const currentAtr = atr || this.indicators.atr || (price * 0.0005);
+    
+    // Standard: SL = 1.5 * ATR, TP = SL * RiskReward
+    const tt = this.config.targetsTicks || {};
+    const minStopTicks = Number(tt.stopTicks ?? 12);
+    const minTpTicks = Number(tt.tpTicks ?? 18);
+    
+    const rr = Number(this.config.strategy?.riskRewardRatio || 1.5);
+    
+    let slDist = currentAtr * 1.2; // Slightly tighter SL
+    let tpDist = slDist * rr;
 
-    const baseStopTicks = Number(tt.stopTicks ?? 12);
-    const baseTpTicks = Number(tt.tpTicks ?? Math.round(baseStopTicks * 1.5));
-
-    const maxRiskToman = Number(this.config.risk?.maxRiskTomanPerTrade ?? 1000000);
-    const maxStopTicksByRisk = Math.max(2, Math.floor(maxRiskToman / tickValue));
-    const stopTicks = Math.max(2, Math.min(baseStopTicks, maxStopTicksByRisk));
-    const tpTicks = Math.max(3, baseTpTicks);
+    // Ensure we don't go below minimum ticks
+    slDist = Math.max(slDist, minStopTicks * tickSize);
+    tpDist = Math.max(tpDist, minTpTicks * tickSize);
+    
+    // Cap maximum distance to prevent "very far" targets during spikes
+    const maxDist = price * 0.01; // Max 1% move for a single trade
+    slDist = Math.min(slDist, maxDist);
+    tpDist = Math.min(tpDist, maxDist * 2);
 
     const isBuy = type === 'BUY';
-    const m = isBuy ? 1 : -1;
-
-    const slTicks = stopTicks + spreadTicks;
-    const tp1Ticks = tpTicks + spreadTicks;
-
-    const sl = price - (slTicks * tickSize * m);
-    const tp1 = price + (tp1Ticks * tickSize * m);
+    const sl = isBuy ? price - slDist : price + slDist;
+    const tp1 = isBuy ? price + tpDist : price - tpDist;
 
     return {
       type,
       entry: price,
-      sl,
-      tp1,
+      sl: Math.round(sl),
+      tp1: Math.round(tp1),
       score,
       reasons,
       confidence: 50 + (score * 15),
@@ -473,7 +800,7 @@ export class Strategy {
         rsi: this.indicators.rsi?.toFixed(1),
         emaFast: this.indicators.emaFast?.toFixed(0),
         emaSlow: this.indicators.emaSlow?.toFixed(0),
-        atr: this.indicators.atr?.toFixed(0),
+        atr: currentAtr.toFixed(0),
       }
     };
   }
@@ -500,28 +827,34 @@ export class Strategy {
 
   calculateIndicators(closes: number[], highs: number[], lows: number[], volumes: number[]) {
     const cfg = this.config.strategy?.indicators || this.config.strategy || {};
-    if (cfg.rsi?.enabled) this.indicators.rsi = this.calculateRSI(closes, cfg.rsi.period);
-    if (cfg.ema?.enabled) {
-      this.indicators.emaFast = this.calculateEMA(closes, cfg.ema.fast);
-      this.indicators.emaSlow = this.calculateEMA(closes, cfg.ema.slow);
+    
+    // Always calculate RSI and ATR for the dashboard
+    this.indicators.rsi = this.calculateRSI(closes, cfg.rsi?.period || 14);
+    this.indicators.atr = this.calculateATR(highs, lows, closes, cfg.atr?.period || 14);
+    
+    if (cfg.ema?.enabled !== false) {
+      this.indicators.emaFast = this.calculateEMA(closes, cfg.ema?.fast || 9);
+      this.indicators.emaSlow = this.calculateEMA(closes, cfg.ema?.slow || 21);
     }
-    if (cfg.atr?.enabled) this.indicators.atr = this.calculateATR(highs, lows, closes, cfg.atr.period);
-    else this.indicators.atr = this.calculateATR(highs, lows, closes, 14); // Default ATR
   }
 
   calculateRSI(prices: number[], period: number = 14) {
     if (!prices || prices.length < period + 1) return 50;
     let gains = 0;
     let losses = 0;
+    
+    // Calculate initial average gain and loss
     for (let i = prices.length - period; i < prices.length; i++) {
       const diff = prices[i] - prices[i - 1];
       if (diff > 0) gains += diff;
       else losses -= diff;
     }
-    const avgGain = gains / period;
-    const avgLoss = losses / period;
+    
+    let avgGain = gains / period;
+    let avgLoss = losses / period;
+    
     if (avgLoss === 0) return 100;
-    const rs = avgGain / avgLoss;
+    let rs = avgGain / avgLoss;
     return 100 - (100 / (1 + rs));
   }
 
@@ -585,5 +918,107 @@ export class Strategy {
       trs.push(Math.max(tr1, tr2, tr3));
     }
     return trs.reduce((a, b) => a + b, 0) / trs.length;
+  }
+
+  calculateWMA(prices: number[], period: number): number {
+    if (prices.length < period) return prices[prices.length - 1] || 0;
+    const slice = prices.slice(-period);
+    let sum = 0;
+    let weightSum = 0;
+    for (let i = 0; i < period; i++) {
+      const weight = i + 1;
+      sum += slice[i] * weight;
+      weightSum += weight;
+    }
+    return sum / weightSum;
+  }
+
+  calculateHMA(prices: number[], period: number): number[] {
+    if (prices.length < period) return [];
+    
+    const halfPeriod = Math.floor(period / 2);
+    const sqrtPeriod = Math.floor(Math.sqrt(period));
+    
+    const rawHMA: number[] = [];
+    // We need to calculate raw HMA for at least sqrtPeriod candles
+    for (let i = prices.length - sqrtPeriod * 2; i <= prices.length; i++) {
+      if (i < period) continue;
+      const currentSlice = prices.slice(0, i);
+      const wmaHalf = this.calculateWMA(currentSlice, halfPeriod);
+      const wmaFull = this.calculateWMA(currentSlice, period);
+      rawHMA.push(2 * wmaHalf - wmaFull);
+    }
+    
+    const hma: number[] = [];
+    for (let i = sqrtPeriod; i <= rawHMA.length; i++) {
+      hma.push(this.calculateWMA(rawHMA.slice(0, i), sqrtPeriod));
+    }
+    
+    return hma;
+  }
+
+  calculateSuperTrend(highs: number[], lows: number[], closes: number[], period: number, multiplier: number) {
+    if (closes.length < period) return [];
+    
+    const st: { value: number, direction: number }[] = [];
+    let prevFinalUpperBand = 0;
+    let prevFinalLowerBand = 0;
+    let prevDirection = 1;
+    
+    for (let i = period; i < closes.length; i++) {
+      const currentClose = closes[i];
+      const prevClose = closes[i - 1];
+      
+      // Calculate True Range for this candle
+      const tr1 = highs[i] - lows[i];
+      const tr2 = Math.abs(highs[i] - prevClose);
+      const tr3 = Math.abs(lows[i] - prevClose);
+      const tr = Math.max(tr1, tr2, tr3);
+      
+      // Approximate ATR (simple average for speed, ideally should be RMA)
+      let atrSum = 0;
+      for (let j = i - period + 1; j <= i; j++) {
+        const jTr1 = highs[j] - lows[j];
+        const jTr2 = Math.abs(highs[j] - closes[j-1]);
+        const jTr3 = Math.abs(lows[j] - closes[j-1]);
+        atrSum += Math.max(jTr1, jTr2, jTr3);
+      }
+      const atr = atrSum / period;
+      
+      const basicUpperBand = ((highs[i] + lows[i]) / 2) + (multiplier * atr);
+      const basicLowerBand = ((highs[i] + lows[i]) / 2) - (multiplier * atr);
+      
+      let finalUpperBand = basicUpperBand;
+      let finalLowerBand = basicLowerBand;
+      
+      if (basicUpperBand < prevFinalUpperBand || prevClose > prevFinalUpperBand) {
+        finalUpperBand = basicUpperBand;
+      } else {
+        finalUpperBand = prevFinalUpperBand;
+      }
+      
+      if (basicLowerBand > prevFinalLowerBand || prevClose < prevFinalLowerBand) {
+        finalLowerBand = basicLowerBand;
+      } else {
+        finalLowerBand = prevFinalLowerBand;
+      }
+      
+      let direction = prevDirection;
+      if (prevDirection === 1 && currentClose < finalLowerBand) {
+        direction = -1;
+      } else if (prevDirection === -1 && currentClose > finalUpperBand) {
+        direction = 1;
+      }
+      
+      const value = direction === 1 ? finalLowerBand : finalUpperBand;
+      
+      st.push({ value, direction });
+      
+      prevFinalUpperBand = finalUpperBand;
+      prevFinalLowerBand = finalLowerBand;
+      prevDirection = direction;
+    }
+    
+    return st;
   }
 }

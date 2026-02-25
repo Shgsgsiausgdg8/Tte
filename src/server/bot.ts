@@ -13,6 +13,7 @@ const STATE_FILE = path.join(process.cwd(), 'src/server/state.json');
 
 export class FarazGoldBot {
   price: number = 0;
+  opens: number[] = [];
   closes: number[] = [];
   highs: number[] = [];
   lows: number[] = [];
@@ -49,6 +50,8 @@ export class FarazGoldBot {
   pingTimer: NodeJS.Timeout | null = null;
   mainLoopTimer: NodeJS.Timeout | null = null;
   marketStatus: 'OPEN' | 'CLOSED' = 'OPEN'; // Default to OPEN so it trades even if status is not received
+  currentSpread: number = 0;
+  portfolioLogged: boolean = false;
 
   recorder: DataRecorder;
   autoTuneTimer: NodeJS.Timeout | null = null;
@@ -230,11 +233,38 @@ export class FarazGoldBot {
   }
 
   async sendTelegramReport() {
-    const report = `📊 *گزارش عملکرد دوره‌ای*
+    if (!this.isTrading) return;
+    
+    // Generate a quick analysis
+    const history = this.closes.map((c, i) => ({
+      price: c,
+      high: this.highs[i],
+      low: this.lows[i],
+      volume: this.volumes[i],
+      time: this.timestamps[i] || Date.now()
+    }));
+    
+    // Just run a quick check without triggering a trade to get the reason
+    const result = this.strategy.analyze(history, this.openPositions.size, this.price, true);
+    
+    let analysisText = "بازار در حال نوسان است.";
+    if (result.signal) {
+      analysisText = `سیگنال پیشنهادی: ${result.signal.type === 'BUY' ? 'خرید 🟢' : 'فروش 🔴'} (${result.signal.pattern || 'تکنیکال'})`;
+    } else if (result.reason && result.reason !== 'No signal' && result.reason !== 'Indicators not ready') {
+      analysisText = `وضعیت: ${result.reason}`;
+    }
+
+    const report = `📊 *گزارش عملکرد دوره‌ای (۳۰ دقیقه)*
 💰 سود/ضرر امروز: ${this.dailyPnL.toLocaleString('fa-IR')} تومان
-📈 قیمت نهایی: ${this.price.toLocaleString('fa-IR')}
+📈 قیمت لحظه‌ای: ${this.price.toLocaleString('fa-IR')}
 🛒 پوزیشن‌های باز: ${this.openPositions.size}
-📅 تاریخ: ${this.dailyDateKey}`;
+⏱️ وضعیت ربات: ${this.isTrading ? 'فعال ✅' : 'غیرفعال ❌'}
+استراتژی فعال: ${this.settings.activeStrategy}
+
+🔍 *تحلیل بازار:*
+${analysisText}
+
+📅 تاریخ: ${new Date().toLocaleTimeString('fa-IR')}`;
     await this.sendTelegramMessage(report);
   }
 
@@ -254,12 +284,12 @@ export class FarazGoldBot {
       
       const now = Date.now();
       
-      if (now % 30000 < 1000) {
+      if (now % 10000 < 1000) {
         this.updatePortfolio();
       }
       
-      // Send periodic report every hour
-      if (now % 3600000 < 1000) {
+      // Send periodic report every 30 minutes (1800000 ms)
+      if (now % 1800000 < 1000) {
         this.sendTelegramReport();
       }
     }, 1000);
@@ -284,13 +314,18 @@ export class FarazGoldBot {
       if (Array.isArray(response.data)) {
         this.log(`Received ${response.data.length} historical bars.`, "SUCCESS");
         // Clear existing data to avoid duplicates if restarting
+        this.opens = [];
         this.closes = [];
         this.highs = [];
         this.lows = [];
         this.volumes = [];
         this.timestamps = [];
         
-        for (const bar of response.data) {
+        // Ensure data is sorted ascending by time
+        const sortedData = response.data.sort((a: any, b: any) => a.time - b.time);
+        
+        for (const bar of sortedData) {
+          this.opens.push(bar.open || bar.close);
           this.closes.push(bar.close);
           this.highs.push(bar.high);
           this.lows.push(bar.low);
@@ -315,12 +350,29 @@ export class FarazGoldBot {
     try {
       const response = await this.api.post('/room/api/check-portfolio/', {});
       this.portfolio = response.data;
+      
+      // Try to sync open positions if the API provides them in portfolio
+      if (response.data && (response.data.open_positions || response.data.positions)) {
+        this.syncPositions(response.data.open_positions || response.data.positions);
+      } else {
+        // If not in portfolio, try to fetch them from a dedicated endpoint
+        try {
+          const posResponse = await this.api.get('/room/api/open-positions/');
+          if (posResponse.data && Array.isArray(posResponse.data)) {
+            this.syncPositions(posResponse.data);
+          } else if (posResponse.data && posResponse.data.positions) {
+            this.syncPositions(posResponse.data.positions);
+          }
+        } catch (e) {
+          // Ignore 404s if endpoint doesn't exist
+        }
+      }
+      
       if (this.dailyStartBalance === 0) {
         this.dailyStartBalance = this.portfolio.balance || 0;
       }
     } catch (error: any) {
       if (error?.code === 'EAI_AGAIN' || error?.message?.includes('EAI_AGAIN')) {
-        // Suppress frequent DNS errors
         if (Math.random() < 0.05) {
           this.log(`Portfolio Update: Network/DNS issue connecting to server.`, "INFO");
         }
@@ -328,6 +380,47 @@ export class FarazGoldBot {
         this.log(`Portfolio Update Error: ${error.message || error}`, "ERROR");
       }
     }
+  }
+
+  syncPositions(apiPositions: any[]) {
+    if (!Array.isArray(apiPositions)) return;
+    
+    const syncedPositions = new Map();
+    
+    for (const p of apiPositions) {
+      const id = p.id || p.order_id || p.transaction_id || Date.now() + Math.random();
+      if (Math.random() < 0.1) { // Log 10% of synced positions to avoid flood
+        this.log(`Syncing position: ID=${id}, Type=${p.type || p.action}, Entry=${p.entry_price || p.price}`, "INFO");
+      }
+      const type = (p.type || p.action || 'BUY').toString().toUpperCase() === 'SELL' ? 'SELL' : 'BUY';
+      const entry = Number(p.entry_price || p.price || p.entry || this.price);
+      
+      let existingPos = null;
+      for (const [localId, localPos] of this.openPositions.entries()) {
+        if (localPos.transactionId === id || localPos.id === id || (localPos.type === type && Math.abs(localPos.entry - entry) < 100)) {
+          existingPos = localPos;
+          break;
+        }
+      }
+      
+      syncedPositions.set(id, {
+        id: id,
+        transactionId: id,
+        type: type,
+        entry: entry,
+        units: Number(p.units || p.amount || 1),
+        sl: Number(p.stop_loss || p.sl || existingPos?.sl || 0),
+        tp1: Number(p.take_profit || p.tp || existingPos?.tp1 || 0),
+        status: 'open',
+        entryTime: existingPos?.entryTime || new Date(p.time || p.created_at || Date.now()),
+        pattern: existingPos?.pattern || 'API Sync',
+        strategy: existingPos?.strategy || 'MANUAL',
+        tp1Hit: existingPos?.tp1Hit || false,
+        breakEvenHit: existingPos?.breakEvenHit || false
+      });
+    }
+    
+    this.openPositions = syncedPositions;
   }
 
   connectToExternalWS() {
@@ -383,7 +476,8 @@ export class FarazGoldBot {
             // It might be an array of candles directly
             if (msg.length > 0 && (msg[0].c !== undefined || msg[0].close !== undefined)) {
               this.log(`Received array of ${msg.length} candles`, "WS");
-              msg.forEach(bar => this.processCandle(bar, true));
+              const sortedMsg = msg.sort((a: any, b: any) => (a.time || a.t) - (b.time || b.t));
+              sortedMsg.forEach((bar: any) => this.processCandle(bar, true));
               this.checkForSignal();
             }
             return;
@@ -396,7 +490,8 @@ export class FarazGoldBot {
             this.log(`Received history: ${Array.isArray(msg.history) ? msg.history.length : 'unknown'} candles`, "WS");
             // Handle alternative history format
             if (Array.isArray(msg.history)) {
-               msg.history.forEach((bar: any) => this.processCandle(bar, true));
+               const sortedHistory = msg.history.sort((a: any, b: any) => (a.time || a.t) - (b.time || b.t));
+               sortedHistory.forEach((bar: any) => this.processCandle(bar, true));
                this.checkForSignal();
             }
           }
@@ -420,6 +515,12 @@ export class FarazGoldBot {
 
           if (msg.price !== undefined) {
             this.updatePrice(parseFloat(msg.price));
+          }
+
+          if (msg.best_buy && msg.best_sell) {
+            this.currentSpread = Math.abs(parseFloat(msg.best_sell) - parseFloat(msg.best_buy));
+          } else if (msg.spread) {
+            this.currentSpread = parseFloat(msg.spread);
           }
 
           if (msg.new_transactions_open || msg.transactions_open) {
@@ -466,6 +567,8 @@ export class FarazGoldBot {
 
       this.ws.on('close', () => {
         if (this.isConnected) {
+          // Only send disconnect message if we were previously connected
+          // and haven't sent one recently to avoid spam
           this.sendTelegramMessage('🔴 *ارتباط با سرور فرازگلد قطع شد*');
         }
         this.isConnected = false;
@@ -485,6 +588,9 @@ export class FarazGoldBot {
     this.pingTimer = setInterval(() => {
       if (this.ws?.readyState === WebSocket.OPEN) {
         this.ws.send(JSON.stringify({ type: 'ping' }));
+      } else {
+        // If socket is not open, force close to trigger reconnect
+        this.ws?.terminate();
       }
     }, 15000);
   }
@@ -499,7 +605,9 @@ export class FarazGoldBot {
   scheduleReconnect() {
     if (this.wsReconnectTimer) return;
     this.reconnectAttempts++;
-    const delay = Math.min(30000, 3000 * Math.pow(1.2, this.reconnectAttempts));
+    // Exponential backoff with max 60 seconds
+    const delay = Math.min(60000, 5000 * Math.pow(1.5, this.reconnectAttempts - 1));
+    this.log(`Scheduling WS reconnect in ${Math.round(delay/1000)}s (Attempt ${this.reconnectAttempts})`, "WS");
     this.wsReconnectTimer = setTimeout(() => {
       this.wsReconnectTimer = null;
       this.connectToExternalWS();
@@ -507,6 +615,7 @@ export class FarazGoldBot {
   }
 
   processCandle(candle: any, skipSignalCheck: boolean = false) {
+    const open = parseFloat(candle.open || candle.o || candle.close || candle.c);
     const close = parseFloat(candle.close || candle.c);
     const high = parseFloat(candle.high || candle.h);
     const low = parseFloat(candle.low || candle.l);
@@ -515,6 +624,7 @@ export class FarazGoldBot {
 
     if (close > 0) {
       this.price = close;
+      this.opens.push(open);
       this.closes.push(close);
       this.highs.push(high);
       this.lows.push(low);
@@ -522,6 +632,7 @@ export class FarazGoldBot {
       this.timestamps.push(time);
 
       if (this.closes.length > 500) {
+        this.opens.shift();
         this.closes.shift();
         this.highs.shift();
         this.lows.shift();
@@ -529,7 +640,7 @@ export class FarazGoldBot {
         this.timestamps.shift();
       }
       
-      this.recorder.recordCandle({ t: time, o: candle.open || candle.o || close, h: high, l: low, c: close, v: volume });
+      this.recorder.recordCandle({ t: time, o: open, h: high, l: low, c: close, v: volume });
       if (!skipSignalCheck) {
         this.checkForSignal();
       }
@@ -573,6 +684,7 @@ export class FarazGoldBot {
     if (!this.isTrading || this.marketStatus === 'CLOSED' || this.closes.length < 20) return;
     
     const now = Date.now();
+
     // Throttle signal check to at most once per second to save CPU
     if (now - this.lastSignalCheckTime < 1000) return;
     this.lastSignalCheckTime = now;
@@ -599,37 +711,87 @@ export class FarazGoldBot {
     }
   }
 
+  createSmartSignal(type: 'BUY' | 'SELL') {
+    return this.strategy.createSignal(
+      type,
+      this.price,
+      10,
+      ['Manual Entry'],
+      this.strategy.indicators.atr || (this.price * 0.001),
+      'MANUAL'
+    );
+  }
+
   async enterTrade(signal: any) {
     const now = Date.now();
     if (now - this.lastTradeTime < (this.settings.strategy?.tradeCooldown * 1000 || 8000)) return;
     if (this.openPositions.size >= (this.settings.risk?.maxOpenPositions || 2)) return;
 
+    // Max Spread Check
+    const maxSpread = this.settings.strategy?.numerical?.spreadThreshold || 18;
+    const tickSize = this.settings.market?.tickSize || 1;
+    const spreadTicks = this.currentSpread / tickSize;
+    
+    if (this.currentSpread > 0 && spreadTicks > maxSpread) {
+      this.log(`Trade Skipped: Spread too high (${spreadTicks.toFixed(1)} > ${maxSpread})`, "INFO");
+      return;
+    }
+
     this.lastTradeTime = now;
+    
+    // Pre-check balance if portfolio is available
+    if (this.portfolio && typeof this.portfolio.balance === 'number') {
+      const minRequiredBalance = 200000; // Estimated minimum for 1 unit of mazane
+      if (this.portfolio.balance < minRequiredBalance) {
+        this.log(`Trade Skipped: Insufficient balance (${this.portfolio.balance.toLocaleString('fa-IR')} < ${minRequiredBalance.toLocaleString('fa-IR')})`, "INFO");
+        return;
+      }
+    }
     
     if (this.settings.source === 'API' && this.api) {
       try {
-        const orderData = {
+        const orderData: any = {
           action: signal.type.toLowerCase(),
           order_type: 'verbal',
-          units: "1",
-          price: -1,
+          units: String(signal.units || "1"),
+          price: String(this.price),
           take_profit: String(Math.floor(signal.tp1)),
           stop_loss: String(Math.floor(signal.sl)),
-          signal_token: ''
+          signal_token: ""
         };
+        
+        this.log(`Attempting API Trade: ${signal.type} TP:${orderData.take_profit} SL:${orderData.stop_loss}`, "INFO");
+        
         const response = await this.api.post('/room/api/submit-order/', orderData);
         const rawStatus = response?.data?.status;
         const ok = rawStatus === true || rawStatus === 'true' || rawStatus === 1 || rawStatus === '1' || rawStatus === 'success' || Boolean(response?.data?.order_id) || Boolean(response?.data?.id) || (typeof response?.data?.message === 'string' && response.data.message.includes('ثبت'));
 
         if (ok) {
+          const transId = response?.data?.order_id || response?.data?.id || response?.data?.transaction_id;
           const id = Date.now();
-          this.openPositions.set(id, { ...signal, id, entryTime: new Date(), status: 'open', units: 1 });
-          this.log(`Trade Executed: ${signal.type} at ${this.price}`, "SUCCESS");
+          this.openPositions.set(id, { 
+            ...signal, 
+            id, 
+            transactionId: transId,
+            entryTime: new Date(), 
+            status: 'open', 
+            units: Number(signal.units || 1) 
+          });
+          this.log(`Trade Executed: ${signal.type} at ${this.price} (ID: ${transId})`, "SUCCESS");
           this.sendTelegramMessage(`🚀 *معامله جدید باز شد*
 نوع: ${signal.type === 'BUY' ? 'خرید 🟢' : 'فروش 🔴'}
 قیمت: ${this.price.toLocaleString('fa-IR')}
 حد سود: ${signal.tp1.toLocaleString('fa-IR')}
 حد ضرر: ${signal.sl.toLocaleString('fa-IR')}`);
+        } else {
+          const errorMsg = response?.data?.message || "";
+          this.log(`Trade Entry Failed. Full Response: ${JSON.stringify(response?.data || {})}`, "ERROR");
+          if (errorMsg.includes('موجودی ناکافی')) {
+            this.log(`Trade Entry Failed: Insufficient balance in account. Please check your margin.`, "ERROR");
+            // Optionally disable trading temporarily or alert user
+          } else {
+            this.log(`Trade Entry Failed: API returned false status. Response: ${JSON.stringify(response?.data || {})}`, "ERROR");
+          }
         }
       } catch (e) {
         this.log(`Trade Entry Error: ${e}`, "ERROR");
@@ -646,10 +808,13 @@ export class FarazGoldBot {
     const currentPrice = this.price;
     if (currentPrice <= 0) return;
 
+    const tickSize = Number(this.settings.market?.tickSize ?? 1);
+
     for (const [id, position] of this.openPositions) {
       if (position.status !== 'open') continue;
 
       const isBuy = position.type === 'BUY';
+      const entryPrice = position.entry || position.price;
 
       if (isBuy && currentPrice <= position.sl) {
         this.closeTrade(id, 'stop_loss');
@@ -665,6 +830,42 @@ export class FarazGoldBot {
           position.tp1Hit = true;
           this.closeTrade(id, 'take_profit');
           continue;
+        }
+      }
+
+      // Break Even Logic (50% of TP)
+      if (!position.breakEvenHit) {
+        const tpDist = Math.abs(position.tp1 - entryPrice);
+        const currentDist = isBuy ? currentPrice - entryPrice : entryPrice - currentPrice;
+        
+        if (currentDist >= tpDist * 0.5) {
+          position.breakEvenHit = true;
+          position.sl = entryPrice; // Move SL to Entry
+          this.log(`Break Even triggered for trade ${id}`, "INFO");
+        }
+      }
+
+      // Pyramiding Logic (5 ticks profit)
+      if (this.settings.activeStrategy === 'NUMERICAL' && !position.pyramidTriggered) {
+        const currentDist = isBuy ? currentPrice - entryPrice : entryPrice - currentPrice;
+        if (currentDist >= 5 * tickSize) {
+          position.pyramidTriggered = true;
+          position.sl = entryPrice; // Move SL of first step to entry
+          
+          // Open second step
+          const signal = {
+            type: position.type,
+            entry: currentPrice,
+            sl: entryPrice, // SL of second step is entry of first step
+            tp1: position.tp1, // Same TP
+            score: position.score,
+            reasons: ['Pyramiding Step 2'],
+            confidence: position.confidence,
+            timestamp: Date.now(),
+            pattern: 'Pyramiding',
+            strategy: 'NUMERICAL'
+          };
+          this.enterTrade(signal);
         }
       }
     }
@@ -683,29 +884,96 @@ export class FarazGoldBot {
     
     const tickSize = Number(this.settings.market?.tickSize ?? 1);
     const tickValue = Number(this.settings.market?.tickValueToman ?? 23000);
-    const pnl = (priceDiff / tickSize) * tickValue * (pos.units || 1);
+    const pnl = Math.round((priceDiff / tickSize) * tickValue * (pos.units || 1));
 
     if (this.settings.source === 'API' && this.api) {
       try {
+        let ok = false;
+        let apiResponse: any = null;
+
         if (pos.transactionId) {
-          await this.api.post(`/room/api/close-futures-transaction/${pos.transactionId}/`, {}, {
-            headers: { 'Accept': '*/*', 'X-Requested-With': 'XMLHttpRequest' }
-          });
-        } else {
+          const endpoints = [
+            `/room/api/close-futures-transaction/${pos.transactionId}/`,
+            `/room/api/close-transaction/${pos.transactionId}/`,
+            `/room/api/close-order/${pos.transactionId}/`
+          ];
+
+          for (const url of endpoints) {
+            if (ok) break;
+            try {
+              const res = await this.api.post(url, {}, {
+                headers: { 'Accept': '*/*', 'X-Requested-With': 'XMLHttpRequest' }
+              });
+              apiResponse = res?.data;
+              // Some APIs return {} on success, or status: true
+              ok = apiResponse?.status === true || 
+                   apiResponse?.status === 'true' || 
+                   apiResponse?.status === 1 || 
+                   apiResponse?.status === 'success' ||
+                   (res.status === 200 && Object.keys(apiResponse || {}).length === 0);
+              
+              if (ok) {
+                this.log(`Closed via ${url}`, "SUCCESS");
+              }
+            } catch (e: any) {
+              const status = e.response?.status;
+              const data = e.response?.data;
+              if (status !== 404) {
+                this.log(`Endpoint ${url} failed with status ${status}: ${JSON.stringify(data || {})}`, "INFO");
+              }
+            }
+          }
+          
+          if (!ok) {
+            this.log(`Close via transactionId failed after all attempts. Last Response: ${JSON.stringify(apiResponse || {})}`, "ERROR");
+            
+            const msg = String(apiResponse?.message || "");
+            if (msg.includes('یافت نشد') || msg.toLowerCase().includes('not found') || msg.toLowerCase().includes('invalid')) {
+              this.log(`Position likely already closed on server. Removing locally.`, "INFO");
+              ok = true; 
+            }
+          }
+        } 
+        
+        if (!ok) {
           const closeAction = isBuy ? 'sell' : 'buy';
-          await this.api.post('/room/api/submit-order/', {
+          const orderData: any = {
             action: closeAction,
             order_type: 'verbal',
             units: String(pos.units || 1),
-            price: -1,
-            take_profit: '',
-            stop_loss: '',
-            signal_token: ''
-          });
+            price: String(this.price),
+            take_profit: "",
+            stop_loss: "",
+            signal_token: ""
+          };
+          const res = await this.api.post('/room/api/submit-order/', orderData);
+          apiResponse = res?.data;
+          const rawStatus = apiResponse?.status;
+          ok = rawStatus === true || rawStatus === 'true' || rawStatus === 1 || rawStatus === '1' || rawStatus === 'success' || Boolean(apiResponse?.order_id) || Boolean(apiResponse?.id) || (typeof apiResponse?.message === 'string' && apiResponse.message.includes('ثبت'));
+          
+          if (!ok) {
+            this.log(`Close via submit-order failed. Response: ${JSON.stringify(apiResponse || {})}`, "ERROR");
+            
+            // Check for "already closed" or "no position" errors
+            const msg = String(apiResponse?.message || "");
+            if (msg.includes('موجودی کافی نیست') || msg.includes('یافت نشد')) {
+               // If we can't open the opposite order, maybe we don't need to
+               this.log(`Could not submit opposite order. Position might be closed.`, "INFO");
+            }
+          }
+        }
+        
+        if (!ok) {
+          this.log(`Close Trade Failed: API returned false status`, "ERROR");
+          return; // Do not close in bot state if API failed
         }
       } catch (e) {
         this.log(`Close Trade API Error: ${e}`, "ERROR");
+        return; // Do not close in bot state if API failed
       }
+    } else {
+      this.log(`Close Trade Skipped: API not configured or not connected`, "ERROR");
+      return; // Do not close in bot state if API not connected
     }
 
     this.dailyPnL += pnl;
@@ -713,6 +981,21 @@ export class FarazGoldBot {
     if (pnl > 0) this.winningTrades++;
     else if (pnl < 0) this.losingTrades++;
     
+    // Daily Loss Limit Check (5% of balance)
+    const maxDailyLoss = (this.portfolio?.balance || 100000000) * 0.05;
+    if (this.dailyPnL <= -maxDailyLoss) {
+      this.log(`Daily Loss Limit Reached! Stopping bot.`, "ERROR");
+      this.isTrading = false;
+      this.sendTelegramMessage(`🚨 *حد ضرر روزانه فعال شد*
+ربات متوقف شد و تمام پوزیشن‌ها بسته خواهند شد.`);
+      // Close all other open positions
+      for (const [otherId, otherPos] of this.openPositions) {
+        if (otherId !== id) {
+          this.closeTrade(otherId, 'daily_loss_limit');
+        }
+      }
+    }
+
     const closedPos = {
       ...pos,
       exitPrice: closePrice,
@@ -746,21 +1029,51 @@ export class FarazGoldBot {
     const rsi = this.strategy.indicators.rsi || 50;
     const emaFast = this.strategy.indicators.emaFast || this.price;
     const emaSlow = this.strategy.indicators.emaSlow || this.price;
+    const atr = this.strategy.indicators.atr || 0;
     
     let trend = 'رنج (خنثی)';
     let color = 'text-slate-400';
-    if (emaFast > emaSlow * 1.0005) {
+    
+    // Use a smaller threshold for trend detection (0.01% instead of 0.05%)
+    const regime = this.strategy.indicators.regime || 'NORMAL';
+    
+    if (regime === 'RANGING') {
+      trend = 'رنج (بدون روند) ⚖️';
+      color = 'text-amber-500';
+    } else if (emaFast > emaSlow * 1.0001) {
       trend = 'صعودی 🟢';
       color = 'text-emerald-500';
-    } else if (emaFast < emaSlow * 0.9995) {
+    } else if (emaFast < emaSlow * 0.9999) {
       trend = 'نزولی 🔴';
       color = 'text-rose-500';
     }
 
     let analysis = `بازار در وضعیت ${trend} قرار دارد. `;
-    if (rsi > 70) analysis += 'شاخص RSI در منطقه اشباع خرید است و احتمال اصلاح قیمت وجود دارد. ';
-    else if (rsi < 30) analysis += 'شاخص RSI در منطقه اشباع فروش است و احتمال برگشت قیمت وجود دارد. ';
-    else analysis += 'شاخص RSI در محدوده نرمال است. ';
+    if (regime === 'RANGING') {
+      analysis = 'بازار در حال حاضر در وضعیت رنج (ساید) است. در این شرایط استراتژی‌های نوسان‌گیری بهتر عمل می‌کنند. ';
+    }
+    
+    // RSI Analysis
+    if (rsi > 70) {
+      analysis += 'شاخص RSI در منطقه اشباع خرید است و احتمال اصلاح یا ریزش قیمت بالاست. ';
+    } else if (rsi < 30) {
+      analysis += 'شاخص RSI در منطقه اشباع فروش است و احتمال برگشت یا رشد قیمت بالاست. ';
+    } else if (rsi > 55) {
+      analysis += 'قدرت خریداران بیشتر است (RSI بالای ۵۰). ';
+    } else if (rsi < 45) {
+      analysis += 'قدرت فروشندگان بیشتر است (RSI زیر ۵۰). ';
+    } else {
+      analysis += 'قدرت خریدار و فروشنده تقریباً برابر است. ';
+    }
+
+    // ATR / Volatility Analysis
+    if (atr > this.price * 0.001) {
+      analysis += 'نوسانات بازار شدید است (ATR بالا)، مراقب حد ضررها باشید.';
+    } else if (atr < this.price * 0.0003) {
+      analysis += 'بازار کم‌نوسان است و احتمال یک حرکت شارپ وجود دارد.';
+    } else {
+      analysis += 'نوسانات بازار در حد نرمال است.';
+    }
 
     return { trend, color, analysis };
   }
@@ -769,12 +1082,45 @@ export class FarazGoldBot {
     const candles = this.closes.map((c, i) => ({
       x: this.timestamps[i] || (Date.now() - (this.closes.length - i) * 60000),
       y: [
-        this.closes[i-1] || c, // Open (approximate if not stored)
-        this.highs[i],         // High
-        this.lows[i],          // Low
+        this.opens[i] || c,    // Open
+        this.highs[i] || c,    // High
+        this.lows[i] || c,     // Low
         c                      // Close
       ]
-    })).slice(-50); // Send last 50 candles to keep UI fast
+    })).slice(-200); // Send last 200 candles to show past history
+
+    // Calculate HMA and SuperTrend for chart
+    let hmaLine: any[] = [];
+    let stLine: any[] = [];
+    
+    if (this.closes.length > 0) {
+      const hstCfg = this.settings.strategy?.hst || { hmaLength: 55, stPeriod: 10, stMultiplier: 3 };
+      const hmaValues = this.strategy.calculateHMA(this.closes, hstCfg.hmaLength || 55);
+      const stValues = this.strategy.calculateSuperTrend(this.highs, this.lows, this.closes, hstCfg.stPeriod || 10, hstCfg.stMultiplier || 3);
+      
+      // Map back to timestamps, matching the slice(-200)
+      const startIndex = Math.max(0, this.closes.length - 200);
+      
+      for (let i = startIndex; i < this.closes.length; i++) {
+        const time = this.timestamps[i] || (Date.now() - (this.closes.length - i) * 60000);
+        
+        // HMA array might be shorter than closes array due to lookback period
+        const hmaIdx = hmaValues.length - (this.closes.length - i);
+        if (hmaIdx >= 0 && hmaValues[hmaIdx]) {
+          hmaLine.push({ x: time, y: hmaValues[hmaIdx] });
+        }
+        
+        // SuperTrend array might be shorter
+        const stIdx = stValues.length - (this.closes.length - i);
+        if (stIdx >= 0 && stValues[stIdx]) {
+          stLine.push({ 
+            x: time, 
+            y: stValues[stIdx].value,
+            direction: stValues[stIdx].direction
+          });
+        }
+      }
+    }
 
     return {
       price: this.price,
@@ -791,6 +1137,8 @@ export class FarazGoldBot {
       settings: this.settings,
       portfolio: this.portfolio,
       candles: candles,
+      hmaLine: hmaLine,
+      stLine: stLine,
       logs: this.logs,
       marketAnalysis: this.getMarketAnalysis()
     };

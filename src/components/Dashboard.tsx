@@ -4,7 +4,11 @@ import { Activity, TrendingUp, TrendingDown, AlertCircle, Clock, Power, ShieldCh
 import { motion, AnimatePresence } from 'framer-motion';
 
 const formatPrice = (price: number) => {
-  return new Intl.NumberFormat('fa-IR', { style: 'currency', currency: 'IRR', maximumFractionDigits: 0 }).format(price * 10).replace('ریال', 'تومان');
+  if (price === undefined || price === null || isNaN(price)) return '---';
+  const isNegative = price < 0;
+  const absPrice = Math.abs(price);
+  const formatted = new Intl.NumberFormat('fa-IR', { maximumFractionDigits: 0 }).format(absPrice);
+  return `${isNegative ? '-' : ''}${formatted} تومان`;
 };
 
 export default function Dashboard() {
@@ -89,7 +93,9 @@ export default function Dashboard() {
   };
 
   const closeAllTrades = async () => {
-    await fetch('/api/bot/close-all', { method: 'POST' });
+    if (window.confirm('آیا از بستن تمام پوزیشن‌ها اطمینان دارید؟')) {
+      await fetch('/api/bot/close-all', { method: 'POST' });
+    }
   };
 
   const saveSettings = async () => {
@@ -119,6 +125,91 @@ export default function Dashboard() {
       />
     </div>
   );
+
+  // Calculate Highs and Lows for Chart Annotations
+  const candles = botState.candles || [];
+  let maxHigh = -Infinity;
+  let minLow = Infinity;
+  let maxHighTime = 0;
+  let minLowTime = 0;
+
+  candles.forEach(c => {
+    const [open, high, low, close] = c.y;
+    if (high > maxHigh) { maxHigh = high; maxHighTime = c.x; }
+    if (low < minLow) { minLow = low; minLowTime = c.x; }
+  });
+
+  const chartAnnotations = { points: [] as any[] };
+
+  if (maxHigh !== -Infinity && candles.length > 0) {
+    chartAnnotations.points.push({
+      x: maxHighTime,
+      y: maxHigh,
+      marker: { size: 4, fillColor: '#10b981', strokeColor: '#fff', strokeWidth: 2 },
+      label: {
+        borderColor: '#10b981',
+        style: { color: '#fff', background: '#10b981', fontSize: '10px', fontFamily: 'monospace' },
+        text: `سقف: ${maxHigh.toLocaleString('fa-IR')}`
+      }
+    });
+  }
+  
+  if (minLow !== Infinity && candles.length > 0) {
+    chartAnnotations.points.push({
+      x: minLowTime,
+      y: minLow,
+      marker: { size: 4, fillColor: '#f43f5e', strokeColor: '#fff', strokeWidth: 2 },
+      label: {
+        borderColor: '#f43f5e',
+        style: { color: '#fff', background: '#f43f5e', fontSize: '10px', fontFamily: 'monospace' },
+        text: `کف: ${minLow.toLocaleString('fa-IR')}`
+      }
+    });
+  }
+
+  // Prepare series data
+  const seriesData: any[] = [{
+    name: 'قیمت',
+    type: 'candlestick',
+    data: botState.candles || []
+  }];
+
+  if (botState.settings?.activeStrategy === 'HST') {
+    if (botState.hmaLine && botState.hmaLine.length > 0) {
+      seriesData.push({
+        name: 'HMA',
+        type: 'line',
+        data: botState.hmaLine
+      });
+    }
+    
+    if (botState.stLine && botState.stLine.length > 0) {
+      // Split SuperTrend into Up and Down for coloring
+      const stUp: any[] = [];
+      const stDown: any[] = [];
+      
+      botState.stLine.forEach((pt: any) => {
+        if (pt.direction === 1) {
+          stUp.push({ x: pt.x, y: pt.y });
+          stDown.push({ x: pt.x, y: null }); // Break the line
+        } else {
+          stDown.push({ x: pt.x, y: pt.y });
+          stUp.push({ x: pt.x, y: null }); // Break the line
+        }
+      });
+      
+      seriesData.push({
+        name: 'ST Up',
+        type: 'line',
+        data: stUp
+      });
+      seriesData.push({
+        name: 'ST Down',
+        type: 'line',
+        data: stDown
+      });
+    }
+  }
 
   return (
     <div className="min-h-screen bg-[#050505] text-slate-200 font-sans selection:bg-emerald-500/30 overflow-x-hidden">
@@ -198,6 +289,7 @@ export default function Dashboard() {
               <option value="FAST">استراتژی فوق سریع</option>
               <option value="QUANT">استراتژی کوانت</option>
               <option value="TREND">استراتژی ترند</option>
+              <option value="NUMERICAL">نوسان‌گیری عددی (مظنه)</option>
             </select>
           </div>
           <div className="hidden md:block text-right">
@@ -209,22 +301,11 @@ export default function Dashboard() {
           <div className="hidden md:block text-right">
             <p className="text-[10px] text-slate-500 font-mono uppercase tracking-wider mb-1">عملکرد امروز</p>
             <p className={`text-xl font-black font-mono ${botState.dailyPnL >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-              {botState.dailyPnL >= 0 ? '+' : ''}{formatPrice(botState.dailyPnL)}
+              {botState.dailyPnL > 0 ? '+' : ''}{formatPrice(botState.dailyPnL)}
             </p>
           </div>
           
           <div className="flex items-center gap-2 bg-white/5 p-1.5 rounded-2xl border border-white/5">
-            <button 
-              onClick={async () => {
-                if (window.confirm('آیا از ریست کردن آمار امروز اطمینان دارید؟')) {
-                  await fetch('/api/bot/reset-stats', { method: 'POST' });
-                }
-              }}
-              title="ریست آمار"
-              className="p-2.5 rounded-xl hover:bg-white/5 transition-colors text-slate-400 hover:text-white"
-            >
-              <RefreshCw className="w-5 h-5" />
-            </button>
             <button 
               onClick={() => setShowSettings(true)}
               className="p-2.5 rounded-xl hover:bg-white/5 transition-colors text-slate-400 hover:text-white"
@@ -245,10 +326,11 @@ export default function Dashboard() {
       <main className="p-4 sm:p-8 max-w-[1800px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8" dir="rtl">
         {/* Main Chart Section */}
         <div className="lg:col-span-8 space-y-6 sm:space-y-8">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 sm:gap-6">
             {[
               { label: 'قیمت لحظه‌ای', value: formatPrice(botState.price), icon: TrendingUp, color: 'text-white' },
-              { label: 'شاخص RSI', value: botState.indicators?.rsi ? botState.indicators.rsi.toFixed(2) : '---', icon: Activity, color: botState.indicators?.rsi > 60 ? 'text-rose-500' : botState.indicators?.rsi < 40 ? 'text-emerald-500' : 'text-white' },
+              { label: 'شاخص RSI', value: botState.indicators?.rsi ? Number(botState.indicators.rsi).toFixed(2) : '---', icon: Activity, color: botState.indicators?.rsi > 60 ? 'text-rose-500' : botState.indicators?.rsi < 40 ? 'text-emerald-500' : 'text-white' },
+              { label: 'وضعیت بازار', value: botState.indicators?.regime || '---', icon: Activity, color: botState.indicators?.regime === 'TRENDING' ? 'text-emerald-500' : botState.indicators?.regime === 'RANGING' ? 'text-amber-500' : 'text-white' },
               { label: 'معاملات فعال', value: botState.openPositions.length, icon: ShieldCheck, color: 'text-emerald-500' }
             ].map((stat, i) => (
               <motion.div 
@@ -303,12 +385,13 @@ export default function Dashboard() {
               <Chart
                 options={{
                   chart: {
-                    type: 'candlestick',
+                    type: 'line',
                     background: 'transparent',
                     toolbar: { show: false },
                     animations: { enabled: false }
                   },
                   theme: { mode: 'dark' },
+                  annotations: chartAnnotations,
                   plotOptions: {
                     candlestick: {
                       colors: {
@@ -320,6 +403,11 @@ export default function Dashboard() {
                       }
                     }
                   },
+                  stroke: {
+                    width: [1, 2, 2, 2], // 1 for candle, 2 for lines
+                    curve: 'smooth'
+                  },
+                  colors: ['#10b981', '#3b82f6', '#10b981', '#f43f5e'], // Candle, HMA, ST Up, ST Down
                   xaxis: {
                     type: 'datetime',
                     labels: {
@@ -331,6 +419,8 @@ export default function Dashboard() {
                   },
                   yaxis: {
                     tooltip: { enabled: true },
+                    decimalsInFloat: 0,
+                    forceNiceScale: true,
                     labels: {
                       style: { colors: '#64748b', fontFamily: 'monospace' },
                       formatter: (val) => val.toLocaleString('fa-IR')
@@ -345,11 +435,8 @@ export default function Dashboard() {
                     x: { format: 'HH:mm' }
                   }
                 }}
-                series={[{
-                  name: 'قیمت',
-                  data: botState.candles || []
-                }]}
-                type="candlestick"
+                series={seriesData}
+                type="line"
                 height="100%"
                 width="100%"
               />
@@ -403,9 +490,16 @@ export default function Dashboard() {
                         <p className="text-xs sm:text-sm font-bold font-mono text-white">{formatPrice(pos.entry)}</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-[8px] sm:text-[9px] text-slate-500 uppercase font-mono mb-1">حد سود / ضرر</p>
-                        <p className="text-[9px] sm:text-[10px] font-bold font-mono text-emerald-500">{formatPrice(pos.tp1 || pos.tp)}</p>
-                        <p className="text-[9px] sm:text-[10px] font-bold font-mono text-rose-500">{formatPrice(pos.sl)}</p>
+                        <p className="text-[8px] sm:text-[9px] text-slate-500 uppercase font-mono mb-1">سود/ضرر لحظه‌ای</p>
+                        <p className={`text-[10px] sm:text-xs font-bold font-mono ${
+                          ((pos.type === 'BUY' ? botState.price - pos.entry : pos.entry - botState.price) / (botState.settings?.market?.tickSize || 1)) * (botState.settings?.market?.tickValueToman || 23000) * (pos.units || 1) >= 0 
+                            ? 'text-emerald-500' 
+                            : 'text-rose-500'
+                        }`}>
+                          {formatPrice(
+                            ((pos.type === 'BUY' ? botState.price - pos.entry : pos.entry - botState.price) / (botState.settings?.market?.tickSize || 1)) * (botState.settings?.market?.tickValueToman || 23000) * (pos.units || 1)
+                          )}
+                        </p>
                       </div>
                     </div>
                   </motion.div>
@@ -449,9 +543,20 @@ export default function Dashboard() {
               </button>
               <button 
                 onClick={closeAllTrades}
-                className="col-span-2 bg-slate-800 hover:bg-slate-700 text-white py-2.5 sm:py-3 rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm transition-all"
+                className="bg-slate-800 hover:bg-slate-700 text-white py-2.5 sm:py-3 rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm transition-all"
               >
                 بستن تمام پوزیشن‌ها
+              </button>
+              <button 
+                onClick={async () => {
+                  if (window.confirm('آیا از ریست کردن آمار و تاریخچه اطمینان دارید؟')) {
+                    await fetch('/api/bot/reset-stats', { method: 'POST' });
+                  }
+                }}
+                className="bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 text-amber-500 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2"
+              >
+                <RefreshCw className="w-4 h-4" />
+                ریست معاملات
               </button>
             </div>
 
@@ -515,7 +620,9 @@ export default function Dashboard() {
                     <span className={`text-[9px] sm:text-[10px] font-bold px-2 py-0.5 sm:py-1 rounded-md ${pos.type === 'BUY' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-rose-500/20 text-rose-500'}`}>
                       {pos.type}
                     </span>
-                    <span className="text-[10px] sm:text-xs font-mono text-slate-400">{formatPrice(pos.pnl)}</span>
+                    <span className={`text-[10px] sm:text-xs font-mono font-bold ${pos.pnl > 0 ? 'text-emerald-500' : pos.pnl < 0 ? 'text-rose-500' : 'text-slate-400'}`}>
+                      {pos.pnl > 0 ? '+' : ''}{formatPrice(pos.pnl)}
+                    </span>
                   </div>
                   <div className="text-left">
                     <span className="text-[9px] sm:text-[10px] text-slate-500">{new Date(pos.exitTime).toLocaleTimeString('fa-IR')}</span>
@@ -688,6 +795,107 @@ export default function Dashboard() {
 
 
 
+                {/* Numerical Strategy Settings */}
+                {settings.activeStrategy === 'NUMERICAL' && (
+                  <section>
+                    <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-3">
+                      <Activity className="w-4 h-4" /> تنظیمات نوسان‌گیری عددی
+                    </h3>
+                    <div className="grid grid-cols-2 gap-6">
+                      <div>
+                        <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">حد اسپرد (تیک)</label>
+                        <input 
+                          type="number" 
+                          value={settings.strategy?.numerical?.spreadThreshold || 14}
+                          onChange={(e) => setSettings({ 
+                            ...settings, 
+                            strategy: { 
+                              ...settings.strategy, 
+                              numerical: { ...settings.strategy?.numerical, spreadThreshold: parseInt(e.target.value) } 
+                            } 
+                          })}
+                          className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-emerald-500/50"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">حد سود (تیک)</label>
+                        <input 
+                          type="number" 
+                          value={settings.strategy?.numerical?.takeProfitPips || 10}
+                          onChange={(e) => setSettings({ 
+                            ...settings, 
+                            strategy: { 
+                              ...settings.strategy, 
+                              numerical: { ...settings.strategy?.numerical, takeProfitPips: parseInt(e.target.value) } 
+                            } 
+                          })}
+                          className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-emerald-500/50"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">حد ضرر (تیک)</label>
+                        <input 
+                          type="number" 
+                          value={settings.strategy?.numerical?.stopLossPips || 8}
+                          onChange={(e) => setSettings({ 
+                            ...settings, 
+                            strategy: { 
+                              ...settings.strategy, 
+                              numerical: { ...settings.strategy?.numerical, stopLossPips: parseInt(e.target.value) } 
+                            } 
+                          })}
+                          className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-rose-500/50"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">فاصله مگنت عدد رند</label>
+                        <input 
+                          type="number" 
+                          value={settings.strategy?.numerical?.roundNumberMagnet || 5}
+                          onChange={(e) => setSettings({ 
+                            ...settings, 
+                            strategy: { 
+                              ...settings.strategy, 
+                              numerical: { ...settings.strategy?.numerical, roundNumberMagnet: parseInt(e.target.value) } 
+                            } 
+                          })}
+                          className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-emerald-500/50"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">مبنای عدد رند (مثلا ۱۰۰۰۰)</label>
+                        <input 
+                          type="number" 
+                          value={settings.strategy?.numerical?.roundNumberBase || 10000}
+                          onChange={(e) => setSettings({ 
+                            ...settings, 
+                            strategy: { 
+                              ...settings.strategy, 
+                              numerical: { ...settings.strategy?.numerical, roundNumberBase: parseInt(e.target.value) } 
+                            } 
+                          })}
+                          className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-emerald-500/50"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">حجم در هر پله</label>
+                        <input 
+                          type="number" 
+                          value={settings.strategy?.numerical?.volumePerStep || 1}
+                          onChange={(e) => setSettings({ 
+                            ...settings, 
+                            strategy: { 
+                              ...settings.strategy, 
+                              numerical: { ...settings.strategy?.numerical, volumePerStep: parseInt(e.target.value) } 
+                            } 
+                          })}
+                          className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-emerald-500/50"
+                        />
+                      </div>
+                    </div>
+                  </section>
+                )}
+
                 {/* Risk Management */}
                 <section>
                   <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-3">
@@ -786,7 +994,9 @@ export default function Dashboard() {
                       { id: 'SCALP', label: 'اسکالپر پرو', desc: 'مبتنی بر RSI و EMA' },
                       { id: 'FAST', label: 'فوق سریع', desc: 'واکنش سریع به نوسان' },
                       { id: 'QUANT', label: 'کوانت', desc: 'پرایس اکشن و الگوها' },
-                      { id: 'TREND', label: 'ترند فالووینگ', desc: 'کراس MA و MACD' }
+                      { id: 'TREND', label: 'ترند فالووینگ', desc: 'کراس MA و MACD' },
+                      { id: 'NUMERICAL', label: 'نوسان‌گیری عددی', desc: 'مومنتوم و اعداد رند' },
+                      { id: 'HST', label: 'استراتژی HST', desc: 'تایید دوگانه Hull+SuperTrend' }
                     ].map(type => (
                       <button
                         key={type.id}
@@ -830,7 +1040,7 @@ export default function Dashboard() {
                 {/* Strategy Parameters */}
                 <section>
                   <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-3">
-                    <Activity className="w-4 h-4" /> پارامترهای استراتژی ({settings.activeStrategy === 'SCALP' ? 'اسکالپر' : settings.activeStrategy === 'FAST' ? 'فوق سریع' : settings.activeStrategy === 'QUANT' ? 'کوانت' : 'ترند'})
+                    <Activity className="w-4 h-4" /> پارامترهای استراتژی ({settings.activeStrategy === 'SCALP' ? 'اسکالپر' : settings.activeStrategy === 'FAST' ? 'فوق سریع' : settings.activeStrategy === 'QUANT' ? 'کوانت' : settings.activeStrategy === 'NUMERICAL' ? 'نوسان‌گیری عددی' : settings.activeStrategy === 'HST' ? 'استراتژی HST' : 'ترند'})
                   </h3>
                   
                   {settings.activeStrategy === 'SCALP' && (
@@ -879,6 +1089,66 @@ export default function Dashboard() {
                           onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, tradeCooldown: parseInt(e.target.value) } })}
                           className="w-full bg-white/5 border border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-2.5 sm:py-3 text-sm outline-none focus:border-emerald-500/50"
                         />
+                      </div>
+                    </div>
+                  )}
+
+                  {settings.activeStrategy === 'HST' && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                      <div className="col-span-1 sm:col-span-2 bg-emerald-500/5 p-4 rounded-2xl border border-emerald-500/20">
+                        <p className="text-[10px] text-emerald-500 font-bold mb-1">تنظیمات پیشرفته HST</p>
+                        <p className="text-[11px] text-slate-400">این استراتژی با ترکیب میانگین Hull و SuperTrend تاییدیه دوگانه می‌گیرد. حالت تهاجمی تعداد معاملات را افزایش می‌دهد.</p>
+                      </div>
+                      <div>
+                        <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">حالت معامله</label>
+                        <select 
+                          value={settings.strategy?.hst?.mode || 'NORMAL'}
+                          onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, hst: { ...settings.strategy?.hst, mode: e.target.value } } })}
+                          className="w-full bg-white/5 border border-white/5 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-emerald-500/50"
+                        >
+                          <option value="PRECISION">دقت بالا (معاملات کمتر) 💎</option>
+                          <option value="NORMAL">معمولی (استاندارد) ⚖️</option>
+                          <option value="AGGRESSIVE">تهاجمی (معاملات بیشتر) 🔥</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">ضریب SuperTrend</label>
+                        <input 
+                          type="number" 
+                          step="0.1"
+                          value={settings.strategy?.hst?.stMultiplier || 3}
+                          onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, hst: { ...settings.strategy?.hst, stMultiplier: parseFloat(e.target.value) } } })}
+                          className="w-full bg-white/5 border border-white/5 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-emerald-500/50"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">دوره HMA</label>
+                        <input 
+                          type="number" 
+                          value={settings.strategy?.hst?.hmaLength || 55}
+                          onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, hst: { ...settings.strategy?.hst, hmaLength: parseInt(e.target.value) } } })}
+                          className="w-full bg-white/5 border border-white/5 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-emerald-500/50"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">نسبت سود به ضرر (R:R)</label>
+                        <input 
+                          type="number" 
+                          step="0.1"
+                          value={settings.strategy?.riskRewardRatio || 1.5}
+                          onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, riskRewardRatio: parseFloat(e.target.value) } })}
+                          className="w-full bg-white/5 border border-white/5 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-emerald-500/50"
+                        />
+                        <p className="text-[8px] text-slate-500 mt-1">فاصله تارگت نسبت به حد ضرر</p>
+                      </div>
+                      <div className="flex items-center justify-between bg-white/5 p-4 rounded-xl">
+                        <span className="text-xs">تاییدیه قیمت بالای HMA</span>
+                        <button 
+                          onClick={() => setSettings({ ...settings, strategy: { ...settings.strategy, hst: { ...settings.strategy?.hst, requireCloseAboveHMA: !settings.strategy?.hst?.requireCloseAboveHMA } } })}
+                          className={`w-10 h-5 rounded-full transition-colors relative ${settings.strategy?.hst?.requireCloseAboveHMA ? 'bg-emerald-500' : 'bg-slate-700'}`}
+                        >
+                          <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${settings.strategy?.hst?.requireCloseAboveHMA ? 'left-6' : 'left-1'}`} />
+                        </button>
                       </div>
                     </div>
                   )}

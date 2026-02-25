@@ -1,18 +1,199 @@
 {
+  "auth": {
+    "csrftoken": "GTiZlvd8jNoMuko3nkjjU0lhC8m6Yy3m",
+    "sessionid": "njmnqc7hfkeyayowprwheqc73lvp98as",
+    "baseUrl": "https://demo.farazgold.com",
+    "wsUrl": "wss://demo.farazgold.com/room/api/get-bars-ws/?symbol=mazane&resolution=1&history=300",
+    "wsAutoDiscover": true
+  },
+  "risk": {
+    "maxOpenPositions": 2,
+    "maxDailyRisk": 8
+  },
+  "market": {
+    "tickValueToman": 23000,
+    "tickSize": 1,
+    "spreadTicks": 2
+  },
+  "trade": {
+    "minUnits": 1,
+    "maxUnits": 1
+  },
+  "targetsTicks": {
+    "stopTicks": 12,
+    "tpTicks": 18,
+    "trailing": {
+      "enabled": true,
+      "activateAfterTicks": 8,
+      "trailTicks": 4
+    },
+    "reversal": {
+      "enabled": true,
+      "triggerLossTicks": 6,
+      "minOppositeSignalScore": 2
+    }
+  },
+  "targets": {
+    "tp1Percent": 0.3,
+    "tp2Percent": 0.6,
+    "tp3Percent": 1,
+    "stopLossPercent": 0.4,
+    "trailingStop": {
+      "enabled": true,
+      "activationPercent": 0.5,
+      "trailPercent": 0.2,
+      "aggressiveAfterTP1": true
+    },
+    "partialClose": {
+      "enabled": true,
+      "tp1ClosePercent": 50,
+      "tp2ClosePercent": 30,
+      "tp3ClosePercent": 20
+    },
+    "breakEven": {
+      "enabled": true,
+      "bufferTicks": 1
+    }
+  },
+  "timeframe": {
+    "value": 60,
+    "label": "1m"
+  },
+  "activeStrategy": "HST",
+  "strategy": {
+    "enabled": true,
+    "entry": {
+      "maxDistanceFromSlowEmaPercent": 0.5
+    },
+    "tradeCooldown": 8,
+    "minSignalScore": 1,
+    "riskRewardRatio": 1.5,
+    "antiSpam": {
+      "enabled": true,
+      "minMinutesBetweenSameSideSignals": 1
+    },
+    "filters": {
+      "maxPositions": 3,
+      "maxTradesPer10Min": 2,
+      "minVolatility": 0,
+      "maxVolatility": 1000,
+      "minAtrPercent": 0.005
+    },
+    "indicators": {
+      "rsi": {
+        "enabled": true,
+        "period": 5,
+        "oversold": 40,
+        "overbought": 60
+      },
+      "ema": {
+        "enabled": true,
+        "fast": 3,
+        "slow": 8
+      },
+      "atr": {
+        "enabled": true,
+        "period": 5
+      },
+      "volume": {
+        "enabled": false
+      }
+    },
+    "quant": {
+      "maFast": 50,
+      "maSlow": 200,
+      "riskRewardRatio": 2,
+      "swingLength": 5,
+      "patternTolerancePct": 0.05
+    },
+    "trend": {
+      "maFast": 20,
+      "maSlow": 50,
+      "macdFast": 12,
+      "macdSlow": 26,
+      "macdSignal": 9
+    },
+    "rsi": {
+      "enabled": true,
+      "period": 5,
+      "oversold": 40,
+      "overbought": 60
+    },
+    "ema": {
+      "enabled": true,
+      "fast": 3,
+      "slow": 8
+    },
+    "hst": {
+      "hmaLength": 55,
+      "stPeriod": 10,
+      "stMultiplier": 3,
+      "requireCloseAboveHMA": true,
+      "mode": "NORMAL"
+    }
+  },
+  "websocket": {
+    "reconnectDelay": 3000,
+    "maxReconnectDelay": 30000,
+    "maxReconnectAttempts": null,
+    "pingInterval": 15000,
+    "pongTimeout": 10000,
+    "connectionTimeout": 15000,
+    "handshakeTimeout": 10000,
+    "maxPayload": 10485760,
+    "perMessageDeflate": false,
+    "sendAppPing": true,
+    "keepaliveMode": "appPing",
+    "idleDisconnectSeconds": 180
+  },
+  "dataRecorder": {
+    "enabled": true,
+    "dir": "./logs",
+    "marketFile": "market.jsonl",
+    "signalFile": "signals.jsonl",
+    "tradeFile": "trades.jsonl",
+    "flushEvery": 1
+  },
+  "autoTune": {
+    "enabled": true,
+    "scheduleHours": 24,
+    "iterations": 80,
+    "marketFile": "./logs/market.jsonl",
+    "bestParamsFile": "./logs/best_params.json",
+    "runOnStart": false,
+    "autoApply": true
+  },
+  "notifications": {
+    "enabled": true,
+    "onSignal": true,
+    "onTrade": true,
+    "onClose": true,
+    "onError": true
+  },
+  "logging": {
+    "level": "info",
+    "showTrades": true,
+    "showPnL": true,
+    "showPortfolio": true,
+    "showSignals": true,
+    "saveToFile": true,
+    "logFile": "./logs/trading.log"
+  },
   "telegram": {
     "enabled": false,
     "botToken": "",
     "chatId": ""
   },
-  "strategy": {
-    "entry": {
-      "maxDistanceFromSlowEmaPercent": 0.5
-    },
-    "rsi": { "enabled": true, "period": 5, "oversold": 40, "overbought": 60 },
-    "ema": { "enabled": true, "fast": 3, "slow": 8 }
+  "api": {
+    "wsUrl": "wss://demo.farazgold.com/ws/",
+    "baseUrl": "https://demo.farazgold.com",
+    "csrftoken": "GTiZlvd8jNoMuko3nkjjU0lhC8m6Yy3m",
+    "sessionid": "njmnqc7hfkeyayowprwheqc73lvp98as"
   },
-  "risk": {
-    "maxOpenPositions": 2,
-    "maxDailyRisk": 8
-  }
+  "simulation": {
+    "volatility": 5000,
+    "basePrice": 18500000,
+    "trend": 0
+  },
+  "source": "API"
 }

@@ -41,14 +41,7 @@ async function startServer() {
   app.post("/api/bot/manual-trade", async (req, res) => {
     const { action } = req.body;
     if (action === 'BUY' || action === 'SELL') {
-      const signal = {
-        type: action,
-        price: bot.price,
-        tp1: action === 'BUY' ? bot.price + (bot.settings.targetsTicks?.tpTicks || 18) * (bot.settings.market?.tickValueToman || 23000) : bot.price - (bot.settings.targetsTicks?.tpTicks || 18) * (bot.settings.market?.tickValueToman || 23000),
-        sl: action === 'BUY' ? bot.price - (bot.settings.targetsTicks?.stopTicks || 12) * (bot.settings.market?.tickValueToman || 23000) : bot.price + (bot.settings.targetsTicks?.stopTicks || 12) * (bot.settings.market?.tickValueToman || 23000),
-        score: 10,
-        reasons: ['Manual Trade']
-      };
+      const signal = bot.createSmartSignal(action);
       await bot.enterTrade(signal);
       res.json({ success: true });
     } else {
