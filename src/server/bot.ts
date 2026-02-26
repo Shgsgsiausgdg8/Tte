@@ -493,6 +493,27 @@ ${analysisText}
           break;
         }
       }
+
+      const apiSl = Number(p.stop_loss || p.sl || 0);
+      const apiTp = Number(p.take_profit || p.tp || 0);
+      
+      const finalSl = apiSl > 0 ? apiSl : (existingPos?.sl || 0);
+      const finalTp = apiTp > 0 ? apiTp : (existingPos?.tp1 || 0);
+
+      // CRITICAL: If the exchange dropped the SL/TP (returns 0), we MUST enforce it or panic close!
+      if (existingPos && (apiSl === 0 || apiTp === 0) && (finalSl > 0 || finalTp > 0)) {
+         if (!existingPos.isFixingSlTp) {
+            existingPos.isFixingSlTp = true;
+            this.log(`🚨 CRITICAL: Position ${id} is missing SL/TP on exchange! Enforcing now...`, "ERROR");
+            this.enforceStopLossTakeProfit(transId, finalSl, finalTp, id).then(success => {
+               if (!success) {
+                  this.log(`🚨 PANIC CLOSE: Could not set SL/TP for position ${id}. Closing to protect capital!`, "ERROR");
+                  this.closeTrade(id, 'panic_no_sl_tp');
+               }
+               if (existingPos) existingPos.isFixingSlTp = false;
+            });
+         }
+      }
       
       syncedPositions.set(id, {
         id: id,
@@ -500,8 +521,8 @@ ${analysisText}
         type: type,
         entry: entry,
         units: Number(p.units || p.amount || 1),
-        sl: Number(p.stop_loss || p.sl || existingPos?.sl || 0),
-        tp1: Number(p.take_profit || p.tp || existingPos?.tp1 || 0),
+        sl: finalSl,
+        tp1: finalTp,
         status: 'open',
         entryTime: existingPos?.entryTime || new Date(p.time || p.created_at || Date.now()),
         pattern: existingPos?.pattern || 'API Sync',
@@ -510,7 +531,8 @@ ${analysisText}
         breakEvenHit: existingPos?.breakEvenHit || false,
         pyramidTriggered: existingPos?.pyramidTriggered || false,
         currentStep: existingPos?.currentStep || 0,
-        originalSl: existingPos?.originalSl || Number(p.stop_loss || p.sl || 0)
+        originalSl: existingPos?.originalSl || finalSl,
+        isFixingSlTp: existingPos?.isFixingSlTp || false
       });
     }
     
@@ -1029,18 +1051,26 @@ ${analysisText}
           return;
         }
 
-        // Additional safety: Ensure SL is not too close to current price to avoid server rejection
-        // We use a larger buffer (10 ticks) because of potential price lag
-        const minDistance = (this.settings.market?.tickSize || 1) * 10; 
+        // Additional safety: Ensure SL/TP are not too close to current price to avoid server rejection
+        // We use a larger buffer (15 ticks) because of potential price lag
+        const minDistance = (this.settings.market?.tickSize || 1) * 15; 
         if (signal.type === 'BUY') {
           if (sl >= this.price - minDistance) {
             sl = Math.round(this.price - minDistance);
             this.log(`Adjusting BUY SL to ${sl} for safety (Price: ${this.price})`, "INFO");
           }
+          if (tp <= this.price + minDistance) {
+            tp = Math.round(this.price + minDistance);
+            this.log(`Adjusting BUY TP to ${tp} for safety (Price: ${this.price})`, "INFO");
+          }
         } else {
           if (sl <= this.price + minDistance) {
             sl = Math.round(this.price + minDistance);
             this.log(`Adjusting SELL SL to ${sl} for safety (Price: ${this.price})`, "INFO");
+          }
+          if (tp >= this.price - minDistance) {
+            tp = Math.round(this.price - minDistance);
+            this.log(`Adjusting SELL TP to ${tp} for safety (Price: ${this.price})`, "INFO");
           }
         }
 
@@ -1467,6 +1497,80 @@ ${analysisText}
     this.sendTelegramMessage(`🏁 *معامله بسته شد* (${reason})
 سود/ضرر: ${pnl.toLocaleString('fa-IR')} تومان
 سود کل امروز: ${this.dailyPnL.toLocaleString('fa-IR')}`);
+  }
+
+  async enforceStopLossTakeProfit(transactionId: number, sl: number, tp: number, localId: number): Promise<boolean> {
+    let slSuccess = sl === 0; // If 0, we don't need to set it
+    let tpSuccess = tp === 0;
+
+    if (sl > 0) {
+      slSuccess = await this.editStopLoss(transactionId, sl);
+    }
+    if (tp > 0) {
+      tpSuccess = await this.editTakeProfit(transactionId, tp);
+    }
+
+    return slSuccess && tpSuccess;
+  }
+
+  async editTakeProfit(transactionId: number, newTp: number) {
+    if (this.settings.source === 'API' && this.api && transactionId) {
+      try {
+        this.log(`Updating TP for transaction ${transactionId} to ${newTp}...`, "INFO");
+        
+        const endpoints = [
+          `/room/api/edit-take-profit/${transactionId}/`,
+          `/room/api/edit-futures-transaction/${transactionId}/`,
+          `/room/api/edit-transaction/${transactionId}/`,
+          `/room/api/edit-order/${transactionId}/`
+        ];
+
+        let ok = false;
+        let lastError = null;
+
+        for (const url of endpoints) {
+          if (ok) break;
+          try {
+            const res = await this.api.post(url, {
+              take_profit: String(Math.round(newTp)),
+              tp: String(Math.round(newTp))
+            }, {
+              headers: { 'Accept': '*/*', 'X-Requested-With': 'XMLHttpRequest' },
+              timeout: 5000
+            });
+            
+            const apiResponse = res?.data;
+            ok = apiResponse?.status === true || 
+                 apiResponse?.status === 'true' || 
+                 apiResponse?.status === 1 || 
+                 apiResponse?.status === 'success' ||
+                 (res.status === 200 && (Object.keys(apiResponse || {}).length === 0 || apiResponse?.message?.includes('ویرایش')));
+            
+            if (ok) {
+              this.log(`Take Profit updated successfully for ${transactionId} via ${url}`, "SUCCESS");
+              return true;
+            }
+          } catch (e: any) {
+            lastError = e;
+            const status = e.response?.status;
+            if (status === 500 || status === 404) {
+              this.log(`Endpoint ${url} returned ${status} for TP edit. Trying next...`, "INFO");
+            } else {
+              this.log(`Endpoint ${url} failed for TP edit: ${status}`, "INFO");
+            }
+          }
+        }
+
+        if (!ok) {
+          this.log(`Edit TP Failed for ${transactionId} after trying all endpoints.`, "ERROR");
+          return false;
+        }
+      } catch (e: any) {
+        this.log(`Edit TP API Error for ${transactionId}: ${e.message}`, "ERROR");
+        return false;
+      }
+    }
+    return false;
   }
 
   async editStopLoss(transactionId: number, newSl: number) {
