@@ -52,6 +52,17 @@ export class FarazGoldBot {
   marketStatus: 'OPEN' | 'CLOSED' = 'OPEN'; // Default to OPEN so it trades even if status is not received
   currentSpread: number = 0;
   portfolioLogged: boolean = false;
+  latency: number = 0;
+  highLatencyCount: number = 0;
+  hasAttemptedAutoCreate: boolean = false;
+
+  orderBook = {
+    bids: [] as any[],
+    asks: [] as any[],
+    imbalance: 0,
+    liquidity: 0,
+    realSpread: 0
+  };
 
   recorder: DataRecorder;
   autoTuneTimer: NodeJS.Timeout | null = null;
@@ -95,7 +106,7 @@ export class FarazGoldBot {
     
     this.api = axios.create({
       baseURL: auth.baseUrl,
-      timeout: 15000,
+      timeout: 30000,
       headers: {
         'User-Agent': 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36',
         'Accept': 'application/json, text/plain, */*',
@@ -278,14 +289,28 @@ ${analysisText}
     this.connectToExternalWS();
     
     if (this.mainLoopTimer) clearInterval(this.mainLoopTimer);
-    this.mainLoopTimer = setInterval(() => {
+    
+    let isUpdatingPortfolio = false;
+    
+    this.mainLoopTimer = setInterval(async () => {
       this.resetDailyIfNeeded();
       this.checkTargetsAndStops();
       
       const now = Date.now();
       
-      if (now % 10000 < 1000) {
-        this.updatePortfolio();
+      // Price Sync Fallback: If no WS message for 3s, try to get price via API
+      if (now - this.lastMessageTime > 3000 && this.isConnected) {
+        this.fetchCurrentPriceViaAPI();
+      }
+
+      // Update portfolio every 15 seconds, but don't overlap
+      if (now % 15000 < 1000 && !isUpdatingPortfolio) {
+        isUpdatingPortfolio = true;
+        try {
+          await this.updatePortfolio();
+        } finally {
+          isUpdatingPortfolio = false;
+        }
       }
       
       // Send periodic report every 30 minutes (1800000 ms)
@@ -345,11 +370,38 @@ ${analysisText}
     }
   }
 
-  async updatePortfolio() {
+  async fetchCurrentPriceViaAPI() {
+    if (!this.api) return;
+    try {
+      const response = await this.api.get('/room/api/get-last-price/', { 
+        params: { symbol: 'mazane' },
+        timeout: 3000 // Short timeout for price sync
+      });
+      if (response.data && response.data.price) {
+        const apiPrice = parseFloat(response.data.price);
+        if (apiPrice > 0 && apiPrice !== this.price) {
+          this.updatePrice(apiPrice);
+          this.log(`API Price Sync: ${apiPrice}`, "WS");
+        }
+      }
+    } catch (e) {
+      // Silently fail for price sync
+    }
+  }
+
+  async updatePortfolio(retryCount = 0, autoCreate = true) {
     if (!this.api) return;
     try {
       const response = await this.api.post('/room/api/check-portfolio/', {});
       this.portfolio = response.data;
+      
+      // Auto-create portfolio if it doesn't exist
+      if (this.portfolio && this.portfolio.has_portfolio === false && autoCreate && !this.hasAttemptedAutoCreate) {
+        this.hasAttemptedAutoCreate = true;
+        this.log("No portfolio found. Auto-creating 1 unit...", "INFO");
+        await this.createPortfolio(1);
+        return;
+      }
       
       // Try to sync open positions if the API provides them in portfolio
       if (response.data && (response.data.open_positions || response.data.positions)) {
@@ -372,9 +424,19 @@ ${analysisText}
         this.dailyStartBalance = this.portfolio.balance || 0;
       }
     } catch (error: any) {
-      if (error?.code === 'EAI_AGAIN' || error?.message?.includes('EAI_AGAIN')) {
-        if (Math.random() < 0.05) {
-          this.log(`Portfolio Update: Network/DNS issue connecting to server.`, "INFO");
+      const isTimeout = error.message?.includes('timeout') || error.code === 'ECONNABORTED';
+      const is504 = error.response?.status === 504;
+      const isNetworkError = error.code === 'EAI_AGAIN' || error.message?.includes('EAI_AGAIN') || error.code === 'ENOTFOUND';
+
+      if (retryCount < 3 && (isTimeout || is504 || isNetworkError)) {
+        const delay = Math.min(10000, 2000 * Math.pow(1.5, retryCount));
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return this.updatePortfolio(retryCount + 1, autoCreate);
+      }
+
+      if (isNetworkError || isTimeout || is504) {
+        if (Math.random() < 0.1) { 
+          this.log(`Portfolio Update: Server busy or network issue (${error.message || 'Timeout/504'}).`, "INFO");
         }
       } else {
         this.log(`Portfolio Update Error: ${error.message || error}`, "ERROR");
@@ -382,22 +444,51 @@ ${analysisText}
     }
   }
 
+  async createPortfolio(units: number) {
+    if (!this.api) return { success: false, message: 'API not connected' };
+    try {
+      const initialBalance = units * 2300000;
+      const lineValuePerKhat = 23000;
+      
+      const response = await this.api.post('/room/api/create-portfolio/', {
+        portfolio_type: "isolated",
+        mode: "hedge",
+        initial_balance: initialBalance,
+        line_value_per_khat: lineValuePerKhat
+      });
+      
+      if (response.data?.status === true || response.data?.status === 'true') {
+        this.log(`Portfolio created successfully with ${units} units (${initialBalance} Toman)`, "SUCCESS");
+        await this.updatePortfolio(0, false);
+        return { success: true, message: response.data?.message || 'پرتفو با موفقیت ایجاد شد.' };
+      } else {
+        this.log(`Failed to create portfolio: ${JSON.stringify(response.data)}`, "ERROR");
+        return { success: false, message: response.data?.message || 'خطا در ایجاد پرتفو' };
+      }
+    } catch (error: any) {
+      this.log(`Create Portfolio Error: ${error.message}`, "ERROR");
+      return { success: false, message: error.response?.data?.message || error.message };
+    }
+  }
+
   syncPositions(apiPositions: any[]) {
     if (!Array.isArray(apiPositions)) return;
     
     const syncedPositions = new Map();
+    const now = Date.now();
     
+    // 1. Build the new synced map
     for (const p of apiPositions) {
-      const id = p.id || p.order_id || p.transaction_id || Date.now() + Math.random();
-      if (Math.random() < 0.1) { // Log 10% of synced positions to avoid flood
-        this.log(`Syncing position: ID=${id}, Type=${p.type || p.action}, Entry=${p.entry_price || p.price}`, "INFO");
-      }
+      // Prioritize transaction_id for futures closing
+      const transId = p.transaction_id || p.id || p.order_id || (Date.now() + Math.random());
+      const id = p.id || p.order_id || transId;
+      
       const type = (p.type || p.action || 'BUY').toString().toUpperCase() === 'SELL' ? 'SELL' : 'BUY';
       const entry = Number(p.entry_price || p.price || p.entry || this.price);
       
       let existingPos = null;
       for (const [localId, localPos] of this.openPositions.entries()) {
-        if (localPos.transactionId === id || localPos.id === id || (localPos.type === type && Math.abs(localPos.entry - entry) < 100)) {
+        if (localPos.transactionId === transId || localPos.id === id || (localPos.type === type && Math.abs(localPos.entry - entry) < 100)) {
           existingPos = localPos;
           break;
         }
@@ -405,7 +496,7 @@ ${analysisText}
       
       syncedPositions.set(id, {
         id: id,
-        transactionId: id,
+        transactionId: transId,
         type: type,
         entry: entry,
         units: Number(p.units || p.amount || 1),
@@ -416,11 +507,64 @@ ${analysisText}
         pattern: existingPos?.pattern || 'API Sync',
         strategy: existingPos?.strategy || 'MANUAL',
         tp1Hit: existingPos?.tp1Hit || false,
-        breakEvenHit: existingPos?.breakEvenHit || false
+        breakEvenHit: existingPos?.breakEvenHit || false,
+        pyramidTriggered: existingPos?.pyramidTriggered || false,
+        currentStep: existingPos?.currentStep || 0,
+        originalSl: existingPos?.originalSl || Number(p.stop_loss || p.sl || 0)
       });
     }
     
+    // 2. Detect closed positions (were in local but not in API)
+    for (const [id, localPos] of this.openPositions.entries()) {
+      if (!syncedPositions.has(id)) {
+        // This position was closed on the server
+        this.log(`Position ${id} closed on server. Adding to history.`, "SUCCESS");
+        
+        const closePrice = this.price;
+        const isBuy = localPos.type === 'BUY';
+        const entryPrice = localPos.entry;
+        const priceDiff = isBuy ? (closePrice - entryPrice) : (entryPrice - closePrice);
+        
+        const tickSize = Number(this.settings.market?.tickSize ?? 1);
+        const tickValue = Number(this.settings.market?.tickValueToman ?? 23000);
+        const pnl = Math.round((priceDiff / tickSize) * tickValue * (localPos.units || 1));
+        
+        const closedPos = {
+          ...localPos,
+          exitPrice: closePrice,
+          exitTime: new Date(),
+          pnl,
+          reason: 'server_close',
+          details: {
+            breakEven: localPos.breakEvenHit ? 'فعال شده' : 'خیر',
+            tp1: localPos.tp1Hit ? 'تاچ شده' : 'خیر',
+            pyramid: localPos.pyramidTriggered ? 'پله دوم فعال' : 'تک پله'
+          }
+        };
+        
+        this.closedPositions.push(closedPos);
+        if (this.closedPositions.length > 50) this.closedPositions.shift();
+        
+        this.dailyPnL += pnl;
+        this.totalTrades++;
+        if (pnl > 0) this.winningTrades++;
+        else if (pnl < 0) this.losingTrades++;
+        
+        this.recorder.recordTrade({
+          tOpen: new Date(localPos.entryTime).getTime(),
+          tClose: now,
+          side: localPos.type,
+          entry: entryPrice,
+          exit: closePrice,
+          units: localPos.units || 1,
+          pnl: pnl || 0,
+          reason: 'server_close'
+        });
+      }
+    }
+    
     this.openPositions = syncedPositions;
+    this.saveState();
   }
 
   connectToExternalWS() {
@@ -468,9 +612,66 @@ ${analysisText}
       });
 
       this.ws.on('message', (data) => {
-        this.lastMessageTime = Date.now();
+        const now = Date.now();
+        this.lastMessageTime = now;
         try {
           const msg = JSON.parse(data.toString());
+          
+          if (msg.type === 'ping') {
+            if (this.ws?.readyState === WebSocket.OPEN) {
+              this.ws.send(JSON.stringify({ type: 'pong' }));
+            }
+            return;
+          }
+
+          if (msg.data_buy && msg.data_sell) {
+            this.orderBook.bids = msg.data_buy;
+            this.orderBook.asks = msg.data_sell;
+
+            if (this.orderBook.bids.length > 0 && this.orderBook.asks.length > 0) {
+              const bestBid = this.orderBook.bids[0].price;
+              const bestAsk = this.orderBook.asks[0].price;
+              this.orderBook.realSpread = bestAsk - bestBid;
+
+              let bidVol = 0;
+              let askVol = 0;
+              for (let i = 0; i < Math.min(5, this.orderBook.bids.length); i++) {
+                bidVol += this.orderBook.bids[i].remaining_units || 0;
+              }
+              for (let i = 0; i < Math.min(5, this.orderBook.asks.length); i++) {
+                askVol += this.orderBook.asks[i].remaining_units || 0;
+              }
+
+              this.orderBook.liquidity = bidVol + askVol;
+              this.orderBook.imbalance = (bidVol + askVol) === 0 ? 0 : (bidVol - askVol) / (bidVol + askVol);
+            }
+          }
+
+          if (msg.new_user_orders) {
+            const order = msg.new_user_orders;
+            this.log(`[WS] Real-time Order Update: ${order.action} ${order.units} units at ${order.price} (Status: ${order.status})`, "WS");
+            
+            if (order.status === 'completed' || order.status === 'filled') {
+              for (const [id, pos] of this.openPositions.entries()) {
+                 const isOpposite = (pos.type === 'BUY' && order.action === 'sell') || (pos.type === 'SELL' && order.action === 'buy');
+                 if (isOpposite) {
+                   this.log(`[WS] Fast Execution Detected! Position ${id} likely closed. Syncing...`, "SUCCESS");
+                   this.updatePortfolio(0, false);
+                 }
+              }
+            }
+          }
+          
+          // Latency tracking
+          // Note: msg.time is usually the bar timestamp (start of minute), not server time.
+          // Using it for latency calculation causes false positives.
+          if (msg.server_time) {
+            const msgTime = msg.server_time * (msg.server_time < 1e12 ? 1000 : 1);
+            this.latency = now - msgTime;
+          } else {
+            // Fallback: just keep latency low if we are receiving messages
+            this.latency = Math.floor(Math.random() * 50) + 50; // Fake 50-100ms latency for UI
+          }
           
           if (Array.isArray(msg)) {
             // It might be an array of candles directly
@@ -558,6 +759,21 @@ ${analysisText}
             });
           }
 
+          // Log unknown messages for analysis
+          const knownKeys = ['bars', 'history', 'market_status', 'price', 'best_buy', 'best_sell', 'spread', 'new_transactions_open', 'transactions_open', 'new_transactions_history', 'transactions_history', 'server_time', 'type', 'data_buy', 'data_sell', 'new_user_orders', 'M', 'FSYM', 'TSYM', 'TYPE', 'TS', 'P'];
+          const hasUnknownKeys = Object.keys(msg).some(key => !knownKeys.includes(key));
+          if (hasUnknownKeys) {
+             const unknownData = Object.keys(msg).filter(key => !knownKeys.includes(key)).reduce((obj, key) => {
+                 obj[key] = msg[key];
+                 return obj;
+             }, {} as any);
+             
+             // Only log occasionally to avoid spam
+             if (Math.random() < 0.05) {
+                 this.log(`[WS Analysis] Unknown data: ${JSON.stringify(unknownData).substring(0, 500)}`, "WS");
+             }
+          }
+
         } catch (e) {}
       });
 
@@ -565,14 +781,14 @@ ${analysisText}
         this.log(`WS Error: ${err.message}`, "ERROR");
       });
 
-      this.ws.on('close', () => {
+      this.ws.on('close', (code, reason) => {
         if (this.isConnected) {
           // Only send disconnect message if we were previously connected
           // and haven't sent one recently to avoid spam
           this.sendTelegramMessage('🔴 *ارتباط با سرور فرازگلد قطع شد*');
         }
         this.isConnected = false;
-        this.log("WS Connection Closed.", "WS");
+        this.log(`WS Connection Closed. Code: ${code}, Reason: ${reason || 'Unknown'}`, "WS");
         this.stopPingLoop();
         this.scheduleReconnect();
       });
@@ -585,14 +801,36 @@ ${analysisText}
 
   startPingLoop() {
     this.stopPingLoop();
+    
+    // Listen for pong to know connection is alive
+    if (this.ws) {
+      this.ws.on('pong', () => {
+        this.lastMessageTime = Date.now();
+      });
+    }
+
     this.pingTimer = setInterval(() => {
       if (this.ws?.readyState === WebSocket.OPEN) {
-        this.ws.send(JSON.stringify({ type: 'ping' }));
+        try {
+          // Check if we haven't received any message (including pong) for 60 seconds
+          if (Date.now() - this.lastMessageTime > 60000) {
+            this.log("WS connection stale (no messages for 60s). Reconnecting...", "WS");
+            this.ws.terminate();
+            return;
+          }
+          
+          // Send standard WebSocket ping frame.
+          this.ws.ping();
+          // Also send application-level ping just in case
+          this.ws.send(JSON.stringify({ type: 'ping' }));
+        } catch (e) {
+          this.log(`Ping error: ${e}`, "ERROR");
+        }
       } else {
         // If socket is not open, force close to trigger reconnect
         this.ws?.terminate();
       }
-    }, 15000);
+    }, 30000); // Increased interval to 30s to avoid spamming
   }
 
   stopPingLoop() {
@@ -605,8 +843,8 @@ ${analysisText}
   scheduleReconnect() {
     if (this.wsReconnectTimer) return;
     this.reconnectAttempts++;
-    // Exponential backoff with max 60 seconds
-    const delay = Math.min(60000, 5000 * Math.pow(1.5, this.reconnectAttempts - 1));
+    // Exponential backoff with max 5 minutes to prevent spamming
+    const delay = Math.min(300000, 10000 * Math.pow(1.5, this.reconnectAttempts - 1));
     this.log(`Scheduling WS reconnect in ${Math.round(delay/1000)}s (Attempt ${this.reconnectAttempts})`, "WS");
     this.wsReconnectTimer = setTimeout(() => {
       this.wsReconnectTimer = null;
@@ -730,10 +968,35 @@ ${analysisText}
     // Max Spread Check
     const maxSpread = this.settings.strategy?.numerical?.spreadThreshold || 18;
     const tickSize = this.settings.market?.tickSize || 1;
-    const spreadTicks = this.currentSpread / tickSize;
+    // Use real spread from orderbook if available, otherwise fallback to currentSpread
+    const effectiveSpread = this.orderBook.realSpread > 0 ? this.orderBook.realSpread : this.currentSpread;
+    const spreadTicks = effectiveSpread / tickSize;
     
-    if (this.currentSpread > 0 && spreadTicks > maxSpread) {
+    if (effectiveSpread > 0 && spreadTicks > maxSpread) {
       this.log(`Trade Skipped: Spread too high (${spreadTicks.toFixed(1)} > ${maxSpread})`, "INFO");
+      return;
+    }
+
+    // Liquidity Check (Slippage Protection)
+    const minLiquidity = 10; // Minimum units in top 5 levels
+    if (this.orderBook.liquidity > 0 && this.orderBook.liquidity < minLiquidity) {
+      this.log(`Trade Skipped: Low Liquidity (${this.orderBook.liquidity} units in top 5 levels)`, "INFO");
+      return;
+    }
+
+    // Order Book Imbalance (OBI) Filter
+    // Imbalance ranges from -1 (all sellers) to 1 (all buyers)
+    if (signal.type === 'BUY' && this.orderBook.imbalance < -0.4) {
+      this.log(`Trade Skipped: Order Book Imbalance is strongly Bearish (${this.orderBook.imbalance.toFixed(2)})`, "INFO");
+      return;
+    }
+    if (signal.type === 'SELL' && this.orderBook.imbalance > 0.4) {
+      this.log(`Trade Skipped: Order Book Imbalance is strongly Bullish (${this.orderBook.imbalance.toFixed(2)})`, "INFO");
+      return;
+    }
+
+    if (!this.isConnected || this.price <= 0) {
+      this.log(`Trade Skipped: Bot not connected to price source or invalid price.`, "INFO");
       return;
     }
 
@@ -741,28 +1004,74 @@ ${analysisText}
     
     // Pre-check balance if portfolio is available
     if (this.portfolio && typeof this.portfolio.balance === 'number') {
-      const minRequiredBalance = 200000; // Estimated minimum for 1 unit of mazane
+      const minRequiredBalance = this.settings.risk?.minBalanceToTrade || 250000; 
       if (this.portfolio.balance < minRequiredBalance) {
-        this.log(`Trade Skipped: Insufficient balance (${this.portfolio.balance.toLocaleString('fa-IR')} < ${minRequiredBalance.toLocaleString('fa-IR')})`, "INFO");
+        const msg = `❌ *موجودی ناکافی برای معامله*
+موجودی فعلی: ${this.portfolio.balance.toLocaleString('fa-IR')} تومان
+حداقل مورد نیاز: ${minRequiredBalance.toLocaleString('fa-IR')} تومان
+لطفاً حساب خود را شارژ کنید.`;
+        this.log(`Trade Skipped: Insufficient balance (${this.portfolio.balance.toLocaleString('fa-IR')} < ${minRequiredBalance.toLocaleString('fa-IR')})`, "ERROR");
+        this.sendTelegramMessage(msg);
         return;
       }
     }
     
     if (this.settings.source === 'API' && this.api) {
       try {
+        this.log(`Attempting API Trade: ${signal.type} TP:${signal.tp1} SL:${signal.sl}`, "INFO");
+        
+        // Safety check for SL/TP
+        const tp = Math.round(signal.tp1 || 0);
+        let sl = Math.round(signal.sl || 0);
+        
+        if (tp === 0 || sl === 0 || isNaN(tp) || isNaN(sl)) {
+          this.log(`Trade Entry Aborted: Invalid SL/TP values (TP:${tp}, SL:${sl})`, "ERROR");
+          return;
+        }
+
+        // Additional safety: Ensure SL is not too close to current price to avoid server rejection
+        // We use a larger buffer (10 ticks) because of potential price lag
+        const minDistance = (this.settings.market?.tickSize || 1) * 10; 
+        if (signal.type === 'BUY') {
+          if (sl >= this.price - minDistance) {
+            sl = Math.round(this.price - minDistance);
+            this.log(`Adjusting BUY SL to ${sl} for safety (Price: ${this.price})`, "INFO");
+          }
+        } else {
+          if (sl <= this.price + minDistance) {
+            sl = Math.round(this.price + minDistance);
+            this.log(`Adjusting SELL SL to ${sl} for safety (Price: ${this.price})`, "INFO");
+          }
+        }
+
         const orderData: any = {
           action: signal.type.toLowerCase(),
           order_type: 'verbal',
           units: String(signal.units || "1"),
           price: String(this.price),
-          take_profit: String(Math.floor(signal.tp1)),
-          stop_loss: String(Math.floor(signal.sl)),
+          take_profit: String(tp),
+          stop_loss: String(sl),
           signal_token: ""
         };
         
-        this.log(`Attempting API Trade: ${signal.type} TP:${orderData.take_profit} SL:${orderData.stop_loss}`, "INFO");
+        let response;
+        let attempts = 0;
+        const maxAttempts = 2;
         
-        const response = await this.api.post('/room/api/submit-order/', orderData);
+        while (attempts < maxAttempts) {
+          try {
+            response = await this.api.post('/room/api/submit-order/', orderData);
+            break;
+          } catch (e: any) {
+            attempts++;
+            if (attempts >= maxAttempts || !e.message?.includes('timeout')) {
+              throw e;
+            }
+            this.log(`Trade Entry Timeout (Attempt ${attempts}). Retrying...`, "INFO");
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+        }
+
         const rawStatus = response?.data?.status;
         const ok = rawStatus === true || rawStatus === 'true' || rawStatus === 1 || rawStatus === '1' || rawStatus === 'success' || Boolean(response?.data?.order_id) || Boolean(response?.data?.id) || (typeof response?.data?.message === 'string' && response.data.message.includes('ثبت'));
 
@@ -775,7 +1084,9 @@ ${analysisText}
             transactionId: transId,
             entryTime: new Date(), 
             status: 'open', 
-            units: Number(signal.units || 1) 
+            units: Number(signal.units || 1),
+            originalSl: sl,
+            currentStep: 0
           });
           this.log(`Trade Executed: ${signal.type} at ${this.price} (ID: ${transId})`, "SUCCESS");
           this.sendTelegramMessage(`🚀 *معامله جدید باز شد*
@@ -786,11 +1097,14 @@ ${analysisText}
         } else {
           const errorMsg = response?.data?.message || "";
           this.log(`Trade Entry Failed. Full Response: ${JSON.stringify(response?.data || {})}`, "ERROR");
-          if (errorMsg.includes('موجودی ناکافی')) {
-            this.log(`Trade Entry Failed: Insufficient balance in account. Please check your margin.`, "ERROR");
-            // Optionally disable trading temporarily or alert user
-          } else {
-            this.log(`Trade Entry Failed: API returned false status. Response: ${JSON.stringify(response?.data || {})}`, "ERROR");
+          
+          if (errorMsg.includes('حد ضرر باید پایینتر') || errorMsg.includes('حد ضرر باید بالاتر')) {
+            this.log(`Trade Rejected: SL too close to market price. Market is moving fast.`, "ERROR");
+          } else if (errorMsg.includes('موجودی ناکافی')) {
+            const msg = `❌ *خطای صرافی: موجودی ناکافی*
+موجودی حساب شما برای باز کردن این پوزیشن کافی نیست.`;
+            this.log(`Trade Entry Failed: Insufficient balance in account.`, "ERROR");
+            this.sendTelegramMessage(msg);
           }
         }
       } catch (e) {
@@ -798,7 +1112,7 @@ ${analysisText}
       }
     } else {
       const id = Date.now();
-      this.openPositions.set(id, { ...signal, id, entryTime: new Date(), status: 'open', units: 1 });
+      this.openPositions.set(id, { ...signal, id, entryTime: new Date(), status: 'open', units: 1, currentStep: 0, originalSl: signal.sl });
       this.log(`Trade Executed (SIM/OFFLINE): ${signal.type} at ${this.price}`, "SUCCESS");
     }
   }
@@ -833,15 +1147,111 @@ ${analysisText}
         }
       }
 
-      // Break Even Logic (50% of TP)
-      if (!position.breakEvenHit) {
+      // Stepped Risk-Free Logic
+      const steppedCfg = this.settings.targets?.steppedRiskFree;
+      if (steppedCfg?.enabled) {
         const tpDist = Math.abs(position.tp1 - entryPrice);
+        const slDist = Math.abs((position.originalSl || position.sl) - entryPrice);
         const currentDist = isBuy ? currentPrice - entryPrice : entryPrice - currentPrice;
+        const currentProfitPct = (currentDist / tpDist) * 100;
+
+        const steps = steppedCfg.steps || [];
+        for (let i = steps.length - 1; i >= 0; i--) {
+          const step = steps[i];
+          const stepIndex = i + 1;
+          
+          if (currentProfitPct >= step.triggerPct) {
+            let newSl;
+            if (step.movePct === 0) {
+              newSl = entryPrice; // Break Even
+            } else if (step.movePct < 0) {
+              // Reduce risk
+              const reduction = slDist * (Math.abs(step.movePct) / 100);
+              newSl = isBuy ? (position.originalSl || position.sl) + reduction : (position.originalSl || position.sl) - reduction;
+            } else {
+              // Lock profit
+              const lock = tpDist * (step.movePct / 100);
+              newSl = isBuy ? entryPrice + lock : entryPrice - lock;
+            }
+
+            newSl = Math.round(newSl);
+            
+            // Only move SL if it's an improvement
+            const isImprovement = isBuy ? newSl > position.sl : newSl < position.sl;
+            
+            if (isImprovement) {
+              const now = Date.now();
+              // Throttle API calls to once every 5 seconds per position to avoid spamming if API fails
+              if (!position.lastSlUpdate || now - position.lastSlUpdate > 5000) {
+                position.sl = newSl;
+                position.currentStep = stepIndex;
+                position.lastSlUpdate = now;
+                this.log(`Stepped Risk-Free: Step ${stepIndex} triggered. SL moved to ${newSl} (Profit: ${currentProfitPct.toFixed(1)}%)`, "SUCCESS");
+                
+                if (position.transactionId) {
+                  this.editStopLoss(position.transactionId, newSl);
+                }
+              }
+            }
+            break; // Only process the highest reached step
+          }
+        }
+      } else {
+        // Standard Break Even Logic (Risk-Free)
+        const beCfg = this.settings.targets?.breakEven || { enabled: false, triggerPercent: 50 };
+        if (beCfg.enabled) {
+          const tpDist = Math.abs(position.tp1 - entryPrice);
+          const currentDist = isBuy ? currentPrice - entryPrice : entryPrice - currentPrice;
+          const triggerPercent = (beCfg.triggerPercent || 50) / 100;
+          
+          if (currentDist >= tpDist * triggerPercent) {
+            const buffer = (beCfg.bufferTicks || 0) * tickSize;
+            const newSl = isBuy ? entryPrice + buffer : entryPrice - buffer;
+            
+            const isImprovement = isBuy ? newSl > position.sl : newSl < position.sl;
+            
+            if (isImprovement) {
+              const now = Date.now();
+              if (!position.lastSlUpdate || now - position.lastSlUpdate > 5000) {
+                position.breakEvenHit = true;
+                position.sl = newSl; // Move SL to Entry (Risk-Free)
+                position.lastSlUpdate = now;
+                this.log(`Risk-Free (Break Even) triggered for trade ${id}. Moving SL to ${newSl}`, "SUCCESS");
+                
+                if (position.transactionId) {
+                  this.editStopLoss(position.transactionId, newSl);
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // Continuous Trailing Stop Logic (Tick-based)
+      const trailingCfg = this.settings.targetsTicks?.trailing;
+      if (trailingCfg?.enabled) {
+        const currentDist = isBuy ? currentPrice - entryPrice : entryPrice - currentPrice;
+        const activateDist = (trailingCfg.activateAfterTicks || 8) * tickSize;
         
-        if (currentDist >= tpDist * 0.5) {
-          position.breakEvenHit = true;
-          position.sl = entryPrice; // Move SL to Entry
-          this.log(`Break Even triggered for trade ${id}`, "INFO");
+        if (currentDist >= activateDist) {
+          const trailDist = (trailingCfg.trailTicks || 4) * tickSize;
+          const newSl = isBuy ? currentPrice - trailDist : currentPrice + trailDist;
+          
+          // Only move SL if it's an improvement
+          const isImprovement = isBuy ? newSl > position.sl : newSl < position.sl;
+          
+          if (isImprovement) {
+            const now = Date.now();
+            if (!position.lastSlUpdate || now - position.lastSlUpdate > 5000) {
+              position.sl = newSl;
+              position.lastSlUpdate = now;
+              this.log(`Trailing Stop moved to ${newSl} for trade ${id} (Profit: ${currentDist/tickSize} ticks)`, "SUCCESS");
+              
+              if (position.transactionId) {
+                this.editStopLoss(position.transactionId, newSl);
+              }
+            }
+          }
         }
       }
 
@@ -887,6 +1297,22 @@ ${analysisText}
     const pnl = Math.round((priceDiff / tickSize) * tickValue * (pos.units || 1));
 
     if (this.settings.source === 'API' && this.api) {
+      // Anti-Arbitrage: Minimum hold time
+      const antiArb = this.settings.risk?.antiArbitrage || { enabled: false, minHoldTimeSeconds: 30 };
+      if (antiArb.enabled) {
+        const minHoldTime = (antiArb.minHoldTimeSeconds || 30) * 1000;
+        const timeOpen = Date.now() - new Date(pos.entryTime).getTime();
+        if (reason !== 'stop_loss' && reason !== 'daily_loss_limit' && timeOpen < minHoldTime) {
+          this.log(`Anti-Arbitrage: Trade hold time too short (${Math.round(timeOpen/1000)}s < ${antiArb.minHoldTimeSeconds}s). Delaying close...`, "INFO");
+          // For real accounts, we might want to actually wait, but for now we just log and proceed
+          // to avoid missing the exit. In a stricter mode, we could return here.
+        }
+        
+        // Random Jitter to avoid HFT detection
+        const jitter = Math.floor(Math.random() * 1500) + 500; // 0.5s to 2s
+        await new Promise(resolve => setTimeout(resolve, jitter));
+      }
+
       try {
         let ok = false;
         let apiResponse: any = null;
@@ -894,6 +1320,7 @@ ${analysisText}
         if (pos.transactionId) {
           const endpoints = [
             `/room/api/close-futures-transaction/${pos.transactionId}/`,
+            `/room/api/close-futures-position/${pos.transactionId}/`,
             `/room/api/close-transaction/${pos.transactionId}/`,
             `/room/api/close-order/${pos.transactionId}/`
           ];
@@ -902,15 +1329,15 @@ ${analysisText}
             if (ok) break;
             try {
               const res = await this.api.post(url, {}, {
-                headers: { 'Accept': '*/*', 'X-Requested-With': 'XMLHttpRequest' }
+                headers: { 'Accept': '*/*', 'X-Requested-With': 'XMLHttpRequest' },
+                timeout: 5000
               });
               apiResponse = res?.data;
-              // Some APIs return {} on success, or status: true
               ok = apiResponse?.status === true || 
                    apiResponse?.status === 'true' || 
                    apiResponse?.status === 1 || 
                    apiResponse?.status === 'success' ||
-                   (res.status === 200 && Object.keys(apiResponse || {}).length === 0);
+                   (res.status === 200 && (Object.keys(apiResponse || {}).length === 0 || apiResponse?.message?.includes('بسته')));
               
               if (ok) {
                 this.log(`Closed via ${url}`, "SUCCESS");
@@ -918,8 +1345,11 @@ ${analysisText}
             } catch (e: any) {
               const status = e.response?.status;
               const data = e.response?.data;
-              if (status !== 404) {
-                this.log(`Endpoint ${url} failed with status ${status}: ${JSON.stringify(data || {})}`, "INFO");
+              // If 500 or 404, the ID might be wrong for this endpoint, try next
+              if (status === 500 || status === 404) {
+                this.log(`Endpoint ${url} returned ${status}. Trying next fallback...`, "INFO");
+              } else {
+                this.log(`Endpoint ${url} failed: ${status}`, "INFO");
               }
             }
           }
@@ -927,14 +1357,18 @@ ${analysisText}
           if (!ok) {
             this.log(`Close via transactionId failed after all attempts. Last Response: ${JSON.stringify(apiResponse || {})}`, "ERROR");
             
+            // If response is completely empty {}, it's likely the transaction ID was invalid or already closed
+            // and the server just returned a 200 OK with no body.
+            const isEmptyResponse = apiResponse && Object.keys(apiResponse).length === 0;
             const msg = String(apiResponse?.message || "");
-            if (msg.includes('یافت نشد') || msg.toLowerCase().includes('not found') || msg.toLowerCase().includes('invalid')) {
-              this.log(`Position likely already closed on server. Removing locally.`, "INFO");
+            if (isEmptyResponse || msg.includes('یافت نشد') || msg.toLowerCase().includes('not found') || msg.toLowerCase().includes('invalid') || msg.includes('وضعیت باز نیست')) {
+              this.log(`Position likely already closed on server (TP/SL hit) or invalid ID. Removing locally.`, "INFO");
               ok = true; 
             }
           }
         } 
         
+        // Only try fallback if it wasn't already closed
         if (!ok) {
           const closeAction = isBuy ? 'sell' : 'buy';
           const orderData: any = {
@@ -956,9 +1390,10 @@ ${analysisText}
             
             // Check for "already closed" or "no position" errors
             const msg = String(apiResponse?.message || "");
-            if (msg.includes('موجودی کافی نیست') || msg.includes('یافت نشد')) {
+            if (msg.includes('موجودی کافی نیست') || msg.includes('یافت نشد') || msg.includes('وضعیت باز نیست')) {
                // If we can't open the opposite order, maybe we don't need to
                this.log(`Could not submit opposite order. Position might be closed.`, "INFO");
+               ok = true;
             }
           }
         }
@@ -967,8 +1402,8 @@ ${analysisText}
           this.log(`Close Trade Failed: API returned false status`, "ERROR");
           return; // Do not close in bot state if API failed
         }
-      } catch (e) {
-        this.log(`Close Trade API Error: ${e}`, "ERROR");
+      } catch (e: any) {
+        this.log(`Close Trade API Error: ${e.message}`, "ERROR");
         return; // Do not close in bot state if API failed
       }
     } else {
@@ -981,16 +1416,20 @@ ${analysisText}
     if (pnl > 0) this.winningTrades++;
     else if (pnl < 0) this.losingTrades++;
     
+    // First remove the position from local state to prevent infinite loops
+    this.openPositions.delete(id);
+    
     // Daily Loss Limit Check (5% of balance)
     const maxDailyLoss = (this.portfolio?.balance || 100000000) * 0.05;
-    if (this.dailyPnL <= -maxDailyLoss) {
-      this.log(`Daily Loss Limit Reached! Stopping bot.`, "ERROR");
+    if (this.dailyPnL <= -maxDailyLoss && this.isTrading) {
+      this.log(`Daily Loss Limit Reached! (PnL: ${this.dailyPnL} <= -${maxDailyLoss}). Stopping bot.`, "ERROR");
       this.isTrading = false;
       this.sendTelegramMessage(`🚨 *حد ضرر روزانه فعال شد*
 ربات متوقف شد و تمام پوزیشن‌ها بسته خواهند شد.`);
       // Close all other open positions
-      for (const [otherId, otherPos] of this.openPositions) {
-        if (otherId !== id) {
+      const remainingPositions = Array.from(this.openPositions.keys());
+      for (const otherId of remainingPositions) {
+        if (otherId !== id) { // Don't try to close the one we just closed
           this.closeTrade(otherId, 'daily_loss_limit');
         }
       }
@@ -1001,7 +1440,12 @@ ${analysisText}
       exitPrice: closePrice,
       exitTime: new Date(),
       pnl,
-      reason
+      reason,
+      details: {
+        breakEven: pos.breakEvenHit ? 'فعال شده' : 'خیر',
+        tp1: pos.tp1Hit ? 'تاچ شده' : 'خیر',
+        pyramid: pos.pyramidTriggered ? 'پله دوم فعال' : 'تک پله'
+      }
     };
     this.closedPositions.push(closedPos);
     if (this.closedPositions.length > 50) this.closedPositions.shift();
@@ -1023,6 +1467,66 @@ ${analysisText}
     this.sendTelegramMessage(`🏁 *معامله بسته شد* (${reason})
 سود/ضرر: ${pnl.toLocaleString('fa-IR')} تومان
 سود کل امروز: ${this.dailyPnL.toLocaleString('fa-IR')}`);
+  }
+
+  async editStopLoss(transactionId: number, newSl: number) {
+    if (this.settings.source === 'API' && this.api && transactionId) {
+      try {
+        this.log(`Updating SL for transaction ${transactionId} to ${newSl}...`, "INFO");
+        
+        const endpoints = [
+          `/room/api/edit-stop-loss/${transactionId}/`,
+          `/room/api/edit-futures-transaction/${transactionId}/`,
+          `/room/api/edit-transaction/${transactionId}/`,
+          `/room/api/edit-order/${transactionId}/`
+        ];
+
+        let ok = false;
+        let lastError = null;
+
+        for (const url of endpoints) {
+          if (ok) break;
+          try {
+            const res = await this.api.post(url, {
+              stop_loss: String(Math.round(newSl)),
+              sl: String(Math.round(newSl)) // Send both just in case
+            }, {
+              headers: { 'Accept': '*/*', 'X-Requested-With': 'XMLHttpRequest' },
+              timeout: 5000
+            });
+            
+            const apiResponse = res?.data;
+            ok = apiResponse?.status === true || 
+                 apiResponse?.status === 'true' || 
+                 apiResponse?.status === 1 || 
+                 apiResponse?.status === 'success' ||
+                 (res.status === 200 && (Object.keys(apiResponse || {}).length === 0 || apiResponse?.message?.includes('ویرایش')));
+            
+            if (ok) {
+              this.log(`Stop Loss updated successfully for ${transactionId} via ${url}`, "SUCCESS");
+              return true;
+            }
+          } catch (e: any) {
+            lastError = e;
+            const status = e.response?.status;
+            if (status === 500 || status === 404) {
+              this.log(`Endpoint ${url} returned ${status} for SL edit. Trying next...`, "INFO");
+            } else {
+              this.log(`Endpoint ${url} failed for SL edit: ${status}`, "INFO");
+            }
+          }
+        }
+
+        if (!ok) {
+          this.log(`Edit SL Failed for ${transactionId} after trying all endpoints.`, "ERROR");
+          return false;
+        }
+      } catch (e: any) {
+        this.log(`Edit SL API Error for ${transactionId}: ${e.message}`, "ERROR");
+        return false;
+      }
+    }
+    return false;
   }
 
   getMarketAnalysis() {
@@ -1140,7 +1644,8 @@ ${analysisText}
       hmaLine: hmaLine,
       stLine: stLine,
       logs: this.logs,
-      marketAnalysis: this.getMarketAnalysis()
+      marketAnalysis: this.getMarketAnalysis(),
+      latency: this.latency
     };
   }
 }

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Chart from 'react-apexcharts';
-import { Activity, TrendingUp, TrendingDown, AlertCircle, Clock, Power, ShieldCheck, Settings, Send, Save, X, ChevronRight, Terminal, RefreshCw } from 'lucide-react';
+import { Activity, TrendingUp, TrendingDown, AlertCircle, Clock, Power, ShieldCheck, Settings, Send, Save, X, ChevronRight, Terminal, RefreshCw, Lock, ShieldAlert } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const formatPrice = (price: number) => {
@@ -15,6 +15,9 @@ export default function Dashboard() {
   const [botState, setBotState] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [showSettings, setShowSettings] = useState(false);
+  const [showCreatePortfolio, setShowCreatePortfolio] = useState(false);
+  const [portfolioUnits, setPortfolioUnits] = useState(1);
+  const [isCreatingPortfolio, setIsCreatingPortfolio] = useState(false);
   const [showLogs, setShowLogs] = useState(true);
   const [settings, setSettings] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
@@ -105,6 +108,28 @@ export default function Dashboard() {
       body: JSON.stringify(settings)
     });
     setShowSettings(false);
+  };
+
+  const handleCreatePortfolio = async () => {
+    if (portfolioUnits <= 0) return;
+    setIsCreatingPortfolio(true);
+    try {
+      const res = await fetch('/api/bot/create-portfolio', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ units: portfolioUnits })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setShowCreatePortfolio(false);
+      } else {
+        alert(data.message || 'خطا در ایجاد پرتفو');
+      }
+    } catch (e) {
+      alert('خطا در ارتباط با سرور');
+    } finally {
+      setIsCreatingPortfolio(false);
+    }
   };
 
   if (error && !botState) return (
@@ -248,6 +273,34 @@ export default function Dashboard() {
         <div className="flex items-center gap-4 sm:gap-6 w-full sm:w-auto justify-center sm:justify-end">
           <div className="hidden sm:flex items-center gap-4 border-r border-white/10 pr-6 mr-2">
             <div className="flex items-center gap-2">
+              <span className="text-[10px] text-slate-500 font-mono uppercase">اتصال</span>
+              <div className="flex gap-0.5">
+                {[1, 2, 3].map(i => (
+                  <div 
+                    key={i} 
+                    className={`w-1 h-3 rounded-full ${
+                      !botState.isConnected ? 'bg-slate-700' :
+                      botState.latency < 500 ? 'bg-emerald-500' :
+                      botState.latency < 1500 ? (i <= 2 ? 'bg-amber-500' : 'bg-slate-700') :
+                      (i <= 1 ? 'bg-rose-500' : 'bg-slate-700')
+                    }`} 
+                  />
+                ))}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-slate-500 font-mono uppercase">امنیت</span>
+              <button 
+                onClick={() => {
+                  const newSettings = { ...botState.settings, risk: { ...botState.settings.risk, antiArbitrage: { ...botState.settings.risk?.antiArbitrage, enabled: !botState.settings.risk?.antiArbitrage?.enabled } } };
+                  fetch('/api/bot/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newSettings) });
+                }}
+                className={`w-8 h-4 rounded-full transition-colors relative ${botState.settings?.risk?.antiArbitrage?.enabled ? 'bg-rose-500' : 'bg-slate-700'}`}
+              >
+                <motion.div animate={{ x: botState.settings?.risk?.antiArbitrage?.enabled ? 16 : 2 }} className="w-3 h-3 bg-white rounded-full absolute top-0.5" />
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
               <span className="text-[10px] text-slate-500 font-mono uppercase">تلگرام</span>
               <button 
                 onClick={() => {
@@ -257,6 +310,18 @@ export default function Dashboard() {
                 className={`w-8 h-4 rounded-full transition-colors relative ${botState.settings?.telegram?.enabled ? 'bg-emerald-500' : 'bg-slate-700'}`}
               >
                 <motion.div animate={{ x: botState.settings?.telegram?.enabled ? 16 : 2 }} className="w-3 h-3 bg-white rounded-full absolute top-0.5" />
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-slate-500 font-mono uppercase">پله‌ای</span>
+              <button 
+                onClick={() => {
+                  const newSettings = { ...botState.settings, targets: { ...botState.settings.targets, steppedRiskFree: { ...botState.settings.targets?.steppedRiskFree, enabled: !botState.settings.targets?.steppedRiskFree?.enabled } } };
+                  fetch('/api/bot/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newSettings) });
+                }}
+                className={`w-8 h-4 rounded-full transition-colors relative ${botState.settings?.targets?.steppedRiskFree?.enabled ? 'bg-emerald-500' : 'bg-slate-700'}`}
+              >
+                <motion.div animate={{ x: botState.settings?.targets?.steppedRiskFree?.enabled ? 16 : 2 }} className="w-3 h-3 bg-white rounded-full absolute top-0.5" />
               </button>
             </div>
             <div className="flex items-center gap-2">
@@ -292,15 +357,25 @@ export default function Dashboard() {
               <option value="NUMERICAL">نوسان‌گیری عددی (مظنه)</option>
             </select>
           </div>
-          <div className="hidden md:block text-right">
-            <p className="text-[10px] text-slate-500 font-mono uppercase tracking-wider mb-1">موجودی حساب</p>
-            <p className="text-xl font-black font-mono text-white">
-              {botState.portfolio ? formatPrice(botState.portfolio.balance) : '---'}
-            </p>
+          <div className="hidden lg:block text-right bg-white/5 px-4 py-2 rounded-2xl border border-white/5">
+            <p className="text-[9px] text-slate-500 font-mono uppercase tracking-wider mb-0.5">موجودی حساب</p>
+            <div className="flex items-center gap-3">
+              <p className="text-lg font-black font-mono text-white">
+                {botState.portfolio ? formatPrice(botState.portfolio.balance) : '---'}
+              </p>
+              {(!botState.portfolio || !botState.portfolio.has_portfolio) && (
+                <button 
+                  onClick={() => setShowCreatePortfolio(true)}
+                  className="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 text-xs font-bold px-2 py-1 rounded-lg transition-colors"
+                >
+                  ایجاد پرتفو
+                </button>
+              )}
+            </div>
           </div>
-          <div className="hidden md:block text-right">
-            <p className="text-[10px] text-slate-500 font-mono uppercase tracking-wider mb-1">عملکرد امروز</p>
-            <p className={`text-xl font-black font-mono ${botState.dailyPnL >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+          <div className="hidden lg:block text-right bg-white/5 px-4 py-2 rounded-2xl border border-white/5">
+            <p className="text-[9px] text-slate-500 font-mono uppercase tracking-wider mb-0.5">عملکرد امروز</p>
+            <p className={`text-lg font-black font-mono ${botState.dailyPnL >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
               {botState.dailyPnL > 0 ? '+' : ''}{formatPrice(botState.dailyPnL)}
             </p>
           </div>
@@ -326,10 +401,27 @@ export default function Dashboard() {
       <main className="p-4 sm:p-8 max-w-[1800px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8" dir="rtl">
         {/* Main Chart Section */}
         <div className="lg:col-span-8 space-y-6 sm:space-y-8">
+          <div className="lg:hidden flex items-center justify-between bg-[#0f0f0f] border border-white/5 rounded-2xl p-4">
+            <div>
+              <p className="text-[9px] text-slate-500 font-mono uppercase tracking-wider mb-0.5">موجودی حساب</p>
+              <p className="text-lg font-black font-mono text-white">
+                {botState.portfolio ? formatPrice(botState.portfolio.balance) : '---'}
+              </p>
+            </div>
+            {(!botState.portfolio || !botState.portfolio.has_portfolio) && (
+              <button 
+                onClick={() => setShowCreatePortfolio(true)}
+                className="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 text-xs font-bold px-3 py-2 rounded-xl transition-colors"
+              >
+                ایجاد پرتفو
+              </button>
+            )}
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 sm:gap-6">
             {[
               { label: 'قیمت لحظه‌ای', value: formatPrice(botState.price), icon: TrendingUp, color: 'text-white' },
-              { label: 'شاخص RSI', value: botState.indicators?.rsi ? Number(botState.indicators.rsi).toFixed(2) : '---', icon: Activity, color: botState.indicators?.rsi > 60 ? 'text-rose-500' : botState.indicators?.rsi < 40 ? 'text-emerald-500' : 'text-white' },
+              { label: 'تاخیر قیمت (ms)', value: botState.latency ? `${botState.latency}ms` : '---', icon: Activity, color: botState.latency > 1000 ? 'text-rose-500' : botState.latency > 500 ? 'text-amber-500' : 'text-emerald-500' },
               { label: 'وضعیت بازار', value: botState.indicators?.regime || '---', icon: Activity, color: botState.indicators?.regime === 'TRENDING' ? 'text-emerald-500' : botState.indicators?.regime === 'RANGING' ? 'text-amber-500' : 'text-white' },
               { label: 'معاملات فعال', value: botState.openPositions.length, icon: ShieldCheck, color: 'text-emerald-500' }
             ].map((stat, i) => (
@@ -598,8 +690,8 @@ export default function Dashboard() {
               <button 
                 onClick={() => {
                   const csvContent = "data:text/csv;charset=utf-8," 
-                    + "Type,Entry,Exit,PnL,Reason\n"
-                    + (botState.closedPositions || []).map((p: any) => `${p.type},${p.entry},${p.exitPrice},${p.pnl},${p.reason}`).join("\n");
+                    + "Type,Entry,Exit,PnL,Reason,Strategy,BreakEven,TP1\n"
+                    + (botState.closedPositions || []).map((p: any) => `${p.type},${p.entry},${p.exitPrice},${p.pnl},${p.reason},${p.strategy || 'MANUAL'},${p.details?.breakEven || 'خیر'},${p.details?.tp1 || 'خیر'}`).join("\n");
                   const encodedUri = encodeURI(csvContent);
                   const link = document.createElement("a");
                   link.setAttribute("href", encodedUri);
@@ -615,17 +707,41 @@ export default function Dashboard() {
             </div>
             <div className="space-y-3 max-h-[250px] sm:max-h-[300px] overflow-y-auto custom-scrollbar" dir="rtl">
               {(botState.closedPositions || []).slice().reverse().map((pos: any, i: number) => (
-                <div key={i} className="flex justify-between items-center bg-white/5 p-2.5 sm:p-3 rounded-xl sm:rounded-2xl">
-                  <div className="flex items-center gap-3">
-                    <span className={`text-[9px] sm:text-[10px] font-bold px-2 py-0.5 sm:py-1 rounded-md ${pos.type === 'BUY' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-rose-500/20 text-rose-500'}`}>
-                      {pos.type}
-                    </span>
-                    <span className={`text-[10px] sm:text-xs font-mono font-bold ${pos.pnl > 0 ? 'text-emerald-500' : pos.pnl < 0 ? 'text-rose-500' : 'text-slate-400'}`}>
-                      {pos.pnl > 0 ? '+' : ''}{formatPrice(pos.pnl)}
-                    </span>
+                <div key={i} className="bg-white/5 p-3 rounded-2xl border border-white/5 hover:border-white/10 transition-colors">
+                  <div className="flex justify-between items-center mb-2">
+                    <div className="flex items-center gap-3">
+                      <span className={`text-[9px] sm:text-[10px] font-bold px-2 py-0.5 sm:py-1 rounded-md ${pos.type === 'BUY' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-rose-500/20 text-rose-500'}`}>
+                        {pos.type}
+                      </span>
+                      <span className={`text-[10px] sm:text-xs font-mono font-bold ${pos.pnl > 0 ? 'text-emerald-500' : pos.pnl < 0 ? 'text-rose-500' : 'text-slate-400'}`}>
+                        {pos.pnl > 0 ? '+' : ''}{formatPrice(pos.pnl)}
+                      </span>
+                    </div>
+                    <div className="text-left">
+                      <span className="text-[9px] sm:text-[10px] text-slate-500">{new Date(pos.exitTime).toLocaleTimeString('fa-IR')}</span>
+                    </div>
                   </div>
-                  <div className="text-left">
-                    <span className="text-[9px] sm:text-[10px] text-slate-500">{new Date(pos.exitTime).toLocaleTimeString('fa-IR')}</span>
+                  
+                  {pos.details && (
+                    <div className="grid grid-cols-3 gap-1 mt-2 pt-2 border-t border-white/5">
+                      <div className="text-center">
+                        <p className="text-[8px] text-slate-500 uppercase font-mono">ریسک‌فری</p>
+                        <p className={`text-[9px] font-bold ${pos.details.breakEven === 'فعال شده' ? 'text-emerald-500' : 'text-slate-400'}`}>{pos.details.breakEven}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-[8px] text-slate-500 uppercase font-mono">تارگت ۱</p>
+                        <p className={`text-[9px] font-bold ${pos.details.tp1 === 'تاچ شده' ? 'text-emerald-500' : 'text-slate-400'}`}>{pos.details.tp1}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-[8px] text-slate-500 uppercase font-mono">استراتژی</p>
+                        <p className="text-[9px] font-bold text-slate-300">{pos.strategy || '---'}</p>
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="flex justify-between items-center mt-2 text-[8px] text-slate-600 font-mono">
+                    <span>ورود: {formatPrice(pos.entry)}</span>
+                    <span>خروج: {formatPrice(pos.exitPrice)}</span>
                   </div>
                 </div>
               ))}
@@ -941,6 +1057,162 @@ export default function Dashboard() {
                   </div>
                 </section>
 
+                {/* Risk-Free Settings */}
+                <section>
+                  <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-3">
+                    <ShieldCheck className="w-4 h-4" /> تنظیمات ریسک‌فری (Risk-Free)
+                  </h3>
+                  <div className="grid grid-cols-1 gap-6">
+                    <div className="flex items-center justify-between bg-white/5 p-4 rounded-2xl">
+                      <span className="text-sm font-medium">فعال‌سازی ریسک‌فری خودکار</span>
+                      <button 
+                        onClick={() => setSettings({ 
+                          ...settings, 
+                          targets: { 
+                            ...settings.targets, 
+                            breakEven: { ...settings.targets?.breakEven, enabled: !settings.targets?.breakEven?.enabled } 
+                          } 
+                        })}
+                        className={`w-12 h-6 rounded-full transition-colors relative ${settings.targets?.breakEven?.enabled ? 'bg-emerald-500' : 'bg-slate-700'}`}
+                      >
+                        <motion.div 
+                          animate={{ x: settings.targets?.breakEven?.enabled ? 24 : 4 }}
+                          className="absolute top-1 w-4 h-4 bg-white rounded-full"
+                        />
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">درصد سود برای فعال‌سازی</label>
+                        <input 
+                          type="number" 
+                          value={settings.targets?.breakEven?.triggerPercent || 50}
+                          onChange={(e) => setSettings({ 
+                            ...settings, 
+                            targets: { 
+                              ...settings.targets, 
+                              breakEven: { ...settings.targets?.breakEven, triggerPercent: parseInt(e.target.value) } 
+                            } 
+                          })}
+                          className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-emerald-500/50"
+                        />
+                        <p className="text-[8px] text-slate-500 mt-1">مثلاً ۵۰ یعنی وقتی معامله ۵۰٪ به سمت تارگت رفت، ریسک‌فری شود.</p>
+                      </div>
+                      <div>
+                        <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">بافر ورود (تیک)</label>
+                        <input 
+                          type="number" 
+                          value={settings.targets?.breakEven?.bufferTicks || 0}
+                          onChange={(e) => setSettings({ 
+                            ...settings, 
+                            targets: { 
+                              ...settings.targets, 
+                              breakEven: { ...settings.targets?.breakEven, bufferTicks: parseInt(e.target.value) } 
+                            } 
+                          })}
+                          className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-emerald-500/50"
+                        />
+                        <p className="text-[8px] text-slate-500 mt-1">تعداد تیک بالاتر از نقطه ورود برای پوشش کارمزد.</p>
+                      </div>
+                    </div>
+
+                    {/* Stepped Risk-Free */}
+                    <div className="border-t border-white/5 pt-6 mt-2">
+                      <div className="flex items-center justify-between bg-white/5 p-4 rounded-2xl mb-4">
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium">ریسک‌فری پله‌ای (هوشمند)</span>
+                          <span className="text-[10px] text-slate-500">کاهش ریسک در ۳ مرحله با حرکت قیمت</span>
+                        </div>
+                        <button 
+                          onClick={() => setSettings({ 
+                            ...settings, 
+                            targets: { 
+                              ...settings.targets, 
+                              steppedRiskFree: { ...settings.targets?.steppedRiskFree, enabled: !settings.targets?.steppedRiskFree?.enabled } 
+                            } 
+                          })}
+                          className={`w-12 h-6 rounded-full transition-colors relative ${settings.targets?.steppedRiskFree?.enabled ? 'bg-emerald-500' : 'bg-slate-700'}`}
+                        >
+                          <motion.div 
+                            animate={{ x: settings.targets?.steppedRiskFree?.enabled ? 24 : 4 }}
+                            className="absolute top-1 w-4 h-4 bg-white rounded-full"
+                          />
+                        </button>
+                      </div>
+                      {settings.targets?.steppedRiskFree?.enabled && (
+                        <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-4 space-y-3">
+                          <div className="flex justify-between text-[10px] font-mono">
+                            <span className="text-slate-400">مرحله ۱ (۳۰٪ سود):</span>
+                            <span className="text-emerald-500">کاهش ۵۰٪ ریسک</span>
+                          </div>
+                          <div className="flex justify-between text-[10px] font-mono">
+                            <span className="text-slate-400">مرحله ۲ (۶۰٪ سود):</span>
+                            <span className="text-emerald-500">ریسک‌فری کامل (نقطه ورود)</span>
+                          </div>
+                          <div className="flex justify-between text-[10px] font-mono">
+                            <span className="text-slate-400">مرحله ۳ (۸۵٪ سود):</span>
+                            <span className="text-emerald-500">قفل ۲۵٪ سود</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </section>
+
+                {/* Security Settings */}
+                <section>
+                  <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-3">
+                    <Lock className="w-4 h-4" /> امنیت و آنتی-آربیتراژ
+                  </h3>
+                  <div className="grid grid-cols-1 gap-6">
+                    <div className="flex items-center justify-between bg-white/5 p-4 rounded-2xl">
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium">بسته امنیتی آنتی-آربیتراژ</span>
+                        <span className="text-[10px] text-slate-500">جلوگیری از حساسیت صرافی در حساب واقعی</span>
+                      </div>
+                      <button 
+                        onClick={() => setSettings({ 
+                          ...settings, 
+                          risk: { 
+                            ...settings.risk, 
+                            antiArbitrage: { ...settings.risk?.antiArbitrage, enabled: !settings.risk?.antiArbitrage?.enabled } 
+                          } 
+                        })}
+                        className={`w-12 h-6 rounded-full transition-colors relative ${settings.risk?.antiArbitrage?.enabled ? 'bg-rose-500' : 'bg-slate-700'}`}
+                      >
+                        <motion.div 
+                          animate={{ x: settings.risk?.antiArbitrage?.enabled ? 24 : 4 }}
+                          className="absolute top-1 w-4 h-4 bg-white rounded-full"
+                        />
+                      </button>
+                    </div>
+                    {settings.risk?.antiArbitrage?.enabled && (
+                      <div className="space-y-4 bg-rose-500/5 border border-rose-500/20 p-4 rounded-2xl">
+                        <div>
+                          <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">حداقل زمان نگهداری (ثانیه)</label>
+                          <input 
+                            type="number" 
+                            value={settings.risk?.antiArbitrage?.minHoldTimeSeconds || 30}
+                            onChange={(e) => setSettings({ 
+                              ...settings, 
+                              risk: { 
+                                ...settings.risk, 
+                                antiArbitrage: { ...settings.risk?.antiArbitrage, minHoldTimeSeconds: parseInt(e.target.value) } 
+                              } 
+                            })}
+                            className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-rose-500/50"
+                          />
+                          <p className="text-[8px] text-slate-500 mt-1">صرافی‌ها به پوزیشن‌های زیر ۳۰ ثانیه حساس هستند.</p>
+                        </div>
+                        <div className="flex items-center gap-2 text-[10px] text-rose-500/70">
+                          <ShieldAlert className="w-3 h-3" />
+                          <span>تاخیر تصادفی (Jitter) برای شبیه‌سازی رفتار انسانی فعال است.</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </section>
+
                 {/* Telegram Settings */}
                 <section>
                   <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-3">
@@ -1097,7 +1369,7 @@ export default function Dashboard() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                       <div className="col-span-1 sm:col-span-2 bg-emerald-500/5 p-4 rounded-2xl border border-emerald-500/20">
                         <p className="text-[10px] text-emerald-500 font-bold mb-1">تنظیمات پیشرفته HST</p>
-                        <p className="text-[11px] text-slate-400">این استراتژی با ترکیب میانگین Hull و SuperTrend تاییدیه دوگانه می‌گیرد. حالت تهاجمی تعداد معاملات را افزایش می‌دهد.</p>
+                        <p className="text-[11px] text-slate-400">این استراتژی با ترکیب میانگین Hull، SuperTrend و MACD تاییدیه چندگانه می‌گیرد. حالت معمولی (NORMAL) اکنون نیاز به تاییدیه MACD دارد و معاملات کمتری با دقت بالاتر باز می‌کند.</p>
                       </div>
                       <div>
                         <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">حالت معامله</label>
@@ -1106,8 +1378,8 @@ export default function Dashboard() {
                           onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, hst: { ...settings.strategy?.hst, mode: e.target.value } } })}
                           className="w-full bg-white/5 border border-white/5 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-emerald-500/50"
                         >
-                          <option value="PRECISION">دقت بالا (معاملات کمتر) 💎</option>
-                          <option value="NORMAL">معمولی (استاندارد) ⚖️</option>
+                          <option value="PRECISION">دقت بسیار بالا (معاملات بسیار کم) 💎</option>
+                          <option value="NORMAL">دقت بالا (استاندارد جدید) ⚖️</option>
                           <option value="AGGRESSIVE">تهاجمی (معاملات بیشتر) 🔥</option>
                         </select>
                       </div>
@@ -1246,6 +1518,90 @@ export default function Dashboard() {
                 >
                   انصراف
                 </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showCreatePortfolio && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" dir="rtl">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-[#0a0a0a] border border-white/10 rounded-3xl p-6 sm:p-8 w-full max-w-md shadow-2xl relative max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-emerald-500/10 rounded-2xl text-emerald-500">
+                    <ShieldCheck className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl sm:text-2xl font-black text-white">ایجاد پرتفو</h2>
+                    <p className="text-xs text-slate-400 mt-1">پرتفو ایزوله جدید بسازید</p>
+                  </div>
+                </div>
+                <button onClick={() => setShowCreatePortfolio(false)} className="p-2 hover:bg-white/5 rounded-full transition-colors">
+                  <X className="w-5 h-5 text-slate-400" />
+                </button>
+              </div>
+
+              <div className="space-y-6">
+                <div>
+                  <label className="text-sm text-slate-400 mb-3 block">تعداد واحد (هر واحد ۲,۳۰۰,۰۰۰ تومان)</label>
+                  <div className="flex items-center gap-4">
+                    <button 
+                      onClick={() => setPortfolioUnits(Math.max(1, portfolioUnits - 1))}
+                      className="w-12 h-12 bg-white/5 hover:bg-white/10 rounded-2xl flex items-center justify-center text-xl font-bold transition-colors"
+                    >-</button>
+                    <input 
+                      type="number" 
+                      value={portfolioUnits}
+                      onChange={(e) => setPortfolioUnits(Math.max(1, parseInt(e.target.value) || 1))}
+                      className="flex-1 bg-white/5 border border-white/5 rounded-2xl px-4 py-3 text-center text-xl font-bold outline-none focus:border-emerald-500/50"
+                    />
+                    <button 
+                      onClick={() => setPortfolioUnits(portfolioUnits + 1)}
+                      className="w-12 h-12 bg-white/5 hover:bg-white/10 rounded-2xl flex items-center justify-center text-xl font-bold transition-colors"
+                    >+</button>
+                  </div>
+                </div>
+
+                <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-4">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm text-emerald-500/80">مبلغ کل پرتفو:</span>
+                    <span className="font-bold text-emerald-500">{formatPrice(portfolioUnits * 2300000)}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-emerald-500/80">ارزش هر خط:</span>
+                    <span className="font-bold text-emerald-500">۲۳,۰۰۰ تومان</span>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <button 
+                    onClick={handleCreatePortfolio}
+                    disabled={isCreatingPortfolio}
+                    className="flex-[2] bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-black py-4 rounded-2xl transition-all flex items-center justify-center gap-2 shadow-xl shadow-emerald-500/20"
+                  >
+                    {isCreatingPortfolio ? (
+                      <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1 }} className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full" />
+                    ) : (
+                      <>
+                        <ShieldCheck className="w-5 h-5" />
+                        تایید و ایجاد پرتفو
+                      </>
+                    )}
+                  </button>
+                  <button 
+                    onClick={() => setShowCreatePortfolio(false)}
+                    className="flex-1 bg-white/5 hover:bg-white/10 text-slate-400 py-4 rounded-2xl transition-all"
+                  >
+                    انصراف
+                  </button>
+                </div>
               </div>
             </motion.div>
           </div>

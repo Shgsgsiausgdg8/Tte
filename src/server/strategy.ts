@@ -136,46 +136,54 @@ export class Strategy {
     const maxDistPct = Number(entryCfg.maxDistanceFromSlowEmaPercent ?? 0.08);
     const maxDist = (maxDistPct / 100);
 
-    const nearSlowForBuy = true; // Relaxed for more trades
-    const nearSlowForSell = true; // Relaxed for more trades
+    // Stricter distance check from slow EMA to avoid buying at the top or selling at the bottom
+    const distToSlowEma = Math.abs(price - emaSlow) / emaSlow;
+    const nearSlowForBuy = distToSlowEma <= maxDist;
+    const nearSlowForSell = distToSlowEma <= maxDist;
+
+    // Require stronger RSI levels for entry
+    const rsiOversold = cfg.rsi?.oversold || 40; // Stricter than 45
+    const rsiOverbought = cfg.rsi?.overbought || 60; // Stricter than 55
 
     if (trendUp && nearSlowForBuy) {
-      if (rsi <= (cfg.rsi?.oversold || 45)) {
+      if (rsi <= rsiOversold) {
         type = 'BUY';
         score += 2;
         reasons.push(`RSI Pullback (${rsi.toFixed(1)})`);
       }
-      if (!type && rsi < 60 && momentumUp && price >= emaFast) {
+      // Require strong momentum and RSI not overbought
+      if (!type && rsi < 55 && momentumUp && price >= emaFast && closes[closes.length - 2] < emaFast) {
         type = 'BUY';
         score += 1;
-        reasons.push('Momentum Reversal');
+        reasons.push('Momentum Reversal (Crossed Fast EMA)');
       }
-      // Aggressive EMA cross
-      if (!type && emaFast > emaSlow && closes[closes.length - 2] <= emaSlow) {
+      // Strong EMA cross confirmation
+      if (!type && emaFast > emaSlow && closes[closes.length - 2] <= emaSlow && rsi > 40 && rsi < 60) {
         type = 'BUY';
         score += 1;
-        reasons.push('EMA Cross Up');
+        reasons.push('EMA Cross Up Confirmation');
       }
       if (type) {
         reasons.push('Trend Up (EMA Fast > Slow)');
         if (momentumUp) { score += 1; reasons.push('Green Candle'); }
       }
     } else if (trendDown && nearSlowForSell) {
-      if (rsi >= (cfg.rsi?.overbought || 55)) {
+      if (rsi >= rsiOverbought) {
         type = 'SELL';
         score += 2;
         reasons.push(`RSI Pullback (${rsi.toFixed(1)})`);
       }
-      if (!type && rsi > 40 && momentumDown && price <= emaFast) {
+      // Require strong momentum and RSI not oversold
+      if (!type && rsi > 45 && momentumDown && price <= emaFast && closes[closes.length - 2] > emaFast) {
         type = 'SELL';
         score += 1;
-        reasons.push('Momentum Reversal');
+        reasons.push('Momentum Reversal (Crossed Fast EMA)');
       }
-      // Aggressive EMA cross
-      if (!type && emaFast < emaSlow && closes[closes.length - 2] >= emaSlow) {
+      // Strong EMA cross confirmation
+      if (!type && emaFast < emaSlow && closes[closes.length - 2] >= emaSlow && rsi > 40 && rsi < 60) {
         type = 'SELL';
         score += 1;
-        reasons.push('EMA Cross Down');
+        reasons.push('EMA Cross Down Confirmation');
       }
       if (type) {
         reasons.push('Trend Down (EMA Fast < Slow)');
@@ -422,30 +430,30 @@ export class Strategy {
 
     // Aggressive Buy
     if (price > emaFast && emaFast > emaSlow) {
-      if (rsi < 45 && momentum > 0) {
+      if (rsi < 40 && momentum > 0) { // Stricter RSI
         type = 'BUY';
         score = 2;
         reasons.push('Fast EMA Cross', 'RSI Oversold Pullback');
-      } else if (rsi < 60 && momentum > 0 && lastClose > emaFast) {
+      } else if (rsi < 55 && momentum > 0 && lastClose > emaFast && prevClose <= emaFast) { // Require cross
         type = 'BUY';
         score = 1;
-        reasons.push('Fast Momentum');
+        reasons.push('Fast Momentum Breakout');
       }
     } 
     // Aggressive Sell
     else if (price < emaFast && emaFast < emaSlow) {
-      if (rsi > 55 && momentum < 0) {
+      if (rsi > 60 && momentum < 0) { // Stricter RSI
         type = 'SELL';
         score = 2;
         reasons.push('Fast EMA Cross', 'RSI Overbought Pullback');
-      } else if (rsi > 40 && momentum < 0 && lastClose < emaFast) {
+      } else if (rsi > 45 && momentum < 0 && lastClose < emaFast && prevClose >= emaFast) { // Require cross
         type = 'SELL';
         score = 1;
-        reasons.push('Fast Momentum');
+        reasons.push('Fast Momentum Breakout');
       }
     }
 
-    if (!type || score < 1) return { signal: null, reason: 'No fast signal' };
+    if (!type || score < 2) return { signal: null, reason: 'No fast signal (Score < 2)' }; // Require higher score for FAST
 
     const atr = this.calculateATR(highs, lows, closes, 7);
     const signal = this.createSignal(type, price, score, reasons, atr, 'FAST');
@@ -616,18 +624,37 @@ export class Strategy {
 
     // 1. Calculate HMA
     const hmaValues = this.calculateHMA(closes, hmaLength);
-    if (!hmaValues || hmaValues.length < 2) return { signal: null, reason: 'HMA not ready' };
+    if (!hmaValues || hmaValues.length < 3) return { signal: null, reason: 'HMA not ready' };
     
     const currentHMA = hmaValues[hmaValues.length - 1];
     const prevHMA = hmaValues[hmaValues.length - 2];
+    const prevPrevHMA = hmaValues[hmaValues.length - 3];
+    
     const hmaSlope = currentHMA - prevHMA;
-    const prevHmaSlope = hmaValues.length > 2 ? prevHMA - hmaValues[hmaValues.length - 3] : hmaSlope;
+    const prevHmaSlope = prevHMA - prevPrevHMA;
+    
+    // Smooth slope to avoid micro-whipsaws
+    const isHmaTrendingUp = hmaSlope > 0 && prevHmaSlope > -0.5; // Allow slight flat before up
+    const isHmaTrendingDown = hmaSlope < 0 && prevHmaSlope < 0.5; // Allow slight flat before down
 
     // 2. Calculate SuperTrend
     const stValues = this.calculateSuperTrend(highs, lows, closes, stPeriod, stMultiplier);
-    if (!stValues || stValues.length < 2) return { signal: null, reason: 'SuperTrend not ready' };
+    if (!stValues || stValues.length < 3) return { signal: null, reason: 'SuperTrend not ready' };
 
     const currentST = stValues[stValues.length - 1];
+    const prevST = stValues[stValues.length - 2];
+    
+    // 3. Calculate RSI for momentum confirmation (Noise Filter)
+    const rsi = this.calculateRSI(closes, 14);
+    
+    // 4. Calculate ATR for volatility filter
+    const atr = this.calculateATR(highs, lows, closes, 14);
+    const atrPercent = (atr / price) * 100;
+    
+    // 5. Calculate MACD for additional confirmation
+    const macd = this.calculateMACD(closes, 12, 26, 9);
+    const isMacdBullish = macd ? macd.histogram > 0 : false;
+    const isMacdBearish = macd ? macd.histogram < 0 : false;
     
     // Update indicators for dashboard
     this.indicators.hma = currentHMA;
@@ -644,47 +671,87 @@ export class Strategy {
     
     const isBullishST = currentST.direction === 1;
     const isBearishST = currentST.direction === -1;
+    
+    const justCrossedSTUp = prevST.direction === -1 && currentST.direction === 1;
+    const justCrossedSTDown = prevST.direction === 1 && currentST.direction === -1;
+
+    // Volatility Filter: Don't trade if market is completely dead
+    if (atrPercent < 0.005 && hstCfg.mode !== 'AGGRESSIVE') {
+      return { signal: null, reason: 'Volatility too low for HST' };
+    }
 
     // Long Entry
     if (isBullishST && price > currentST.value) {
-      const hmaCondition = hmaSlope > 0 && (!hstCfg.requireCloseAboveHMA || price > currentHMA);
+      // Require price to be above HMA for longs (unless aggressive)
+      const hmaCondition = isHmaTrendingUp && (!hstCfg.requireCloseAboveHMA || price > currentHMA);
       
-      if (hmaCondition) {
-        const prevST = stValues[stValues.length - 2];
-        const justCrossedST = closes[closes.length - 2] <= prevST.value && price > currentST.value;
-        
-        if (hmaTurnsPositive || justCrossedST || (hstCfg.mode === 'AGGRESSIVE' && hmaSlope > 0)) {
+      // RSI Filter: Don't buy if already overbought
+      const rsiCondition = rsi > 45 && rsi < 70;
+      
+      if (hmaCondition && rsiCondition) {
+        if (hmaTurnsPositive || justCrossedSTUp) {
           type = 'BUY';
-          score = hstCfg.mode === 'AGGRESSIVE' ? 2 : 3;
-          reasons.push('SuperTrend Bullish', hmaTurnsPositive ? 'HMA Turned Up' : 'Trend Continuation');
+          score = hstCfg.mode === 'PRECISION' ? 3 : (hstCfg.mode === 'NORMAL' ? 2 : 1);
+          reasons.push('SuperTrend Bullish', hmaTurnsPositive ? 'HMA Turned Up' : 'ST Breakout', `RSI: ${Math.round(rsi)}`);
+          
+          if (isMacdBullish) {
+            score += 1;
+            reasons.push('MACD Bullish Confirmation');
+          }
+        } else if (hstCfg.mode === 'AGGRESSIVE' && isHmaTrendingUp && rsi > 50) {
+          // Pullback entry in aggressive mode
+          const prevClose = closes[closes.length - 2];
+          if (prevClose < currentHMA && price > currentHMA) {
+            type = 'BUY';
+            score = 1;
+            reasons.push('HMA Pullback Recovery');
+          }
         }
       }
     }
 
     // Short Entry
     if (isBearishST && price < currentST.value) {
-      const hmaCondition = hmaSlope < 0 && (!hstCfg.requireCloseAboveHMA || price < currentHMA);
+      // Require price to be below HMA for shorts (unless aggressive)
+      const hmaCondition = isHmaTrendingDown && (!hstCfg.requireCloseAboveHMA || price < currentHMA);
       
-      if (hmaCondition) {
-        const prevST = stValues[stValues.length - 2];
-        const justCrossedST = closes[closes.length - 2] >= prevST.value && price < currentST.value;
-        
-        if (hmaTurnsNegative || justCrossedST || (hstCfg.mode === 'AGGRESSIVE' && hmaSlope < 0)) {
+      // RSI Filter: Don't sell if already oversold
+      const rsiCondition = rsi < 55 && rsi > 30;
+      
+      if (hmaCondition && rsiCondition) {
+        if (hmaTurnsNegative || justCrossedSTDown) {
           type = 'SELL';
-          score = hstCfg.mode === 'AGGRESSIVE' ? 2 : 3;
-          reasons.push('SuperTrend Bearish', hmaTurnsNegative ? 'HMA Turned Down' : 'Trend Continuation');
+          score = hstCfg.mode === 'PRECISION' ? 3 : (hstCfg.mode === 'NORMAL' ? 2 : 1);
+          reasons.push('SuperTrend Bearish', hmaTurnsNegative ? 'HMA Turned Down' : 'ST Breakout', `RSI: ${Math.round(rsi)}`);
+          
+          if (isMacdBearish) {
+            score += 1;
+            reasons.push('MACD Bearish Confirmation');
+          }
+        } else if (hstCfg.mode === 'AGGRESSIVE' && isHmaTrendingDown && rsi < 50) {
+          // Pullback entry in aggressive mode
+          const prevClose = closes[closes.length - 2];
+          if (prevClose > currentHMA && price < currentHMA) {
+            type = 'SELL';
+            score = 1;
+            reasons.push('HMA Pullback Recovery');
+          }
         }
       }
     }
 
-    // Range Filter: In PRECISION mode, don't trade if RANGING
-    if (hstCfg.mode === 'PRECISION' && regime === 'RANGING' && type) {
-      return { signal: null, reason: 'Skipped: Ranging market in Precision mode' };
+    // Range Filter: In PRECISION or NORMAL mode, don't trade if RANGING
+    if ((hstCfg.mode === 'PRECISION' || hstCfg.mode === 'NORMAL') && regime === 'RANGING' && type) {
+      return { signal: null, reason: 'Skipped: Ranging market (Noise Filter)' };
     }
 
-    if (!type) return { signal: null, reason: 'No HST signal' };
+    // NORMAL mode now requires at least 3 score (meaning it needs MACD confirmation)
+    const requiredScore = hstCfg.mode === 'PRECISION' ? 4 : (hstCfg.mode === 'NORMAL' ? 3 : 1);
+    
+    if (!type || score < requiredScore) {
+      return { signal: null, reason: `Score ${score} too low (Need ${requiredScore})` };
+    }
 
-    const atr = this.indicators.atr || this.calculateATR(highs, lows, closes, 14);
     const signal = this.createSignal(type, price, score, reasons, atr, 'HST');
     
     return { signal, reason: 'HST signal OK' };
@@ -783,8 +850,12 @@ export class Strategy {
     tpDist = Math.min(tpDist, maxDist * 2);
 
     const isBuy = type === 'BUY';
-    const sl = isBuy ? price - slDist : price + slDist;
-    const tp1 = isBuy ? price + tpDist : price - tpDist;
+    let sl = isBuy ? price - slDist : price + slDist;
+    let tp1 = isBuy ? price + tpDist : price - tpDist;
+
+    // Final safety fallback
+    if (isNaN(sl) || sl === 0) sl = isBuy ? price - (10 * tickSize) : price + (10 * tickSize);
+    if (isNaN(tp1) || tp1 === 0) tp1 = isBuy ? price + (15 * tickSize) : price - (15 * tickSize);
 
     return {
       type,

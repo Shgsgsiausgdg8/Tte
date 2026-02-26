@@ -17,10 +17,14 @@ export const config = {
     riskPerTrade: 2,
     maxOpenPositions: 2,
     maxDailyRisk: 8, // Percent
-    minBalanceToTrade: 100000,
+    minBalanceToTrade: 250000,
     maxRiskTomanPerTrade: 1000000,
     maxLeverage: 1,
-    stopTradingOnMaxDailyLoss: true
+    stopTradingOnMaxDailyLoss: true,
+    antiArbitrage: {
+      enabled: true,
+      minHoldTimeSeconds: 30
+    }
   },
 
   // ==========================================
@@ -81,6 +85,14 @@ export const config = {
     breakEven: {
       enabled: true,
       bufferTicks: 1
+    },
+    steppedRiskFree: {
+      enabled: true,
+      steps: [
+        { triggerPct: 30, movePct: -50 }, // At 30% of TP, reduce risk by 50%
+        { triggerPct: 60, movePct: 0 },   // At 60% of TP, move to Entry (Risk-Free)
+        { triggerPct: 85, movePct: 25 }   // At 85% of TP, lock 25% of profit
+      ]
     }
   },
 
@@ -147,6 +159,13 @@ export const config = {
       macdFast: 12,
       macdSlow: 26,
       macdSignal: 9
+    },
+    hst: {
+      hmaLength: 55,
+      stPeriod: 10,
+      stMultiplier: 3,
+      requireCloseAboveHMA: true,
+      mode: 'NORMAL'
     }
   },
 

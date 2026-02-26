@@ -72,6 +72,15 @@ async function startServer() {
     bot.connectToExternalWS();
     res.json({ success: true });
   });
+  
+  app.post("/api/bot/create-portfolio", async (req, res) => {
+    const { units } = req.body;
+    if (!units || units <= 0) {
+      return res.status(400).json({ success: false, message: 'تعداد واحد نامعتبر است' });
+    }
+    const result = await bot.createPortfolio(units);
+    res.json(result);
+  });
 
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

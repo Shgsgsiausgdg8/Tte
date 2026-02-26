@@ -52,6 +52,7 @@
     },
     "breakEven": {
       "enabled": true,
+      "triggerPercent": 50,
       "bufferTicks": 1
     }
   },
