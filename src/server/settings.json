@@ -186,10 +186,19 @@
     "chatId": ""
   },
   "api": {
-    "wsUrl": "wss://demo.farazgold.com/ws/",
-    "baseUrl": "https://demo.farazgold.com",
-    "csrftoken": "GTiZlvd8jNoMuko3nkjjU0lhC8m6Yy3m",
-    "sessionid": "njmnqc7hfkeyayowprwheqc73lvp98as"
+    "useRealAccount": false,
+    "demo": {
+      "wsUrl": "wss://demo.farazgold.com/ws/",
+      "baseUrl": "https://demo.farazgold.com",
+      "csrftoken": "GTiZlvd8jNoMuko3nkjjU0lhC8m6Yy3m",
+      "sessionid": "njmnqc7hfkeyayowprwheqc73lvp98as"
+    },
+    "real": {
+      "wsUrl": "wss://farazgold.com/ws/",
+      "baseUrl": "https://farazgold.com",
+      "csrftoken": "",
+      "sessionid": ""
+    }
   },
   "simulation": {
     "volatility": 5000,

@@ -834,11 +834,69 @@ export default function Dashboard() {
               </div>
 
               <div className="space-y-6 sm:space-y-8 max-h-[70vh] overflow-y-auto pr-2 sm:pr-4 custom-scrollbar" dir="rtl">
-                {/* Data Source Selection */}
+                {/* Account & Data Source Selection */}
                 <section>
                   <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-3">
-                    <Activity className="w-4 h-4" /> منبع داده (قیمت)
+                    <Lock className="w-4 h-4" /> تنظیمات حساب و اتصال
                   </h3>
+                  
+                  <div className="bg-white/5 p-5 rounded-3xl border border-white/5 mb-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-xl ${settings.api?.useRealAccount ? 'bg-rose-500/20 text-rose-500' : 'bg-emerald-500/20 text-emerald-500'}`}>
+                          <ShieldAlert className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-white">حساب واقعی (Real Account)</p>
+                          <p className="text-[10px] text-slate-500">فعال‌سازی ترید روی حساب اصلی فرازگلد</p>
+                        </div>
+                      </div>
+                      <button 
+                        onClick={() => setSettings({ ...settings, api: { ...settings.api, useRealAccount: !settings.api?.useRealAccount } })}
+                        className={`w-12 h-6 rounded-full transition-colors relative ${settings.api?.useRealAccount ? 'bg-rose-500' : 'bg-slate-700'}`}
+                      >
+                        <motion.div 
+                          animate={{ x: settings.api?.useRealAccount ? 24 : 4 }}
+                          className="absolute top-1 w-4 h-4 bg-white rounded-full"
+                        />
+                      </button>
+                    </div>
+                    
+                    {settings.api?.useRealAccount && (
+                      <motion.div 
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        className="space-y-4 pt-4 border-t border-white/5"
+                      >
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">Real CSRF Token</label>
+                            <input 
+                              type="password" 
+                              value={settings.api?.real?.csrftoken || ''}
+                              onChange={(e) => setSettings({ ...settings, api: { ...settings.api, real: { ...settings.api.real, csrftoken: e.target.value } } })}
+                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm focus:border-rose-500/50 outline-none transition-all"
+                              placeholder="توکن حساب ریل"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">Real Session ID</label>
+                            <input 
+                              type="password" 
+                              value={settings.api?.real?.sessionid || ''}
+                              onChange={(e) => setSettings({ ...settings, api: { ...settings.api, real: { ...settings.api.real, sessionid: e.target.value } } })}
+                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm focus:border-rose-500/50 outline-none transition-all"
+                              placeholder="سشن حساب ریل"
+                            />
+                          </div>
+                        </div>
+                        <p className="text-[9px] text-rose-500 font-bold flex items-center gap-2">
+                          <AlertCircle className="w-3 h-3" /> هشدار: در حالت ریل، معاملات با پول واقعی انجام می‌شود.
+                        </p>
+                      </motion.div>
+                    )}
+                  </div>
+
                   <div className="mt-4 space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div>
@@ -875,7 +933,7 @@ export default function Dashboard() {
                           {botState?.isConnected ? (
                             <>
                               <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                              متصل
+                              متصل ({settings.api?.useRealAccount ? 'REAL' : 'DEMO'})
                             </>
                           ) : (
                             <>
@@ -886,26 +944,29 @@ export default function Dashboard() {
                         </div>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">CSRF Token</label>
-                        <input 
-                          type="password" 
-                          value={settings.api?.csrftoken || ''}
-                          onChange={(e) => setSettings({ ...settings, api: { ...settings.api, csrftoken: e.target.value } })}
-                          className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm focus:border-emerald-500/50 outline-none transition-all"
-                        />
+                    
+                    {!settings.api?.useRealAccount && (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">Demo CSRF Token</label>
+                          <input 
+                            type="password" 
+                            value={settings.api?.demo?.csrftoken || ''}
+                            onChange={(e) => setSettings({ ...settings, api: { ...settings.api, demo: { ...settings.api.demo, csrftoken: e.target.value } } })}
+                            className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm focus:border-emerald-500/50 outline-none transition-all"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">Demo Session ID</label>
+                          <input 
+                            type="password" 
+                            value={settings.api?.demo?.sessionid || ''}
+                            onChange={(e) => setSettings({ ...settings, api: { ...settings.api, demo: { ...settings.api.demo, sessionid: e.target.value } } })}
+                            className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm focus:border-emerald-500/50 outline-none transition-all"
+                          />
+                        </div>
                       </div>
-                      <div>
-                        <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">Session ID</label>
-                        <input 
-                          type="password" 
-                          value={settings.api?.sessionid || ''}
-                          onChange={(e) => setSettings({ ...settings, api: { ...settings.api, sessionid: e.target.value } })}
-                          className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm focus:border-emerald-500/50 outline-none transition-all"
-                        />
-                      </div>
-                    </div>
+                    )}
                   </div>
                 </section>
 

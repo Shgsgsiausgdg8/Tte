@@ -3,6 +3,7 @@ import WebSocket from 'ws';
 import TelegramBot from 'node-telegram-bot-api';
 import fs from 'fs';
 import path from 'path';
+import https from 'https';
 import { Strategy } from './strategy';
 import { config as defaultConfig } from './config';
 import { DataRecorder } from './dataRecorder';
@@ -101,24 +102,44 @@ export class FarazGoldBot {
   }
 
   setupAxios() {
-    const auth = { ...defaultConfig.auth, ...(this.settings.api || {}) };
+    const apiCfg = this.settings.api || defaultConfig.api;
+    const isReal = apiCfg.useRealAccount;
+    const auth = isReal ? apiCfg.real : apiCfg.demo;
     const cookies = `csrftoken=${auth.csrftoken}; sessionid=${auth.sessionid}`;
     
     this.api = axios.create({
       baseURL: auth.baseUrl,
       timeout: 30000,
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
         'Accept': 'application/json, text/plain, */*',
-        'Accept-Language': 'en-GB,en-US;q=0.9,en;q=0.8,fa;q=0.7',
+        'Accept-Language': 'fa-IR,fa;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Sec-Ch-Ua': '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
+        'Sec-Ch-Ua-Mobile': '?0',
+        'Sec-Ch-Ua-Platform': '"Windows"',
+        'Sec-Fetch-Dest': 'empty',
+        'Sec-Fetch-Mode': 'cors',
+        'Sec-Fetch-Site': 'same-origin',
         'Content-Type': 'application/json',
         'Origin': auth.baseUrl,
         'Referer': `${auth.baseUrl}/room/`,
         'X-CSRFToken': auth.csrftoken,
         'X-Requested-With': 'XMLHttpRequest',
+        'Connection': 'keep-alive',
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache',
         'Cookie': cookies
-      }
+      },
+      httpsAgent: new https.Agent({ 
+        keepAlive: true,
+        rejectUnauthorized: false // Sometimes needed for custom TLS setups
+      })
     });
+  }
+
+  async sleepWithJitter(minMs: number, maxMs: number) {
+    const delay = Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
+    return new Promise(resolve => setTimeout(resolve, delay));
   }
 
   loadSettings() {
@@ -200,8 +221,15 @@ export class FarazGoldBot {
   }
 
   saveSettings(newSettings: any) {
+    const oldApi = this.settings.api || {};
+    const newApi = newSettings.api || {};
+    
     const sourceChanged = this.settings.source !== newSettings.source || 
-                         (newSettings.source === 'API' && this.settings.api?.wsUrl !== newSettings.api?.wsUrl);
+                         oldApi.useRealAccount !== newApi.useRealAccount ||
+                         (newApi.useRealAccount ? 
+                           (oldApi.real?.wsUrl !== newApi.real?.wsUrl || oldApi.real?.sessionid !== newApi.real?.sessionid || oldApi.real?.csrftoken !== newApi.real?.csrftoken) :
+                           (oldApi.demo?.wsUrl !== newApi.demo?.wsUrl || oldApi.demo?.sessionid !== newApi.demo?.sessionid || oldApi.demo?.csrftoken !== newApi.demo?.csrftoken)
+                         );
     
     // Force API source
     newSettings.source = 'API';
@@ -215,7 +243,7 @@ export class FarazGoldBot {
     this.recorder = new DataRecorder(newSettings.dataRecorder);
 
     if (sourceChanged) {
-      this.log("Price source settings changed. Restarting source...", "INFO");
+      this.log(`Price source settings changed (${newApi.useRealAccount ? 'REAL' : 'DEMO'}). Restarting source...`, "INFO");
       this.connectToExternalWS();
     }
   }
@@ -595,11 +623,14 @@ ${analysisText}
       this.ws.terminate();
     }
 
-    const auth = { ...defaultConfig.auth, ...(this.settings.api || {}) };
-    const url = auth.wsUrl || 'wss://demo.farazgold.com/ws/';
+    const apiCfg = this.settings.api || defaultConfig.api;
+    const isReal = apiCfg.useRealAccount;
+    const auth = isReal ? apiCfg.real : apiCfg.demo;
+    
+    const url = auth.wsUrl || (isReal ? 'wss://farazgold.com/ws/' : 'wss://demo.farazgold.com/ws/');
     const cookies = `csrftoken=${auth.csrftoken}; sessionid=${auth.sessionid}`;
     
-    this.log(`Connecting to FarazGold WS: ${url}`, "WS");
+    this.log(`Connecting to FarazGold WS (${isReal ? 'REAL' : 'DEMO'}): ${url}`, "WS");
     
     try {
       this.ws = new WebSocket(url, {
@@ -609,7 +640,11 @@ ${analysisText}
           'Referer': `${auth.baseUrl}/room/`,
           'X-Requested-With': 'XMLHttpRequest',
           'X-CSRFToken': auth.csrftoken,
-          'User-Agent': 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36'
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+          'Accept-Language': 'fa-IR,fa;q=0.9,en-US;q=0.8,en;q=0.7',
+          'Sec-Ch-Ua': '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
+          'Sec-Ch-Ua-Mobile': '?0',
+          'Sec-Ch-Ua-Platform': '"Windows"'
         }
       });
       
@@ -619,9 +654,14 @@ ${analysisText}
 
       this.ws.on('open', () => {
         this.log("Connected to FarazGold WS.", "WS");
+        const wasDisconnected = !this.isConnected;
         this.isConnected = true;
         this.reconnectAttempts = 0;
-        this.sendTelegramMessage('🟢 *اتصال به سرور فرازگلد برقرار شد*');
+        
+        // Only notify if it was a fresh connection or a long-term disconnection
+        if (wasDisconnected) {
+          this.sendTelegramMessage('🟢 *اتصال به سرور فرازگلد برقرار شد*');
+        }
         
         this.ws?.send(JSON.stringify({
           action: 'subscribe',
@@ -641,7 +681,12 @@ ${analysisText}
           
           if (msg.type === 'ping') {
             if (this.ws?.readyState === WebSocket.OPEN) {
-              this.ws.send(JSON.stringify({ type: 'pong' }));
+              // Add a tiny random delay before responding to ping to simulate human network latency
+              setTimeout(() => {
+                if (this.ws?.readyState === WebSocket.OPEN) {
+                  this.ws.send(JSON.stringify({ type: 'pong' }));
+                }
+              }, Math.floor(Math.random() * 100) + 50); // 50-150ms delay
             }
             return;
           }
@@ -804,13 +849,19 @@ ${analysisText}
       });
 
       this.ws.on('close', (code, reason) => {
-        if (this.isConnected) {
-          // Only send disconnect message if we were previously connected
-          // and haven't sent one recently to avoid spam
-          this.sendTelegramMessage('🔴 *ارتباط با سرور فرازگلد قطع شد*');
-        }
+        const wasConnected = this.isConnected;
         this.isConnected = false;
         this.log(`WS Connection Closed. Code: ${code}, Reason: ${reason || 'Unknown'}`, "WS");
+        
+        if (wasConnected) {
+          // Add a small delay before notifying to avoid spamming on quick blips
+          setTimeout(() => {
+            if (!this.isConnected) {
+              this.sendTelegramMessage('🔴 *ارتباط با سرور فرازگلد قطع شد*');
+            }
+          }, 10000);
+        }
+        
         this.stopPingLoop();
         this.scheduleReconnect();
       });
@@ -831,33 +882,43 @@ ${analysisText}
       });
     }
 
-    this.pingTimer = setInterval(() => {
-      if (this.ws?.readyState === WebSocket.OPEN) {
-        try {
-          // Check if we haven't received any message (including pong) for 60 seconds
-          if (Date.now() - this.lastMessageTime > 60000) {
-            this.log("WS connection stale (no messages for 60s). Reconnecting...", "WS");
-            this.ws.terminate();
-            return;
+    const scheduleNextPing = () => {
+      // Jittered ping interval: between 28s and 35s
+      const jitterDelay = Math.floor(Math.random() * 7000) + 28000;
+      
+      this.pingTimer = setTimeout(() => {
+        if (this.ws?.readyState === WebSocket.OPEN) {
+          try {
+            // Check if we haven't received any message (including pong) for 60 seconds
+            if (Date.now() - this.lastMessageTime > 60000) {
+              this.log("WS connection stale (no messages for 60s). Reconnecting...", "WS");
+              this.ws.terminate();
+              return;
+            }
+            
+            // Send standard WebSocket ping frame.
+            this.ws.ping();
+            // Application-level ping is only sent if the server seems to expect it
+            // Based on logs, the server sends {"type":"ping"}, so we respond to it in onMessage.
+            // Sending it from our side might be redundant or causing issues.
+            // this.ws.send(JSON.stringify({ type: 'ping' })); 
+          } catch (e) {
+            this.log(`Ping error: ${e}`, "ERROR");
           }
-          
-          // Send standard WebSocket ping frame.
-          this.ws.ping();
-          // Also send application-level ping just in case
-          this.ws.send(JSON.stringify({ type: 'ping' }));
-        } catch (e) {
-          this.log(`Ping error: ${e}`, "ERROR");
+          scheduleNextPing();
+        } else {
+          // If socket is not open, force close to trigger reconnect
+          this.ws?.terminate();
         }
-      } else {
-        // If socket is not open, force close to trigger reconnect
-        this.ws?.terminate();
-      }
-    }, 30000); // Increased interval to 30s to avoid spamming
+      }, jitterDelay);
+    };
+
+    scheduleNextPing();
   }
 
   stopPingLoop() {
     if (this.pingTimer) {
-      clearInterval(this.pingTimer);
+      clearTimeout(this.pingTimer);
       this.pingTimer = null;
     }
   }
@@ -1043,7 +1104,7 @@ ${analysisText}
         this.log(`Attempting API Trade: ${signal.type} TP:${signal.tp1} SL:${signal.sl}`, "INFO");
         
         // Safety check for SL/TP
-        const tp = Math.round(signal.tp1 || 0);
+        let tp = Math.round(signal.tp1 || 0);
         let sl = Math.round(signal.sl || 0);
         
         if (tp === 0 || sl === 0 || isNaN(tp) || isNaN(sl)) {
@@ -1087,6 +1148,11 @@ ${analysisText}
         let response;
         let attempts = 0;
         const maxAttempts = 2;
+        
+        // Humanized delay: Simulate human reaction time before clicking "Buy/Sell"
+        // Reduced delay to improve accuracy while remaining "human-like"
+        this.log(`Simulating human reaction time before entry...`, "INFO");
+        await this.sleepWithJitter(50, 150);
         
         while (attempts < maxAttempts) {
           try {
@@ -1410,6 +1476,10 @@ ${analysisText}
             stop_loss: "",
             signal_token: ""
           };
+          
+          // Humanized delay for fallback close
+          await this.sleepWithJitter(200, 600);
+          
           const res = await this.api.post('/room/api/submit-order/', orderData);
           apiResponse = res?.data;
           const rawStatus = apiResponse?.status;
