@@ -58,6 +58,8 @@ export class FarazGoldBot {
   latency: number = 0;
   highLatencyCount: number = 0;
   hasAttemptedAutoCreate: boolean = false;
+  private lastMarketClosedTime: number = 0;
+  private isMarketClosed: boolean = false;
 
   orderBook = {
     bids: [] as any[],
@@ -425,7 +427,11 @@ ${analysisText}
       }
 
       // Update portfolio every 15 seconds, but don't overlap
-      if (now % 15000 < 1000 && !isUpdatingPortfolio) {
+      // If market was closed, wait at least 5 minutes before trying again
+      const marketClosedCooldown = 5 * 60 * 1000;
+      const shouldSkipDueToMarketClosed = this.isMarketClosed && (now - this.lastMarketClosedTime < marketClosedCooldown);
+
+      if (now % 15000 < 1000 && !isUpdatingPortfolio && !shouldSkipDueToMarketClosed) {
         isUpdatingPortfolio = true;
         try {
           await this.updatePortfolio();
@@ -520,6 +526,7 @@ ${analysisText}
     try {
       const response = await this.api.post('/api/room/api/check-portfolio/', {});
       this.portfolio = response.data;
+      this.isMarketClosed = false; // Successfully reached API
       
       // Auto-create portfolio if it doesn't exist
       if (this.portfolio && this.portfolio.has_portfolio === false && autoCreate && !this.hasAttemptedAutoCreate) {
@@ -562,6 +569,12 @@ ${analysisText}
 
       if (error.response?.status === 401) {
         this.log(`Portfolio Update Error: 401 Unauthorized. Your sessionid and csrftoken have expired. Please log in to FarazGold, copy the new sessionid and csrftoken, and update them in the bot settings.`, "ERROR");
+      } else if (error.response?.status === 403) {
+        this.isMarketClosed = true;
+        this.lastMarketClosedTime = Date.now();
+        if (Math.random() < 0.05) { // Log only 5% of the time to avoid spam
+          this.log(`Market is currently CLOSED or access denied (403). Bot will pause portfolio updates for 5 minutes.`, "INFO");
+        }
       } else if (isNetworkError || isTimeout || isServerError) {
         if (Math.random() < 0.1) { 
           this.log(`Portfolio Update: Server busy or network issue (${error.message || 'Timeout/50x'}).`, "INFO");
@@ -594,7 +607,11 @@ ${analysisText}
         return { success: false, message: response.data?.message || 'خطا در ایجاد پرتفو' };
       }
     } catch (error: any) {
-      this.log(`Create Portfolio Error: ${error.message}`, "ERROR");
+      if (error.response?.status === 403) {
+        this.log(`Failed to create portfolio: Market is CLOSED (403).`, "ERROR");
+      } else {
+        this.log(`Create Portfolio Error: ${error.message}`, "ERROR");
+      }
       return { success: false, message: error.response?.data?.message || error.message };
     }
   }
@@ -1219,6 +1236,17 @@ ${analysisText}
 
     this.lastTradeTime = now;
     
+    // High Quality Mode adjustments
+    let units = Number(signal.units || 1);
+    const hqCfg = this.settings.strategy?.highQuality || {};
+    const isHQ = this.strategy.highQualityMode;
+
+    if (isHQ) {
+      const multiplier = Number(hqCfg.volumeMultiplier || 2.5);
+      units = Math.max(units, Math.round(units * multiplier));
+      this.log(`HQ Mode: Increasing volume to ${units} units (Multiplier: ${multiplier})`, "SUCCESS");
+    }
+
     // Pre-check balance if portfolio is available
     if (this.portfolio && typeof this.portfolio.balance === 'number') {
       const minRequiredBalance = this.settings.risk?.minBalanceToTrade || 250000; 
@@ -1234,6 +1262,10 @@ ${analysisText}
     }
     
     if (this.settings.source === 'API' && this.api) {
+      if (this.isMarketClosed) {
+        this.log(`Trade Entry Skipped: Market is currently CLOSED (detected via 403).`, "INFO");
+        return;
+      }
       try {
         this.log(`Attempting API Trade: ${signal.type} TP:${signal.tp1} SL:${signal.sl}`, "INFO");
         
@@ -1272,7 +1304,7 @@ ${analysisText}
         const orderData: any = {
           action: signal.type.toLowerCase(),
           order_type: 'verbal',
-          units: String(signal.units || 1),
+          units: String(units),
           price: -1,
           take_profit: String(Math.round(tp)),
           stop_loss: String(Math.round(sl)),
@@ -1295,6 +1327,14 @@ ${analysisText}
           } catch (e: any) {
             const status = e.response?.status;
             const data = e.response?.data;
+            
+            if (status === 403) {
+              this.isMarketClosed = true;
+              this.lastMarketClosedTime = Date.now();
+              this.log(`Trade Entry Failed: Market is CLOSED (403). Bot will pause API calls for 5 minutes.`, "ERROR");
+              return;
+            }
+
             this.log(`Trade Entry API Error: Status ${status} | Data: ${JSON.stringify(data || e.message)}`, "ERROR");
             attempts++;
             if (attempts >= maxAttempts || !e.message?.includes('timeout')) {
@@ -1317,7 +1357,8 @@ ${analysisText}
             transactionId: transId,
             entryTime: new Date(), 
             status: 'open', 
-            units: Number(signal.units || 1),
+            units: units,
+            isHQ: isHQ,
             originalSl: sl,
             currentStep: 0,
             slEnforced: false,
@@ -1497,12 +1538,17 @@ ${analysisText}
 
       // Continuous Trailing Stop Logic (Tick-based)
       const trailingCfg = this.settings.targetsTicks?.trailing;
-      if (trailingCfg?.enabled) {
+      const hqCfg = this.settings.strategy?.highQuality;
+      
+      // Use HQ Trailing if trade is HQ
+      const effectiveTrailing = (position.isHQ && hqCfg?.trailing?.enabled) ? hqCfg.trailing : trailingCfg;
+
+      if (effectiveTrailing?.enabled) {
         const currentDist = isBuy ? currentPrice - entryPrice : entryPrice - currentPrice;
-        const activateDist = (trailingCfg.activateAfterTicks || 8) * tickSize;
+        const activateDist = (effectiveTrailing.activateAfterTicks || 8) * tickSize;
         
         if (currentDist >= activateDist) {
-          const trailDist = (trailingCfg.trailTicks || 4) * tickSize;
+          const trailDist = (effectiveTrailing.trailTicks || 4) * tickSize;
           const newSl = isBuy ? currentPrice - trailDist : currentPrice + trailDist;
           
           // Only move SL if it's an improvement
@@ -1513,11 +1559,35 @@ ${analysisText}
             if (!position.lastSlUpdate || now - position.lastSlUpdate > 5000) {
               position.sl = newSl;
               position.lastSlUpdate = now;
-              this.log(`Trailing Stop moved to ${newSl} for trade ${id} (Profit: ${currentDist/tickSize} ticks)`, "SUCCESS");
+              this.log(`${position.isHQ ? 'HQ ' : ''}Trailing Stop moved to ${newSl} (Profit: ${currentDist/tickSize} ticks)`, "SUCCESS");
               
               if (position.transactionId) {
                 this.editStopLoss(position.transactionId, newSl);
               }
+            }
+          }
+        }
+      }
+
+      // HQ Mode: Early Break-Even (Save Profit)
+      if (position.isHQ && hqCfg?.breakEven?.enabled && !position.breakEvenHit) {
+        const tpDist = Math.abs(position.tp1 - entryPrice);
+        const currentDist = isBuy ? currentPrice - entryPrice : entryPrice - currentPrice;
+        const triggerPercent = (hqCfg.breakEven.triggerPercent || 40) / 100;
+
+        if (currentDist >= tpDist * triggerPercent) {
+          const buffer = (hqCfg.breakEven.bufferTicks || 1) * tickSize;
+          const newSl = isBuy ? entryPrice + buffer : entryPrice - buffer;
+          const isImprovement = isBuy ? newSl > position.sl : newSl < position.sl;
+
+          if (isImprovement) {
+            const now = Date.now();
+            if (!position.lastSlUpdate || now - position.lastSlUpdate > 5000) {
+              position.breakEvenHit = true;
+              position.sl = newSl;
+              position.lastSlUpdate = now;
+              this.log(`HQ Save Profit: Break-Even triggered. SL moved to ${newSl}`, "SUCCESS");
+              if (position.transactionId) this.editStopLoss(position.transactionId, newSl);
             }
           }
         }

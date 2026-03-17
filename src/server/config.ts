@@ -110,11 +110,27 @@ export const config = {
   activeStrategy: 'SCALP' as 'SCALP' | 'QUANT' | 'TREND' | 'FAST' | 'NUMERICAL' | 'HST' | 'PINBAR' | 'MTF_PATTERN' | 'ICHIMOKU_MTF' | 'ICHIMOKU_HARAMI',
   strategy: {
     enabled: true,
+    highQualityMode: false,
     entry: {
       maxDistanceFromSlowEmaPercent: 0.5
     },
     tradeCooldown: 8,
     minSignalScore: 1,
+    highQuality: {
+      volumeMultiplier: 2.5, // Increase volume for HQ signals
+      tp1Percent: 60, // Target 60% of ATR for TP1
+      tp2Percent: 120, // Target 120% of ATR for TP2
+      trailing: {
+        enabled: true,
+        activateAfterTicks: 10,
+        trailTicks: 5
+      },
+      breakEven: {
+        enabled: true,
+        triggerPercent: 40, // Move to BE early
+        bufferTicks: 1
+      }
+    },
     antiSpam: {
       enabled: true,
       minMinutesBetweenSameSideSignals: 1

@@ -7,6 +7,7 @@ export class Strategy {
   signals: any[] = [];
   minSignalScore: number;
   cooldown: number;
+  highQualityMode: boolean;
   tickHistory: { price: number, time: number }[] = [];
   roundNumberHit: { price: number, time: number } | null = null;
 
@@ -14,6 +15,7 @@ export class Strategy {
     this.config = config;
     this.minSignalScore = config.strategy?.minSignalScore || 1;
     this.cooldown = (config.strategy?.tradeCooldown || 10) * 1000;
+    this.highQualityMode = config.strategy?.highQualityMode || false;
   }
 
   analyze(priceHistory: any[], openPositionsCount: number, currentPrice: number, dryRun: boolean = false) {
@@ -23,7 +25,17 @@ export class Strategy {
 
     const now = Date.now();
 
-    if (!dryRun && now - this.lastSignalTime < this.cooldown) {
+    // Adjust parameters for High Quality Mode
+    let effectiveMinScore = this.minSignalScore;
+    let effectiveCooldown = this.cooldown;
+
+    if (this.highQualityMode) {
+      // Significantly increase requirements
+      effectiveMinScore = Math.max(effectiveMinScore + 3, 5); // Require at least score 5
+      effectiveCooldown = Math.max(effectiveCooldown, 60 * 60 * 1000); // At least 1 hour cooldown between signals
+    }
+
+    if (!dryRun && now - this.lastSignalTime < effectiveCooldown) {
       return { signal: null, reason: 'Cooldown active' };
     }
 
@@ -60,28 +72,28 @@ export class Strategy {
     }
 
     if (activeStrategy === 'SCALP') {
-      result = this.analyzeScalp(priceHistory, currentPrice);
+      result = this.analyzeScalp(priceHistory, currentPrice, effectiveMinScore);
     } else if (activeStrategy === 'QUANT') {
-      result = this.analyzeQuant(priceHistory, currentPrice);
+      result = this.analyzeQuant(priceHistory, currentPrice, effectiveMinScore);
     } else if (activeStrategy === 'TREND') {
-      result = this.analyzeTrend(priceHistory, currentPrice);
+      result = this.analyzeTrend(priceHistory, currentPrice, effectiveMinScore);
     } else if (activeStrategy === 'FAST') {
-      result = this.analyzeFast(priceHistory, currentPrice);
+      result = this.analyzeFast(priceHistory, currentPrice, effectiveMinScore);
     } else if (activeStrategy === 'NUMERICAL') {
       result = this.analyzeNumerical(currentPrice);
     } else if (activeStrategy === 'HST') {
-      result = this.analyzeHST(priceHistory, currentPrice);
+      result = this.analyzeHST(priceHistory, currentPrice, effectiveMinScore);
     } else if (activeStrategy === 'PINBAR') {
-      result = this.analyzePinBar(priceHistory, currentPrice);
+      result = this.analyzePinBar(priceHistory, currentPrice, effectiveMinScore);
     } else if (activeStrategy === 'MTF_PATTERN') {
       const priceHistory5min = this.aggregateTo5Min(priceHistory);
-      result = this.analyzeMTFPatterns(priceHistory5min, priceHistory, currentPrice);
+      result = this.analyzeMTFPatterns(priceHistory5min, priceHistory, currentPrice, effectiveMinScore);
     } else if (activeStrategy === 'ICHIMOKU_MTF') {
       const priceHistory5min = this.aggregateTo5Min(priceHistory);
-      result = this.analyzeIchimokuMTF(priceHistory5min, priceHistory, currentPrice);
+      result = this.analyzeIchimokuMTF(priceHistory5min, priceHistory, currentPrice, effectiveMinScore);
     } else if (activeStrategy === 'ICHIMOKU_HARAMI') {
       const priceHistory5min = this.aggregateTo5Min(priceHistory);
-      result = this.analyzeIchimokuHaramiMTF(priceHistory5min, priceHistory, currentPrice);
+      result = this.analyzeIchimokuHaramiMTF(priceHistory5min, priceHistory, currentPrice, effectiveMinScore);
     }
 
     if (result?.signal && !dryRun) {
@@ -107,7 +119,7 @@ export class Strategy {
   // ==========================================
   // 1. SCALP STRATEGY (EMA + RSI)
   // ==========================================
-  analyzeScalp(priceHistory: any[], currentPrice: number) {
+  analyzeScalp(priceHistory: any[], currentPrice: number, effectiveMinScore: number = this.minSignalScore) {
     const closes = priceHistory.map(p => p.price);
     const highs = priceHistory.map(p => p.high ?? p.price);
     const lows = priceHistory.map(p => p.low ?? p.price);
@@ -202,7 +214,25 @@ export class Strategy {
       }
     }
 
-    if (!type || score < this.minSignalScore) return { signal: null, reason: 'Score too low' };
+    if (!type || score < effectiveMinScore) return { signal: null, reason: `Score too low (${score}/${effectiveMinScore})` };
+
+    // Additional High Quality Filters
+    if (this.highQualityMode) {
+      const rsi = this.indicators.rsi || 50;
+      const adx = this.indicators.adx || 0;
+      
+      // 1. Trend Strength Filter (ADX > 25)
+      if (adx < 25) return { signal: null, reason: 'HQ Mode: Trend too weak (ADX < 25)' };
+      
+      // 2. RSI Extreme Filter
+      if (type === 'BUY' && rsi > 45) return { signal: null, reason: 'HQ Mode: RSI not oversold enough for BUY' };
+      if (type === 'SELL' && rsi < 55) return { signal: null, reason: 'HQ Mode: RSI not overbought enough for SELL' };
+      
+      // 3. Volatility Filter (ATR must be significant)
+      const atr = this.indicators.atr || 0;
+      const atrPercent = (atr / currentPrice) * 100;
+      if (atrPercent < 0.015) return { signal: null, reason: 'HQ Mode: Volatility too low' };
+    }
 
     return { signal: this.createSignal(type, price, score, reasons, atr, 'SCALP'), reason: 'Signal OK' };
   }
@@ -210,7 +240,7 @@ export class Strategy {
   // ==========================================
   // 2. QUANT STRATEGY (Price Action & Patterns)
   // ==========================================
-  analyzeQuant(priceHistory: any[], currentPrice: number) {
+  analyzeQuant(priceHistory: any[], currentPrice: number, effectiveMinScore: number = this.minSignalScore) {
     const closes = priceHistory.map(p => p.price);
     const highs = priceHistory.map(p => p.high ?? p.price);
     const lows = priceHistory.map(p => p.low ?? p.price);
@@ -325,6 +355,16 @@ export class Strategy {
     if (type === 'BUY' && rsi > 50) score += 1;
     if (type === 'SELL' && rsi < 50) score += 1;
 
+    if (score < effectiveMinScore) return { signal: null, reason: `Score too low (${score}/${effectiveMinScore})` };
+
+    // Additional High Quality Filters
+    if (this.highQualityMode) {
+      const adx = this.indicators.adx || 0;
+      if (adx < 25) return { signal: null, reason: 'HQ Mode: Trend too weak (ADX < 25)' };
+      if (type === 'BUY' && rsi > 45) return { signal: null, reason: 'HQ Mode: RSI not oversold enough' };
+      if (type === 'SELL' && rsi < 55) return { signal: null, reason: 'HQ Mode: RSI not overbought enough' };
+    }
+
     const signal = {
       type,
       entry: price,
@@ -345,7 +385,7 @@ export class Strategy {
   // ==========================================
   // 3. TREND STRATEGY (MA Crossover + MACD)
   // ==========================================
-  analyzeTrend(priceHistory: any[], currentPrice: number) {
+  analyzeTrend(priceHistory: any[], currentPrice: number, effectiveMinScore: number = this.minSignalScore) {
     const closes = priceHistory.map(p => p.price);
     const price = currentPrice || closes[closes.length - 1];
 
@@ -391,7 +431,16 @@ export class Strategy {
       }
     }
 
-    if (score < this.minSignalScore) return { signal: null, reason: 'Score too low' };
+    if (score < effectiveMinScore) return { signal: null, reason: `Score too low (${score}/${effectiveMinScore})` };
+
+    // Additional High Quality Filters
+    if (this.highQualityMode) {
+      const adx = this.indicators.adx || 0;
+      if (adx < 30) return { signal: null, reason: 'HQ Mode: Trend too weak for Trend Strategy (ADX < 30)' };
+      const rsi = this.indicators.rsi || 50;
+      if (type === 'BUY' && rsi > 50) return { signal: null, reason: 'HQ Mode: RSI too high for Trend BUY' };
+      if (type === 'SELL' && rsi < 50) return { signal: null, reason: 'HQ Mode: RSI too low for Trend SELL' };
+    }
 
     const atr = this.calculateATR(priceHistory.map(p=>p.high), priceHistory.map(p=>p.low), closes, 14);
     
@@ -420,7 +469,7 @@ export class Strategy {
   // ==========================================
   // 4. FAST STRATEGY (Short EMA + RSI + Momentum)
   // ==========================================
-  analyzeFast(priceHistory: any[], currentPrice: number) {
+  analyzeFast(priceHistory: any[], currentPrice: number, effectiveMinScore: number = this.minSignalScore) {
     const closes = priceHistory.map(p => p.price);
     const highs = priceHistory.map(p => p.high ?? p.price);
     const lows = priceHistory.map(p => p.low ?? p.price);
@@ -464,7 +513,15 @@ export class Strategy {
       }
     }
 
-    if (!type || score < 2) return { signal: null, reason: 'No fast signal (Score < 2)' }; // Require higher score for FAST
+    if (!type || score < Math.max(2, effectiveMinScore)) return { signal: null, reason: `No fast signal (Score < ${Math.max(2, effectiveMinScore)})` };
+
+    // Additional High Quality Filters
+    if (this.highQualityMode) {
+      const adx = this.indicators.adx || 0;
+      if (adx < 20) return { signal: null, reason: 'HQ Mode: Trend too weak for Fast Strategy (ADX < 20)' };
+      if (type === 'BUY' && rsi > 40) return { signal: null, reason: 'HQ Mode: RSI too high for Fast BUY' };
+      if (type === 'SELL' && rsi < 60) return { signal: null, reason: 'HQ Mode: RSI too low for Fast SELL' };
+    }
 
     const atr = this.calculateATR(highs, lows, closes, 7);
     const signal = this.createSignal(type, price, score, reasons, atr, 'FAST');
@@ -559,6 +616,10 @@ export class Strategy {
 
     if (!type) return { signal: null, reason: 'No numerical signal' };
 
+    // Additional High Quality Filters
+    const hqResult = this.applyHighQualityFilters(type, currentPrice, 3);
+    if (hqResult.filtered) return { signal: null, reason: hqResult.reason };
+
     this.roundNumberHit = null;
 
     const sl = type === 'BUY' ? currentPrice - (cfg.stopLossPips * tickSize) : currentPrice + (cfg.stopLossPips * tickSize);
@@ -592,7 +653,7 @@ export class Strategy {
   // ==========================================
   // 6. HST STRATEGY (Hull + SuperTrend)
   // ==========================================
-  analyzeHST(priceHistory: any[], currentPrice: number) {
+  analyzeHST(priceHistory: any[], currentPrice: number, effectiveMinScore: number = this.minSignalScore) {
     const closes = priceHistory.map(p => p.price);
     const highs = priceHistory.map(p => p.high ?? p.price);
     const lows = priceHistory.map(p => p.low ?? p.price);
@@ -763,6 +824,10 @@ export class Strategy {
       return { signal: null, reason: `Score ${score} too low (Need ${requiredScore})` };
     }
 
+    // Additional High Quality Filters
+    const hqResult = this.applyHighQualityFilters(type, price, score);
+    if (hqResult.filtered) return { signal: null, reason: hqResult.reason };
+
     const signal = this.createSignal(type, price, score, reasons, atr, 'HST');
     
     return { signal, reason: 'HST signal OK' };
@@ -833,6 +898,27 @@ export class Strategy {
   // ==========================================
   // UTILS
   // ==========================================
+  applyHighQualityFilters(type: 'BUY' | 'SELL' | null, currentPrice: number, score: number) {
+    if (!this.highQualityMode || !type) return { filtered: false };
+
+    const rsi = this.indicators.rsi || 50;
+    const adx = this.indicators.adx || 0;
+    const atr = this.indicators.atr || 0;
+    const atrPercent = (atr / currentPrice) * 100;
+
+    // 1. Trend Strength Filter (ADX > 25)
+    if (adx < 25) return { filtered: true, reason: 'HQ Mode: Trend too weak (ADX < 25)' };
+
+    // 2. RSI Extreme Filter
+    if (type === 'BUY' && rsi > 45) return { filtered: true, reason: 'HQ Mode: RSI not oversold enough for BUY' };
+    if (type === 'SELL' && rsi < 55) return { filtered: true, reason: 'HQ Mode: RSI not overbought enough for SELL' };
+
+    // 3. Volatility Filter (ATR must be significant)
+    if (atrPercent < 0.015) return { filtered: true, reason: 'HQ Mode: Volatility too low (ATR < 1.5%)' };
+
+    return { filtered: false };
+  }
+
   createSignal(type: 'BUY' | 'SELL', price: number, score: number, reasons: string[], atr: number, strategyName: string) {
     const market = this.config.market || {};
     const tickSize = Number(market.tickSize ?? 1);
@@ -1148,7 +1234,7 @@ export class Strategy {
   // ==========================================
   // 7. PIN BAR STRATEGY (Price Action Reversal)
   // ==========================================
-  analyzePinBar(priceHistory: any[], currentPrice: number) {
+  analyzePinBar(priceHistory: any[], currentPrice: number, effectiveMinScore: number = this.minSignalScore) {
       const closes = priceHistory.map(p => p.price);
       const highs = priceHistory.map(p => p.high ?? p.price);
       const lows = priceHistory.map(p => p.low ?? p.price);
@@ -1262,6 +1348,10 @@ export class Strategy {
           return { signal: null, reason: `Pin bar score too low: ${score}` };
       }
 
+      // Additional High Quality Filters
+      const hqResult = this.applyHighQualityFilters(type, price, score);
+      if (hqResult.filtered) return { signal: null, reason: hqResult.reason };
+
       const signal = {
           type,
           entry: Math.round(entryPrice),
@@ -1293,7 +1383,7 @@ export class Strategy {
   // ==========================================
   // 8. MTF SUPPORT/RESISTANCE + CANDLE PATTERNS
   // ==========================================
-  analyzeMTFPatterns(priceHistory5min: any[], priceHistory1min: any[], currentPrice: number) {
+  analyzeMTFPatterns(priceHistory5min: any[], priceHistory1min: any[], currentPrice: number, effectiveMinScore: number = this.minSignalScore) {
       const supports = [];
       const resistances = [];
       
@@ -1391,6 +1481,10 @@ export class Strategy {
           return { signal: null, reason: 'No strong signal at key levels' };
       }
       
+      // Additional High Quality Filters
+      const hqResult = this.applyHighQualityFilters(bestSignal.type, currentPrice1min, bestScore);
+      if (hqResult.filtered) return { signal: null, reason: hqResult.reason };
+
       return {
           signal: {
               ...bestSignal,
@@ -1411,7 +1505,7 @@ export class Strategy {
   // ==========================================
   // 9. ICHIMOKU CLOUD + S/R + CANDLE PATTERNS
   // ==========================================
-  analyzeIchimokuMTF(priceHistory5min: any[], priceHistory1min: any[], currentPrice: number) {
+  analyzeIchimokuMTF(priceHistory5min: any[], priceHistory1min: any[], currentPrice: number, effectiveMinScore: number = this.minSignalScore) {
       const ichimoku = this.calculateIchimoku(priceHistory5min);
       if (!ichimoku) return { signal: null, reason: 'Ichimoku data not ready' };
 
@@ -1512,7 +1606,7 @@ export class Strategy {
   // ==========================================
   // 10. ICHIMOKU + HARAMI + S/R (Black Cloud & Harami)
   // ==========================================
-  analyzeIchimokuHaramiMTF(priceHistory5min: any[], priceHistory1min: any[], currentPrice: number) {
+  analyzeIchimokuHaramiMTF(priceHistory5min: any[], priceHistory1min: any[], currentPrice: number, effectiveMinScore: number = this.minSignalScore) {
       const ichimoku = this.calculateIchimoku(priceHistory5min);
       if (!ichimoku) {
           return { signal: null, reason: 'Ichimoku data not ready' };

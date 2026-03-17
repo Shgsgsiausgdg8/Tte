@@ -87,6 +87,23 @@ export default function Dashboard() {
     await fetch('/api/bot/toggle', { method: 'POST' });
   };
 
+  const toggleHighQuality = async () => {
+    if (!settings) return;
+    const newSettings = {
+      ...settings,
+      strategy: {
+        ...settings.strategy,
+        highQualityMode: !settings.strategy.highQualityMode
+      }
+    };
+    setSettings(newSettings);
+    await fetch('/api/bot/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newSettings)
+    });
+  };
+
   const manualTrade = async (action: 'BUY' | 'SELL') => {
     await fetch('/api/bot/manual-trade', {
       method: 'POST',
@@ -387,6 +404,23 @@ export default function Dashboard() {
           
           <div className="flex items-center gap-2 bg-white/5 p-1.5 rounded-2xl border border-white/5">
             <button 
+              onClick={toggleHighQuality}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold transition-all ${settings?.strategy?.highQualityMode ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' : 'bg-white/5 text-slate-400 hover:bg-white/10'}`}
+              title="حالت سیگنال‌های با کیفیت (تعداد کمتر، دقت بیشتر)"
+            >
+              <div className="relative">
+                <ShieldAlert className="w-4 h-4" />
+                {settings?.strategy?.highQualityMode && (
+                  <motion.div 
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    className="absolute -top-1 -right-1 w-2 h-2 bg-white rounded-full border border-amber-500"
+                  />
+                )}
+              </div>
+              <span className="hidden sm:inline">کیفیت بالا</span>
+            </button>
+            <button 
               onClick={() => setShowSettings(true)}
               className="p-2.5 rounded-xl hover:bg-white/5 transition-colors text-slate-400 hover:text-white"
             >
@@ -577,9 +611,22 @@ export default function Dashboard() {
                         <span className={`text-[9px] sm:text-[10px] font-black px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full w-fit ${pos.type === 'BUY' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-rose-500/20 text-rose-500'}`}>
                           {pos.type}
                         </span>
-                        <span className="text-[8px] sm:text-[9px] text-slate-400 mt-1 font-mono uppercase">{pos.pattern || 'EMA CROSS'}</span>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-[8px] sm:text-[9px] text-slate-400 font-mono uppercase">{pos.pattern || 'EMA CROSS'}</span>
+                          {pos.isHQ && (
+                            <span className="text-[7px] sm:text-[8px] bg-amber-500/20 text-amber-500 px-1.5 py-0.5 rounded-md font-bold flex items-center gap-1">
+                              <ShieldAlert className="w-2 h-2" />
+                              HQ
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <span className="text-[9px] sm:text-[10px] text-slate-500 font-mono">{new Date(pos.entryTime).toLocaleTimeString('fa-IR')}</span>
+                      <div className="flex flex-col items-end">
+                        <span className="text-[9px] sm:text-[10px] text-slate-500 font-mono">{new Date(pos.entryTime).toLocaleTimeString('fa-IR')}</span>
+                        {pos.isHQ && (
+                          <span className="text-[7px] text-slate-500 font-mono mt-0.5">Vol: x{botState.settings?.strategy?.highQuality?.volumeMultiplier || 2}</span>
+                        )}
+                      </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
@@ -1362,6 +1409,33 @@ export default function Dashboard() {
                           placeholder="مثلاً 123456789"
                         />
                       </div>
+                    </div>
+                  </div>
+                </section>
+
+                {/* Signal Quality Settings */}
+                <section>
+                  <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-3">
+                    <ShieldAlert className="w-4 h-4" /> کیفیت سیگنال‌ها
+                  </h3>
+                  <div className="grid grid-cols-1 gap-6">
+                    <div className="flex items-center justify-between bg-white/5 p-4 rounded-2xl">
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium">حالت کیفیت بالا (High Quality)</span>
+                        <span className="text-[10px] text-slate-500">تعداد سیگنال کمتر، اما با دقت و تاییدیه بسیار بیشتر (مناسب حساب واقعی)</span>
+                      </div>
+                      <button 
+                        onClick={() => setSettings({ 
+                          ...settings, 
+                          strategy: { ...settings.strategy, highQualityMode: !settings.strategy.highQualityMode } 
+                        })}
+                        className={`w-12 h-6 rounded-full transition-colors relative ${settings.strategy?.highQualityMode ? 'bg-amber-500' : 'bg-slate-700'}`}
+                      >
+                        <motion.div 
+                          animate={{ x: settings.strategy?.highQualityMode ? 24 : 4 }}
+                          className="absolute top-1 w-4 h-4 bg-white rounded-full"
+                        />
+                      </button>
                     </div>
                   </div>
                 </section>
