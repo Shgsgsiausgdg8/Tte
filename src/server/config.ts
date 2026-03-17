@@ -107,7 +107,7 @@ export const config = {
   // ==========================================
   // 🤖 Strategy Settings
   // ==========================================
-  activeStrategy: 'SCALP' as 'SCALP' | 'QUANT' | 'TREND',
+  activeStrategy: 'SCALP' as 'SCALP' | 'QUANT' | 'TREND' | 'FAST' | 'NUMERICAL' | 'HST' | 'PINBAR' | 'MTF_PATTERN' | 'ICHIMOKU_MTF' | 'ICHIMOKU_HARAMI',
   strategy: {
     enabled: true,
     entry: {
@@ -166,6 +166,123 @@ export const config = {
       stMultiplier: 3,
       requireCloseAboveHMA: true,
       mode: 'NORMAL'
+    },
+    pinbar: {
+      enabled: true,
+      bodyRatio: 0.4,
+      wickRatio: 2.5,
+      requireTrend: true,
+      trendPeriod: 10,
+      confirmationRequired: false,
+      maxSlippageTicks: 2,
+      useVolumeFilter: false,
+      minVolumeRatio: 1.5,
+      minScore: 2
+    },
+    mtfPatterns: {
+      enabled: true,
+      higherTF: '5m',
+      lowerTF: '1m',
+      supportResistance: {
+        swingBars: 2,
+        clusterBinSize: 10,
+        mergeThreshold: 50,
+        proximityThreshold: 50
+      },
+      patterns: {
+        pinBar: true,
+        engulfing: true,
+        doji: true,
+        hammer: true,
+        starPatterns: true,
+        insideBar: true
+      },
+      minScore: 3,
+      useVolume: false
+    },
+    ichimoku: {
+      enabled: true,
+      timeframes: {
+        higher: '5m',
+        lower: '1m'
+      },
+      periods: {
+        tenkan: 9,
+        kijun: 26,
+        senkouB: 52
+      },
+      useClassicSR: true,
+      useClusters: true,
+      useRoundNumbers: true,
+      mergeThreshold: 30,
+      proximityThreshold: 40,
+      minScore: 4,
+      trendFilter: {
+        requireCloudConfirmation: true,
+        minTrendScore: 6,
+        allowNeutral: false
+      },
+      patterns: {
+        pinBar: true,
+        engulfing: true,
+        hammer: true,
+        starPatterns: true,
+        doji: false,
+        insideBar: true
+      }
+    },
+    ichimokuHarami: {
+      enabled: true,
+      timeframes: {
+        higher: '5m',
+        lower: '1m'
+      },
+      levels: {
+        ichimoku: {
+          kijun: true,
+          tenkan: true,
+          senkouA: true,
+          senkouB: true,
+          cloudEdges: true
+        },
+        classic: {
+          swingPoints: true,
+          clusters: true,
+          roundNumbers: true
+        },
+        mergeThreshold: 25,
+        proximityThreshold: 40
+      },
+      patterns: {
+        harami: {
+          enabled: true,
+          minStrength: 3,
+          requireVolume: false
+        },
+        piercing: {
+          enabled: true,
+          minPenetration: 50,
+          requireGap: true
+        },
+        darkCloud: {
+          enabled: true,
+          minPenetration: 50,
+          requireGap: true
+        }
+      },
+      trendFilter: {
+        enabled: true,
+        minTrendScore: 5,
+        allowNeutral: false,
+        requireCloudConfirmation: true
+      },
+      risk: {
+        minScore: 8,
+        pierceingRR: 2.5,
+        darkCloudRR: 2.5,
+        haramiRR: 2.2,
+        maxSpread: 2
+      }
     }
   },
 

@@ -355,6 +355,11 @@ export default function Dashboard() {
               <option value="QUANT">استراتژی کوانت</option>
               <option value="TREND">استراتژی ترند</option>
               <option value="NUMERICAL">نوسان‌گیری عددی (مظنه)</option>
+              <option value="HST">استراتژی HST</option>
+              <option value="PINBAR">پین بار (پرایس اکشن)</option>
+              <option value="MTF_PATTERN">الگوهای MTF</option>
+              <option value="ICHIMOKU_MTF">ایچیموکو MTF</option>
+              <option value="ICHIMOKU_HARAMI">ایچیموکو هارامی</option>
             </select>
           </div>
           <div className="hidden lg:block text-right bg-white/5 px-4 py-2 rounded-2xl border border-white/5">
@@ -1373,7 +1378,11 @@ export default function Dashboard() {
                       { id: 'QUANT', label: 'کوانت', desc: 'پرایس اکشن و الگوها' },
                       { id: 'TREND', label: 'ترند فالووینگ', desc: 'کراس MA و MACD' },
                       { id: 'NUMERICAL', label: 'نوسان‌گیری عددی', desc: 'مومنتوم و اعداد رند' },
-                      { id: 'HST', label: 'استراتژی HST', desc: 'تایید دوگانه Hull+SuperTrend' }
+                      { id: 'HST', label: 'استراتژی HST', desc: 'تایید دوگانه Hull+SuperTrend' },
+                      { id: 'PINBAR', label: 'پین بار', desc: 'پرایس اکشن و سایه‌ها' },
+                      { id: 'MTF_PATTERN', label: 'الگوهای MTF', desc: 'سطوح و الگوهای چندزمانی' },
+                      { id: 'ICHIMOKU_MTF', label: 'ایچیموکو MTF', desc: 'ایچیموکو و سطوح کلاسیک' },
+                      { id: 'ICHIMOKU_HARAMI', label: 'ایچیموکو هارامی', desc: 'ایچیموکو و الگوهای بازگشتی' }
                     ].map(type => (
                       <button
                         key={type.id}
@@ -1417,7 +1426,18 @@ export default function Dashboard() {
                 {/* Strategy Parameters */}
                 <section>
                   <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-3">
-                    <Activity className="w-4 h-4" /> پارامترهای استراتژی ({settings.activeStrategy === 'SCALP' ? 'اسکالپر' : settings.activeStrategy === 'FAST' ? 'فوق سریع' : settings.activeStrategy === 'QUANT' ? 'کوانت' : settings.activeStrategy === 'NUMERICAL' ? 'نوسان‌گیری عددی' : settings.activeStrategy === 'HST' ? 'استراتژی HST' : 'ترند'})
+                    <Activity className="w-4 h-4" /> پارامترهای استراتژی ({
+                      settings.activeStrategy === 'SCALP' ? 'اسکالپر' : 
+                      settings.activeStrategy === 'FAST' ? 'فوق سریع' : 
+                      settings.activeStrategy === 'QUANT' ? 'کوانت' : 
+                      settings.activeStrategy === 'NUMERICAL' ? 'نوسان‌گیری عددی' : 
+                      settings.activeStrategy === 'HST' ? 'استراتژی HST' : 
+                      settings.activeStrategy === 'PINBAR' ? 'پین بار' : 
+                      settings.activeStrategy === 'MTF_PATTERN' ? 'الگوهای MTF' : 
+                      settings.activeStrategy === 'ICHIMOKU_MTF' ? 'ایچیموکو MTF' : 
+                      settings.activeStrategy === 'ICHIMOKU_HARAMI' ? 'ایچیموکو هارامی' : 
+                      'ترند'
+                    })
                   </h3>
                   
                   {settings.activeStrategy === 'SCALP' && (
@@ -1589,6 +1609,116 @@ export default function Dashboard() {
                           type="number" 
                           value={settings.strategy?.trend?.maSlow || 50}
                           onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, trend: { ...settings.strategy?.trend, maSlow: parseInt(e.target.value) } } })}
+                          className="w-full bg-white/5 border border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-2.5 sm:py-3 text-sm outline-none focus:border-emerald-500/50"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {settings.activeStrategy === 'PINBAR' && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                      <div className="col-span-1 sm:col-span-2 bg-emerald-500/5 p-4 rounded-2xl border border-emerald-500/20">
+                        <p className="text-[10px] text-emerald-500 font-bold mb-1">استراتژی پین بار</p>
+                        <p className="text-[11px] text-slate-400">این استراتژی بر اساس الگوهای پرایس اکشن پین بار با سایه‌های بلند و بدنه کوچک عمل می‌کند.</p>
+                      </div>
+                      <div>
+                        <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">نسبت بدنه</label>
+                        <input 
+                          type="number" 
+                          step="0.1"
+                          value={settings.strategy?.pinbar?.bodyRatio || 0.4}
+                          onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, pinbar: { ...settings.strategy?.pinbar, bodyRatio: parseFloat(e.target.value) } } })}
+                          className="w-full bg-white/5 border border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-2.5 sm:py-3 text-sm outline-none focus:border-emerald-500/50"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">نسبت سایه</label>
+                        <input 
+                          type="number" 
+                          step="0.1"
+                          value={settings.strategy?.pinbar?.wickRatio || 2.5}
+                          onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, pinbar: { ...settings.strategy?.pinbar, wickRatio: parseFloat(e.target.value) } } })}
+                          className="w-full bg-white/5 border border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-2.5 sm:py-3 text-sm outline-none focus:border-emerald-500/50"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {settings.activeStrategy === 'MTF_PATTERN' && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                      <div className="col-span-1 sm:col-span-2 bg-emerald-500/5 p-4 rounded-2xl border border-emerald-500/20">
+                        <p className="text-[10px] text-emerald-500 font-bold mb-1">استراتژی الگوهای MTF</p>
+                        <p className="text-[11px] text-slate-400">ترکیب سطوح حمایت و مقاومت در تایم‌فریم‌های بالاتر با الگوهای کندلی در تایم‌فریم‌های پایین‌تر.</p>
+                      </div>
+                      <div>
+                        <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">حداقل امتیاز سیگنال</label>
+                        <input 
+                          type="number" 
+                          value={settings.strategy?.mtfPatterns?.minScore || 3}
+                          onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, mtfPatterns: { ...settings.strategy?.mtfPatterns, minScore: parseInt(e.target.value) } } })}
+                          className="w-full bg-white/5 border border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-2.5 sm:py-3 text-sm outline-none focus:border-emerald-500/50"
+                        />
+                      </div>
+                      <div className="flex items-center justify-between bg-white/5 border border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-2.5 sm:py-3">
+                        <span className="text-[11px] font-bold text-slate-300">فیلتر حجم</span>
+                        <button 
+                          onClick={() => setSettings({ ...settings, strategy: { ...settings.strategy, mtfPatterns: { ...settings.strategy?.mtfPatterns, useVolume: !settings.strategy?.mtfPatterns?.useVolume } } })}
+                          className={`w-10 h-5 rounded-full transition-colors relative ${settings.strategy?.mtfPatterns?.useVolume ? 'bg-emerald-500' : 'bg-slate-700'}`}
+                        >
+                          <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${settings.strategy?.mtfPatterns?.useVolume ? 'left-6' : 'left-1'}`} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {settings.activeStrategy === 'ICHIMOKU_MTF' && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                      <div className="col-span-1 sm:col-span-2 bg-emerald-500/5 p-4 rounded-2xl border border-emerald-500/20">
+                        <p className="text-[10px] text-emerald-500 font-bold mb-1">استراتژی ایچیموکو MTF</p>
+                        <p className="text-[11px] text-slate-400">استفاده از اجزای ایچیموکو (تنکان‌سن، کیجون‌سن، ابر کومو) به عنوان سطوح کلیدی در ترکیب با الگوهای کندلی.</p>
+                      </div>
+                      <div>
+                        <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">حداقل امتیاز سیگنال</label>
+                        <input 
+                          type="number" 
+                          value={settings.strategy?.ichimoku?.minScore || 4}
+                          onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, ichimoku: { ...settings.strategy?.ichimoku, minScore: parseInt(e.target.value) } } })}
+                          className="w-full bg-white/5 border border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-2.5 sm:py-3 text-sm outline-none focus:border-emerald-500/50"
+                        />
+                      </div>
+                      <div className="flex items-center justify-between bg-white/5 border border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-2.5 sm:py-3">
+                        <span className="text-[11px] font-bold text-slate-300">تاییدیه ابر کومو</span>
+                        <button 
+                          onClick={() => setSettings({ ...settings, strategy: { ...settings.strategy, ichimoku: { ...settings.strategy?.ichimoku, trendFilter: { ...settings.strategy?.ichimoku?.trendFilter, requireCloudConfirmation: !settings.strategy?.ichimoku?.trendFilter?.requireCloudConfirmation } } } })}
+                          className={`w-10 h-5 rounded-full transition-colors relative ${settings.strategy?.ichimoku?.trendFilter?.requireCloudConfirmation ? 'bg-emerald-500' : 'bg-slate-700'}`}
+                        >
+                          <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${settings.strategy?.ichimoku?.trendFilter?.requireCloudConfirmation ? 'left-6' : 'left-1'}`} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {settings.activeStrategy === 'ICHIMOKU_HARAMI' && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                      <div className="col-span-1 sm:col-span-2 bg-emerald-500/5 p-4 rounded-2xl border border-emerald-500/20">
+                        <p className="text-[10px] text-emerald-500 font-bold mb-1">استراتژی ایچیموکو هارامی</p>
+                        <p className="text-[11px] text-slate-400">ترکیب سطوح ایچیموکو با الگوهای بازگشتی خاص مانند هارامی، نفوذی و ابر سیاه.</p>
+                      </div>
+                      <div>
+                        <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">حداقل امتیاز سیگنال</label>
+                        <input 
+                          type="number" 
+                          value={settings.strategy?.ichimokuHarami?.riskManagement?.minScore || 4}
+                          onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, ichimokuHarami: { ...settings.strategy?.ichimokuHarami, riskManagement: { ...settings.strategy?.ichimokuHarami?.riskManagement, minScore: parseInt(e.target.value) } } } })}
+                          className="w-full bg-white/5 border border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-2.5 sm:py-3 text-sm outline-none focus:border-emerald-500/50"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">حداقل قدرت هارامی</label>
+                        <input 
+                          type="number" 
+                          value={settings.strategy?.ichimokuHarami?.patterns?.harami?.minStrength || 3}
+                          onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, ichimokuHarami: { ...settings.strategy?.ichimokuHarami, patterns: { ...settings.strategy?.ichimokuHarami?.patterns, harami: { ...settings.strategy?.ichimokuHarami?.patterns?.harami, minStrength: parseInt(e.target.value) } } } } })}
                           className="w-full bg-white/5 border border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-2.5 sm:py-3 text-sm outline-none focus:border-emerald-500/50"
                         />
                       </div>

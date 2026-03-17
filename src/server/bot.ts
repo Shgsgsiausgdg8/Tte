@@ -549,7 +549,9 @@ ${analysisText}
         return this.updatePortfolio(retryCount + 1, autoCreate);
       }
 
-      if (isNetworkError || isTimeout || isServerError) {
+      if (error.response?.status === 401) {
+        this.log(`Portfolio Update Error: 401 Unauthorized. Your sessionid and csrftoken have expired. Please log in to FarazGold, copy the new sessionid and csrftoken, and update them in the bot settings.`, "ERROR");
+      } else if (isNetworkError || isTimeout || isServerError) {
         if (Math.random() < 0.1) { 
           this.log(`Portfolio Update: Server busy or network issue (${error.message || 'Timeout/50x'}).`, "INFO");
         }
@@ -1305,9 +1307,30 @@ ${analysisText}
             status: 'open', 
             units: Number(signal.units || 1),
             originalSl: sl,
-            currentStep: 0
+            currentStep: 0,
+            slEnforced: false,
+            lastEnforceAttempt: Date.now()
           });
           this.log(`Trade Executed: ${signal.type} at ${this.price} (ID: ${transId})`, "SUCCESS");
+          
+          // CRITICAL: Explicitly enforce SL/TP after entry to ensure they are set on the server
+          // Some API versions might ignore SL/TP in the initial submit-order call
+          if (transId) {
+            this.enforceStopLossTakeProfit(transId, sl, tp, id).then(success => {
+              const pos = this.openPositions.get(id);
+              if (pos) {
+                pos.slEnforced = success;
+                if (success) {
+                  this.log(`SL/TP Enforced successfully for ${transId}`, "SUCCESS");
+                } else {
+                  this.log(`SL/TP Enforcement FAILED for ${transId}. Will retry in next loop.`, "ERROR");
+                }
+              }
+            }).catch(err => {
+              this.log(`SL/TP Enforcement Error for ${transId}: ${err.message}`, "ERROR");
+            });
+          }
+
           this.sendTelegramMessage(`🚀 *معامله جدید باز شد*
 نوع: ${signal.type === 'BUY' ? 'خرید 🟢' : 'فروش 🔴'}
 قیمت: ${this.price.toLocaleString('fa-IR')}
@@ -1348,6 +1371,20 @@ ${analysisText}
 
       const isBuy = position.type === 'BUY';
       const entryPrice = position.entry || position.price;
+      const now = Date.now();
+
+      // Periodic SL/TP Enforcement Retry
+      if (this.settings.source === 'API' && position.transactionId && position.slEnforced === false) {
+        const lastAttempt = position.lastEnforceAttempt || 0;
+        if (now - lastAttempt > 15000) { // Retry every 15 seconds
+          position.lastEnforceAttempt = now;
+          this.log(`Retrying SL/TP Enforcement for ${position.transactionId}...`, "INFO");
+          this.enforceStopLossTakeProfit(position.transactionId, position.sl, position.tp1, id).then(success => {
+            position.slEnforced = success;
+            if (success) this.log(`SL/TP Enforced on retry for ${position.transactionId}`, "SUCCESS");
+          }).catch(() => {});
+        }
+      }
 
       if (isBuy && currentPrice <= position.sl) {
         this.closeTrade(id, 'stop_loss');

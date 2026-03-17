@@ -71,6 +71,17 @@ export class Strategy {
       result = this.analyzeNumerical(currentPrice);
     } else if (activeStrategy === 'HST') {
       result = this.analyzeHST(priceHistory, currentPrice);
+    } else if (activeStrategy === 'PINBAR') {
+      result = this.analyzePinBar(priceHistory, currentPrice);
+    } else if (activeStrategy === 'MTF_PATTERN') {
+      const priceHistory5min = this.aggregateTo5Min(priceHistory);
+      result = this.analyzeMTFPatterns(priceHistory5min, priceHistory, currentPrice);
+    } else if (activeStrategy === 'ICHIMOKU_MTF') {
+      const priceHistory5min = this.aggregateTo5Min(priceHistory);
+      result = this.analyzeIchimokuMTF(priceHistory5min, priceHistory, currentPrice);
+    } else if (activeStrategy === 'ICHIMOKU_HARAMI') {
+      const priceHistory5min = this.aggregateTo5Min(priceHistory);
+      result = this.analyzeIchimokuHaramiMTF(priceHistory5min, priceHistory, currentPrice);
     }
 
     if (result?.signal && !dryRun) {
@@ -1098,5 +1109,1476 @@ export class Strategy {
     }
     
     return st;
+  }
+
+  // ==========================================
+  // HELPER: Aggregate 1m to 5m
+  // ==========================================
+  aggregateTo5Min(priceHistory1min: any[]) {
+    const history5min = [];
+    let current5MinBar: any = null;
+    
+    for (const bar of priceHistory1min) {
+      const time = bar.time || Date.now();
+      const time5min = Math.floor(time / (5 * 60 * 1000)) * (5 * 60 * 1000);
+      
+      if (!current5MinBar || current5MinBar.time !== time5min) {
+        if (current5MinBar) history5min.push(current5MinBar);
+        current5MinBar = {
+          time: time5min,
+          open: bar.open ?? bar.price,
+          high: bar.high ?? bar.price,
+          low: bar.low ?? bar.price,
+          close: bar.price,
+          price: bar.price,
+          volume: bar.volume || 0
+        };
+      } else {
+        current5MinBar.high = Math.max(current5MinBar.high, bar.high ?? bar.price);
+        current5MinBar.low = Math.min(current5MinBar.low, bar.low ?? bar.price);
+        current5MinBar.close = bar.price;
+        current5MinBar.price = bar.price;
+        current5MinBar.volume += (bar.volume || 0);
+      }
+    }
+    if (current5MinBar) history5min.push(current5MinBar);
+    return history5min;
+  }
+
+  // ==========================================
+  // 7. PIN BAR STRATEGY (Price Action Reversal)
+  // ==========================================
+  analyzePinBar(priceHistory: any[], currentPrice: number) {
+      const closes = priceHistory.map(p => p.price);
+      const highs = priceHistory.map(p => p.high ?? p.price);
+      const lows = priceHistory.map(p => p.low ?? p.price);
+      const opens = priceHistory.map(p => p.open ?? p.price);
+      
+      const price = currentPrice || closes[closes.length - 1];
+      
+      const pinCfg = this.config.strategy?.pinbar || {
+          bodyRatio: 0.4,
+          wickRatio: 2.5,
+          requireTrend: true,
+          trendPeriod: 10,
+          confirmationRequired: false,
+          maxSlippageTicks: 2,
+          useVolumeFilter: false,
+          minVolumeRatio: 1.5
+      };
+
+      if (priceHistory.length < pinCfg.trendPeriod + 5) {
+          return { signal: null, reason: 'Not enough data for Pin Bar' };
+      }
+
+      const atr = this.calculateATR(highs, lows, closes, 14);
+      const volumeMA = this.calculateSMA(priceHistory.map(p => p.volume || 0), 10);
+      const lastVolume = priceHistory[priceHistory.length - 1]?.volume || 0;
+      const trend = this.detectTrend(closes, pinCfg.trendPeriod);
+      
+      let type: 'BUY' | 'SELL' | null = null;
+      let reasons = [];
+      let score = 0;
+      let patternName = '';
+      let entryPrice = price;
+      let sl = 0;
+      let tp = 0;
+
+      const lastCandle = {
+          open: opens[opens.length - 1],
+          high: highs[highs.length - 1],
+          low: lows[lows.length - 1],
+          close: closes[closes.length - 1]
+      };
+
+      const candleRange = lastCandle.high - lastCandle.low;
+      const bodySize = Math.abs(lastCandle.close - lastCandle.open);
+      const upperWick = lastCandle.high - Math.max(lastCandle.open, lastCandle.close);
+      const lowerWick = Math.min(lastCandle.open, lastCandle.close) - lastCandle.low;
+      const bodyToRangeRatio = bodySize / (candleRange || 1);
+      const volumeOk = !pinCfg.useVolumeFilter || (lastVolume >= volumeMA * pinCfg.minVolumeRatio);
+
+      // Bullish Pin Bar
+      if (bodyToRangeRatio <= pinCfg.bodyRatio && volumeOk) {
+          if (lowerWick > bodySize * pinCfg.wickRatio && upperWick <= bodySize * 0.3) {
+              if (!pinCfg.requireTrend || trend.direction === 'DOWN') {
+                  type = 'BUY';
+                  patternName = 'Bullish Pin Bar';
+                  score = 2;
+                  reasons.push('Long lower wick', 'Small body');
+                  
+                  if (trend.direction === 'DOWN') {
+                      score += 1;
+                      reasons.push('Prior downtrend');
+                  }
+                  if (lowerWick > bodySize * 4) {
+                      score += 1;
+                      reasons.push('Very long wick');
+                  }
+                  if (lastCandle.close > lastCandle.open) {
+                      score += 1;
+                      reasons.push('Bullish close');
+                  }
+                  
+                  sl = lastCandle.low - (pinCfg.maxSlippageTicks * (this.config.market?.tickSize || 1));
+                  const risk = Math.abs(price - sl);
+                  tp = price + (risk * (this.config.strategy?.quant?.riskRewardRatio || 2));
+                  entryPrice = Math.min(price, lastCandle.close + (pinCfg.maxSlippageTicks * (this.config.market?.tickSize || 1)));
+              }
+          }
+      }
+      
+      // Bearish Pin Bar
+      if (!type && bodyToRangeRatio <= pinCfg.bodyRatio && volumeOk) {
+          if (upperWick > bodySize * pinCfg.wickRatio && lowerWick <= bodySize * 0.3) {
+              if (!pinCfg.requireTrend || trend.direction === 'UP') {
+                  type = 'SELL';
+                  patternName = 'Bearish Pin Bar';
+                  score = 2;
+                  reasons.push('Long upper wick', 'Small body');
+                  
+                  if (trend.direction === 'UP') {
+                      score += 1;
+                      reasons.push('Prior uptrend');
+                  }
+                  if (upperWick > bodySize * 4) {
+                      score += 1;
+                      reasons.push('Very long wick');
+                  }
+                  if (lastCandle.close < lastCandle.open) {
+                      score += 1;
+                      reasons.push('Bearish close');
+                  }
+                  
+                  sl = lastCandle.high + (pinCfg.maxSlippageTicks * (this.config.market?.tickSize || 1));
+                  const risk = Math.abs(sl - price);
+                  tp = price - (risk * (this.config.strategy?.quant?.riskRewardRatio || 2));
+                  entryPrice = Math.max(price, lastCandle.close - (pinCfg.maxSlippageTicks * (this.config.market?.tickSize || 1)));
+              }
+          }
+      }
+
+      if (!type || score < (this.minSignalScore || 2)) {
+          return { signal: null, reason: `Pin bar score too low: ${score}` };
+      }
+
+      const signal = {
+          type,
+          entry: Math.round(entryPrice),
+          sl: Math.round(sl),
+          tp1: Math.round(tp),
+          score,
+          reasons,
+          confidence: Math.min(100, 50 + (score * 12)),
+          timestamp: Date.now(),
+          pattern: patternName,
+          strategy: 'PINBAR',
+          indicators: {
+              bodyRatio: bodyToRangeRatio.toFixed(2),
+              upperWick: upperWick.toFixed(0),
+              lowerWick: lowerWick.toFixed(0),
+              trend: trend.direction,
+              atr: atr.toFixed(0),
+              volume: lastVolume > volumeMA ? 'HIGH' : 'NORMAL'
+          },
+          entryZone: {
+              from: type === 'BUY' ? lastCandle.low : lastCandle.high - (pinCfg.maxSlippageTicks * (this.config.market?.tickSize || 1)),
+              to: type === 'BUY' ? lastCandle.close + (pinCfg.maxSlippageTicks * (this.config.market?.tickSize || 1)) : lastCandle.close - (pinCfg.maxSlippageTicks * (this.config.market?.tickSize || 1))
+          }
+      };
+
+      return { signal, reason: 'Pin bar detected' };
+  }
+
+  // ==========================================
+  // 8. MTF SUPPORT/RESISTANCE + CANDLE PATTERNS
+  // ==========================================
+  analyzeMTFPatterns(priceHistory5min: any[], priceHistory1min: any[], currentPrice: number) {
+      const supports = [];
+      const resistances = [];
+      
+      const highs5 = priceHistory5min.map(p => p.high ?? p.price);
+      const lows5 = priceHistory5min.map(p => p.low ?? p.price);
+      const closes5 = priceHistory5min.map(p => p.price);
+      
+      const swingPoints = this.findSwingPoints(highs5, lows5, 2);
+      const priceClusters = this.findPriceClusters(priceHistory5min, 10);
+      const roundLevels = this.findRoundLevels(currentPrice, 1000);
+      
+      const allLevels = [
+          ...swingPoints.supportLevels.map(price => ({ price, type: 'Swing Low', strength: 2 })),
+          ...swingPoints.resistanceLevels.map(price => ({ price, type: 'Swing High', strength: 2 })),
+          ...priceClusters.map(cluster => ({ price: cluster.price, type: 'Cluster', strength: cluster.strength })),
+          ...roundLevels.map(price => ({ price, type: 'Round Number', strength: 1.5 }))
+      ];
+      
+      const mergedLevels = this.mergeNearbyLevels(allLevels, 50);
+      const sortedLevels = mergedLevels.sort((a, b) => a.price - b.price);
+      const patterns = this.detectCandlePatterns(priceHistory1min);
+      
+      const currentPrice1min = currentPrice || priceHistory1min[priceHistory1min.length - 1]?.price;
+      const tickSize = this.config.market?.tickSize || 1;
+      const proximityThreshold = 50;
+      
+      let bestSignal: any = null;
+      let bestScore = 0;
+      
+      for (const level of sortedLevels) {
+          const distance = Math.abs(currentPrice1min - level.price);
+          
+          if (distance <= proximityThreshold) {
+              if (currentPrice1min >= level.price - proximityThreshold && 
+                  currentPrice1min <= level.price + proximityThreshold) {
+
+                  if (this.isSupportLevel(level, currentPrice1min)) {
+                      const bullishPatterns = this.findBullishPatterns(patterns, priceHistory1min);
+                      
+                      for (const pattern of bullishPatterns) {
+                          const signalScore = this.calculateSignalScore(level, pattern, 'BUY', currentPrice1min);
+                          
+                          if (signalScore > bestScore) {
+                              bestScore = signalScore;
+                              bestSignal = {
+                                  type: 'BUY',
+                                  entry: currentPrice1min,
+                                  level: level.price,
+                                  pattern: pattern,
+                                  score: signalScore,
+                                  reasons: [
+                                      `Support at ${level.price} (${level.type})`,
+                                      `Bullish ${pattern.name} at 1min`,
+                                      ...pattern.reasons
+                                  ],
+                                  sl: level.price - (tickSize * 15),
+                                  tp1: this.calculateTP(level, 'BUY', currentPrice1min),
+                                  confidence: Math.min(100, 60 + (signalScore * 5))
+                              };
+                          }
+                      }
+                  }
+                  
+                  if (this.isResistanceLevel(level, currentPrice1min)) {
+                      const bearishPatterns = this.findBearishPatterns(patterns, priceHistory1min);
+                      
+                      for (const pattern of bearishPatterns) {
+                          const signalScore = this.calculateSignalScore(level, pattern, 'SELL', currentPrice1min);
+                          
+                          if (signalScore > bestScore) {
+                              bestScore = signalScore;
+                              bestSignal = {
+                                  type: 'SELL',
+                                  entry: currentPrice1min,
+                                  level: level.price,
+                                  pattern: pattern,
+                                  score: signalScore,
+                                  reasons: [
+                                      `Resistance at ${level.price} (${level.type})`,
+                                      `Bearish ${pattern.name} at 1min`,
+                                      ...pattern.reasons
+                                  ],
+                                  sl: level.price + (tickSize * 15),
+                                  tp1: this.calculateTP(level, 'SELL', currentPrice1min),
+                                  confidence: Math.min(100, 60 + (signalScore * 5))
+                              };
+                          }
+                      }
+                  }
+              }
+          }
+      }
+      
+      if (!bestSignal || bestScore < 3) {
+          return { signal: null, reason: 'No strong signal at key levels' };
+      }
+      
+      return {
+          signal: {
+              ...bestSignal,
+              timestamp: Date.now(),
+              strategy: 'MTF_PATTERN',
+              indicators: {
+                  nearestLevel: bestSignal.level,
+                  levelType: bestSignal.level.type,
+                  patternName: bestSignal.pattern.name,
+                  supportLevels: supports.slice(-3).map(s => s.price),
+                  resistanceLevels: resistances.slice(-3).map(r => r.price)
+              }
+          },
+          reason: 'Pattern at key level detected'
+      };
+  }
+
+  // ==========================================
+  // 9. ICHIMOKU CLOUD + S/R + CANDLE PATTERNS
+  // ==========================================
+  analyzeIchimokuMTF(priceHistory5min: any[], priceHistory1min: any[], currentPrice: number) {
+      const ichimoku = this.calculateIchimoku(priceHistory5min);
+      if (!ichimoku) return { signal: null, reason: 'Ichimoku data not ready' };
+
+      const closes5 = priceHistory5min.map(p => p.price);
+      const highs5 = priceHistory5min.map(p => p.high ?? p.price);
+      const lows5 = priceHistory5min.map(p => p.low ?? p.price);
+      const currentPrice5 = closes5[closes5.length - 1];
+      
+      const keyLevels = [];
+      
+      keyLevels.push(
+          { price: ichimoku.kijun, type: 'Kijun-sen', strength: 4, description: 'Base Line - Dynamic S/R' },
+          { price: ichimoku.tenkan, type: 'Tenkan-sen', strength: 3, description: 'Conversion Line - Short-term momentum' },
+          { price: ichimoku.senkouA, type: 'Senkou Span A', strength: 4, description: 'Cloud Edge - Major Support/Resistance' },
+          { price: ichimoku.senkouB, type: 'Senkou Span B', strength: 5, description: 'Cloud Edge - Strong Support/Resistance' },
+          { price: ichimoku.chikou, type: 'Chikou Span', strength: 3, description: 'Lagging Line - Confirmation' }
+      );
+      
+      const swingPoints = this.findSwingPoints(highs5, lows5, 3);
+      const priceClusters = this.findPriceClusters(priceHistory5min, 20);
+      const roundLevels = this.findRoundLevels(currentPrice5, 1000);
+      
+      const allLevels = [
+          ...keyLevels,
+          ...swingPoints.supportLevels.map(price => ({ price, type: 'Swing Low', strength: 2 })),
+          ...swingPoints.resistanceLevels.map(price => ({ price, type: 'Swing High', strength: 2 })),
+          ...priceClusters,
+          ...roundLevels.map(price => ({ price, type: 'Round Number', strength: 1.5 }))
+      ];
+      
+      const mergedLevels = this.mergeNearbyLevels(allLevels, 30);
+      const patterns = this.detectCandlePatterns(priceHistory1min);
+      const trendAnalysis = this.analyzeIchimokuTrend(ichimoku, currentPrice5, priceHistory5min);
+      
+      const currentPrice1min = currentPrice || priceHistory1min[priceHistory1min.length - 1]?.price;
+      const tickSize = this.config.market?.tickSize || 1;
+      const proximityThreshold = 40;
+      
+      let bestSignal: any = null;
+      let bestScore = 0;
+      
+      for (const level of mergedLevels) {
+          const distance = Math.abs(currentPrice1min - level.price);
+          
+          if (distance <= proximityThreshold) {
+              const isSupport = this.isIchimokuSupport(level, currentPrice1min, trendAnalysis);
+              const isResistance = this.isIchimokuResistance(level, currentPrice1min, trendAnalysis);
+              
+              if (isSupport) {
+                  const bullishPatterns = this.findBullishPatterns(patterns, priceHistory1min);
+                  
+                  for (const pattern of bullishPatterns) {
+                      const signalScore = this.calculateIchimokuScore(
+                          level, pattern, 'BUY', trendAnalysis, distance
+                      );
+                      
+                      if (signalScore > bestScore) {
+                          bestScore = signalScore;
+                          bestSignal = this.createIchimokuSignal(
+                              'BUY', level, pattern, currentPrice1min, 
+                              trendAnalysis, signalScore, distance
+                          );
+                      }
+                  }
+              }
+              
+              if (isResistance) {
+                  const bearishPatterns = this.findBearishPatterns(patterns, priceHistory1min);
+                  
+                  for (const pattern of bearishPatterns) {
+                      const signalScore = this.calculateIchimokuScore(
+                          level, pattern, 'SELL', trendAnalysis, distance
+                      );
+                      
+                      if (signalScore > bestScore) {
+                          bestScore = signalScore;
+                          bestSignal = this.createIchimokuSignal(
+                              'SELL', level, pattern, currentPrice1min, 
+                              trendAnalysis, signalScore, distance
+                          );
+                      }
+                  }
+              }
+          }
+      }
+      
+      if (!bestSignal || bestScore < 4) {
+          return { 
+              signal: null, 
+              reason: `No strong signal at Ichimoku levels. Best score: ${bestScore}`,
+              trend: trendAnalysis?.summary
+          };
+      }
+      
+      return bestSignal;
+  }
+
+  // ==========================================
+  // 10. ICHIMOKU + HARAMI + S/R (Black Cloud & Harami)
+  // ==========================================
+  analyzeIchimokuHaramiMTF(priceHistory5min: any[], priceHistory1min: any[], currentPrice: number) {
+      const ichimoku = this.calculateIchimoku(priceHistory5min);
+      if (!ichimoku) {
+          return { signal: null, reason: 'Ichimoku data not ready' };
+      }
+      
+      const keyLevels = this.identifyKeyLevels(priceHistory5min, ichimoku);
+      const haramiPatterns = this.detectHaramiPatterns(priceHistory1min);
+      const piercingPatterns = this.detectPiercingPatterns(priceHistory1min);
+      const darkCloudPatterns = this.detectDarkCloudPatterns(priceHistory1min);
+      const trendAnalysis = this.analyzeIchimokuTrend(ichimoku, currentPrice, priceHistory5min);
+      
+      const currentPrice1min = currentPrice || priceHistory1min[priceHistory1min.length - 1]?.price;
+      const tickSize = this.config.market?.tickSize || 1;
+      const proximityThreshold = 40;
+      
+      let signals = [];
+      
+      for (const level of keyLevels) {
+          const distance = Math.abs(currentPrice1min - level.price);
+          
+          if (distance <= proximityThreshold) {
+              const isSupport = this.isIchimokuSupport(level, currentPrice1min, trendAnalysis);
+              const isResistance = this.isIchimokuResistance(level, currentPrice1min, trendAnalysis);
+              
+              for (const harami of haramiPatterns) {
+                  if (isSupport && harami.type === 'BULLISH') {
+                      const signal = this.createHaramiSignal(
+                          'BUY', level, harami, currentPrice1min, 
+                          trendAnalysis, distance
+                      );
+                      signals.push(signal);
+                  }
+                  
+                  if (isResistance && harami.type === 'BEARISH') {
+                      const signal = this.createHaramiSignal(
+                          'SELL', level, harami, currentPrice1min, 
+                          trendAnalysis, distance
+                      );
+                      signals.push(signal);
+                  }
+              }
+              
+              if (isSupport) {
+                  for (const piercing of piercingPatterns) {
+                      const signal = this.createPiercingSignal(
+                          'BUY', level, piercing, currentPrice1min,
+                          trendAnalysis, distance
+                      );
+                      signals.push(signal);
+                  }
+              }
+              
+              if (isResistance) {
+                  for (const darkCloud of darkCloudPatterns) {
+                      const signal = this.createDarkCloudSignal(
+                          'SELL', level, darkCloud, currentPrice1min,
+                          trendAnalysis, distance
+                      );
+                      signals.push(signal);
+                  }
+              }
+          }
+      }
+      
+      if (signals.length === 0) {
+          return { 
+              signal: null, 
+              reason: 'No pattern at key levels',
+              trend: trendAnalysis?.summary
+          };
+      }
+      
+      signals.sort((a, b) => b.score - a.score);
+      const bestSignal = signals[0];
+      
+      if (bestSignal.score < 8) {
+          return {
+              signal: null,
+              reason: `Signal score too low: ${bestSignal.score}`,
+              bestSignal: bestSignal
+          };
+      }
+      
+      return bestSignal;
+  }
+
+  // ==========================================
+  // توابع کمکی ایچیموکو
+  // ==========================================
+
+  calculateIchimoku(priceHistory: any[]) {
+      if (priceHistory.length < 52) {
+          return null;
+      }
+      
+      const highs = priceHistory.map(p => p.high ?? p.price);
+      const lows = priceHistory.map(p => p.low ?? p.price);
+      const closes = priceHistory.map(p => p.price);
+      
+      const tenkanPeriod = 9;
+      const tenkanHigh = Math.max(...highs.slice(-tenkanPeriod));
+      const tenkanLow = Math.min(...lows.slice(-tenkanPeriod));
+      const tenkan = (tenkanHigh + tenkanLow) / 2;
+      
+      const kijunPeriod = 26;
+      const kijunHigh = Math.max(...highs.slice(-kijunPeriod));
+      const kijunLow = Math.min(...lows.slice(-kijunPeriod));
+      const kijun = (kijunHigh + kijunLow) / 2;
+      
+      const senkouA = (tenkan + kijun) / 2;
+      
+      const senkouBPeriod = 52;
+      const senkouBHigh = Math.max(...highs.slice(-senkouBPeriod));
+      const senkouBLow = Math.min(...lows.slice(-senkouBPeriod));
+      const senkouB = (senkouBHigh + senkouBLow) / 2;
+      
+      const chikouIndex = Math.max(0, closes.length - 26);
+      const chikou = closes[chikouIndex] || closes[0];
+      
+      const cloud = {
+          top: Math.max(senkouA, senkouB),
+          bottom: Math.min(senkouA, senkouB),
+          color: senkouA > senkouB ? 'GREEN' : 'RED'
+      };
+      
+      return {
+          tenkan,
+          kijun,
+          senkouA,
+          senkouB,
+          chikou,
+          cloud,
+          tkCross: {
+              value: tenkan - kijun,
+              type: tenkan > kijun ? 'BULLISH' : (tenkan < kijun ? 'BEARISH' : 'NEUTRAL')
+          }
+      };
+  }
+
+  analyzeIchimokuTrend(ichimoku: any, currentPrice: number, priceHistory: any[]) {
+      if (!ichimoku) return null;
+      
+      const closes = priceHistory.map(p => p.price);
+      
+      let priceVsCloud = 'INSIDE';
+      if (currentPrice > ichimoku.cloud.top) priceVsCloud = 'ABOVE';
+      else if (currentPrice < ichimoku.cloud.bottom) priceVsCloud = 'BELOW';
+      
+      const cloudTrend = ichimoku.cloud.color;
+      const chikouVsPrice = ichimoku.chikou > currentPrice ? 'ABOVE' : 'BELOW';
+      const tkTrend = ichimoku.tkCross.type;
+      
+      let trendScore = 5;
+      let trendDirection = 'NEUTRAL';
+      const reasons = [];
+      
+      if (priceVsCloud === 'ABOVE' && cloudTrend === 'GREEN' && tkTrend === 'BULLISH') {
+          trendDirection = 'STRONG_BULLISH';
+          trendScore = 9;
+          reasons.push('Price above green cloud');
+          reasons.push('TK Cross bullish');
+      }
+      else if (priceVsCloud === 'ABOVE' && cloudTrend === 'GREEN') {
+          trendDirection = 'BULLISH';
+          trendScore = 7;
+          reasons.push('Price above green cloud');
+      }
+      else if (priceVsCloud === 'ABOVE' && tkTrend === 'BULLISH') {
+          trendDirection = 'BULLISH';
+          trendScore = 6;
+          reasons.push('Price above cloud, TK bullish');
+      }
+      else if (priceVsCloud === 'BELOW' && cloudTrend === 'RED' && tkTrend === 'BEARISH') {
+          trendDirection = 'STRONG_BEARISH';
+          trendScore = 9;
+          reasons.push('Price below red cloud');
+          reasons.push('TK Cross bearish');
+      }
+      else if (priceVsCloud === 'BELOW' && cloudTrend === 'RED') {
+          trendDirection = 'BEARISH';
+          trendScore = 7;
+          reasons.push('Price below red cloud');
+      }
+      else if (priceVsCloud === 'BELOW' && tkTrend === 'BEARISH') {
+          trendDirection = 'BEARISH';
+          trendScore = 6;
+          reasons.push('Price below cloud, TK bearish');
+      }
+      else if (priceVsCloud === 'INSIDE') {
+          trendDirection = 'NEUTRAL';
+          trendScore = 4;
+          reasons.push('Price inside cloud');
+      }
+      
+      if (trendDirection.includes('BULLISH') && chikouVsPrice === 'ABOVE') {
+          trendScore += 1;
+          reasons.push('Chikou confirms');
+      }
+      else if (trendDirection.includes('BEARISH') && chikouVsPrice === 'BELOW') {
+          trendScore += 1;
+          reasons.push('Chikou confirms');
+      }
+      
+      return {
+          direction: trendDirection,
+          score: trendScore,
+          reasons,
+          priceVsCloud,
+          cloudTrend,
+          tkTrend,
+          chikouVsPrice,
+          summary: `${trendDirection} (Score: ${trendScore.toFixed(1)}) - ${reasons.join(', ')}`
+      };
+  }
+
+  isIchimokuSupport(level: any, currentPrice: number, trendAnalysis: any) {
+      if (level.type.includes('Kijun') || level.type.includes('Tenkan') || 
+          level.type.includes('Senkou')) {
+          
+          if (trendAnalysis?.direction.includes('BULLISH')) {
+              return currentPrice >= level.price - 10;
+          }
+          
+          if (trendAnalysis?.direction.includes('BEARISH')) {
+              return false;
+          }
+      }
+      
+      const supportTypes = ['Swing Low', 'Cluster', 'Round Number'];
+      return supportTypes.includes(level.type) && currentPrice >= level.price;
+  }
+
+  isIchimokuResistance(level: any, currentPrice: number, trendAnalysis: any) {
+      if (level.type.includes('Kijun') || level.type.includes('Tenkan') || 
+          level.type.includes('Senkou')) {
+          
+          if (trendAnalysis?.direction.includes('BEARISH')) {
+              return currentPrice <= level.price + 10;
+          }
+          
+          if (trendAnalysis?.direction.includes('BULLISH')) {
+              return false;
+          }
+      }
+      
+      const resistanceTypes = ['Swing High', 'Cluster', 'Round Number'];
+      return resistanceTypes.includes(level.type) && currentPrice <= level.price;
+  }
+
+  calculateIchimokuScore(level: any, pattern: any, direction: string, trendAnalysis: any, distance: number) {
+      let score = 0;
+      
+      score += level.strength * 1.5;
+      score += pattern.strength * 1.2;
+      
+      if (direction === 'BUY' && trendAnalysis?.direction.includes('BULLISH')) {
+          score += 3;
+      } else if (direction === 'SELL' && trendAnalysis?.direction.includes('BEARISH')) {
+          score += 3;
+      } else if (direction === 'BUY' && trendAnalysis?.direction === 'NEUTRAL') {
+          score += 1;
+      } else if (direction === 'SELL' && trendAnalysis?.direction === 'NEUTRAL') {
+          score += 1;
+      }
+      
+      if (distance < 10) score += 3;
+      else if (distance < 20) score += 2;
+      else if (distance < 30) score += 1;
+      
+      if (level.type === 'Kijun-sen') score += 2;
+      if (level.type === 'Senkou Span B') score += 2;
+      if (level.type === 'Senkou Span A') score += 1;
+      
+      if ((direction === 'BUY' && pattern.type === 'BULLISH') ||
+          (direction === 'SELL' && pattern.type === 'BEARISH')) {
+          score += 2;
+      }
+      
+      return score;
+  }
+
+  createIchimokuSignal(direction: string, level: any, pattern: any, currentPrice: number, trendAnalysis: any, score: number, distance: number) {
+      const tickSize = this.config.market?.tickSize || 1;
+      const atr = this.indicators.atr || currentPrice * 0.001;
+      
+      let slDistance = atr * 1.5;
+      if (level.type.includes('Kijun') || level.type.includes('Senkou')) {
+          slDistance = atr * 1.2;
+      }
+      
+      const sl = direction === 'BUY' 
+          ? Math.min(level.price - tickSize * 10, currentPrice - slDistance)
+          : Math.max(level.price + tickSize * 10, currentPrice + slDistance);
+      
+      const risk = Math.abs(currentPrice - sl);
+      const tp = direction === 'BUY' 
+          ? currentPrice + (risk * 2)
+          : currentPrice - (risk * 2);
+      
+      return {
+          signal: {
+              type: direction,
+              entry: currentPrice,
+              sl: Math.round(sl),
+              tp1: Math.round(tp),
+              score,
+              reasons: [
+                  `${level.type} at ${level.price}`,
+                  `${pattern.name} on 1min`,
+                  ...(trendAnalysis?.reasons || []).slice(0, 2),
+                  ...pattern.reasons
+              ],
+              confidence: Math.min(100, 60 + (score * 3)),
+              timestamp: Date.now(),
+              strategy: 'ICHIMOKU_MTF',
+              pattern: pattern.name,
+              level: {
+                  price: level.price,
+                  type: level.type,
+                  strength: level.strength
+              },
+              trend: trendAnalysis?.direction,
+              distanceToLevel: distance,
+              indicators: {
+                  tenkan: this.indicators.tenkan,
+                  kijun: this.indicators.kijun,
+                  cloudTop: trendAnalysis?.cloudTop,
+                  cloudBottom: trendAnalysis?.cloudBottom,
+                  cloudColor: trendAnalysis?.cloudTrend
+              }
+          },
+          reason: `Ichimoku ${level.type} + ${pattern.name}`,
+          score
+      };
+  }
+
+  // ==========================================
+  // توابع الگوهای هارامی، نافذ و ابر سیاه
+  // ==========================================
+
+  detectHaramiPatterns(priceHistory: any[]) {
+      const patterns = [];
+      
+      if (priceHistory.length < 2) return patterns;
+      
+      const candles = priceHistory.slice(-2).map(c => ({
+          open: c.open ?? c.price,
+          high: c.high ?? c.price,
+          low: c.low ?? c.price,
+          close: c.price,
+          volume: c.volume || 0
+      }));
+      
+      const [candle1, candle2] = candles;
+      
+      const body1 = Math.abs(candle1.close - candle1.open);
+      const body2 = Math.abs(candle2.close - candle2.open);
+      
+      // Bullish Harami
+      const isCandle1Bearish = candle1.close < candle1.open;
+      const isCandle2Bullish = candle2.close > candle2.open;
+      const isCandle2Inside = candle2.open > candle1.open && candle2.open < candle1.close &&
+                             candle2.close > candle1.open && candle2.close < candle1.close;
+      
+      if (isCandle1Bearish && isCandle2Bullish && isCandle2Inside) {
+          let strength = 3;
+          
+          if (body2 < body1 * 0.3) strength += 1;
+          if (candle2.low > candle1.low + body1 * 0.1) strength += 1;
+          
+          patterns.push({
+              name: 'Bullish Harami',
+              type: 'BULLISH',
+              strength: Math.min(5, strength),
+              reasons: [
+                  'Bullish Harami pattern',
+                  'Small candle inside large bearish candle',
+                  'Potential reversal'
+              ],
+              confirmation: {
+                  requireBreak: candle1.high,
+                  stopLoss: candle1.low - (candle1.high - candle1.low) * 0.1
+              }
+          });
+      }
+      
+      // Bearish Harami
+      const isCandle1Bullish = candle1.close > candle1.open;
+      const isCandle2Bearish = candle2.close < candle2.open;
+      const isCandle2InsideBearish = candle2.open < candle1.open && candle2.open > candle1.close &&
+                                    candle2.close < candle1.open && candle2.close > candle1.close;
+      
+      if (isCandle1Bullish && isCandle2Bearish && isCandle2InsideBearish) {
+          let strength = 3;
+          
+          if (body2 < body1 * 0.3) strength += 1;
+          if (candle2.high < candle1.high - body1 * 0.1) strength += 1;
+          
+          patterns.push({
+              name: 'Bearish Harami',
+              type: 'BEARISH',
+              strength: Math.min(5, strength),
+              reasons: [
+                  'Bearish Harami pattern',
+                  'Small candle inside large bullish candle',
+                  'Potential reversal'
+              ],
+              confirmation: {
+                  requireBreak: candle1.low,
+                  stopLoss: candle1.high + (candle1.high - candle1.low) * 0.1
+              }
+          });
+      }
+      
+      return patterns;
+  }
+
+  detectPiercingPatterns(priceHistory: any[]) {
+      const patterns = [];
+      
+      if (priceHistory.length < 2) return patterns;
+      
+      const candles = priceHistory.slice(-2).map(c => ({
+          open: c.open ?? c.price,
+          high: c.high ?? c.price,
+          low: c.low ?? c.price,
+          close: c.price
+      }));
+      
+      const [candle1, candle2] = candles;
+      
+      const isCandle1Bearish = candle1.close < candle1.open;
+      const isCandle2Bullish = candle2.close > candle2.open;
+      const opensBelow = candle2.open < candle1.low;
+      
+      if (isCandle1Bearish && isCandle2Bullish && opensBelow) {
+          const body1 = candle1.open - candle1.close;
+          const penetration = candle2.close - candle1.close;
+          
+          if (penetration > body1 * 0.5) {
+              let strength = 4;
+              
+              if (penetration > body1 * 0.7) strength += 1;
+              if (candle2.close > (candle1.open + candle1.close) / 2) strength += 1;
+              
+              patterns.push({
+                  name: 'Piercing Line',
+                  type: 'BULLISH',
+                  strength: Math.min(5, strength),
+                  penetration: (penetration / body1 * 100).toFixed(0) + '%',
+                  reasons: [
+                      'Piercing line pattern',
+                      `Penetrated ${(penetration / body1 * 100).toFixed(0)}% of first candle`,
+                      'Strong bullish reversal'
+                  ],
+                  confirmation: {
+                      requireBreak: candle1.open,
+                      stopLoss: candle2.low - (candle2.high - candle2.low) * 0.2
+                  }
+              });
+          }
+      }
+      
+      return patterns;
+  }
+
+  detectDarkCloudPatterns(priceHistory: any[]) {
+      const patterns = [];
+      
+      if (priceHistory.length < 2) return patterns;
+      
+      const candles = priceHistory.slice(-2).map(c => ({
+          open: c.open ?? c.price,
+          high: c.high ?? c.price,
+          low: c.low ?? c.price,
+          close: c.price
+      }));
+      
+      const [candle1, candle2] = candles;
+      
+      const isCandle1Bullish = candle1.close > candle1.open;
+      const isCandle2Bearish = candle2.close < candle2.open;
+      const opensAbove = candle2.open > candle1.high;
+      
+      if (isCandle1Bullish && isCandle2Bearish && opensAbove) {
+          const body1 = candle1.close - candle1.open;
+          const penetration = candle1.close - candle2.close;
+          
+          if (penetration > body1 * 0.5) {
+              let strength = 4;
+              
+              if (penetration > body1 * 0.7) strength += 1;
+              if (candle2.close < (candle1.open + candle1.close) / 2) strength += 1;
+              
+              patterns.push({
+                  name: 'Dark Cloud Cover',
+                  type: 'BEARISH',
+                  strength: Math.min(5, strength),
+                  penetration: (penetration / body1 * 100).toFixed(0) + '%',
+                  reasons: [
+                      'Dark cloud cover pattern',
+                      `Penetrated ${(penetration / body1 * 100).toFixed(0)}% of first candle`,
+                      'Strong bearish reversal'
+                  ],
+                  confirmation: {
+                      requireBreak: candle1.open,
+                      stopLoss: candle2.high + (candle2.high - candle2.low) * 0.2
+                  }
+              });
+          }
+      }
+      
+      return patterns;
+  }
+
+  identifyKeyLevels(priceHistory: any[], ichimoku: any) {
+      const highs = priceHistory.map(p => p.high ?? p.price);
+      const lows = priceHistory.map(p => p.low ?? p.price);
+      
+      const keyLevels = [];
+      
+      if (ichimoku) {
+          keyLevels.push(
+              { price: ichimoku.kijun, type: 'Kijun-sen', strength: 4, source: 'ichimoku' },
+              { price: ichimoku.tenkan, type: 'Tenkan-sen', strength: 3, source: 'ichimoku' },
+              { price: ichimoku.senkouA, type: 'Senkou Span A', strength: 4, source: 'ichimoku' },
+              { price: ichimoku.senkouB, type: 'Senkou Span B', strength: 5, source: 'ichimoku' }
+          );
+          
+          keyLevels.push(
+              { price: ichimoku.cloud.top, type: 'Cloud Top', strength: 4, source: 'ichimoku' },
+              { price: ichimoku.cloud.bottom, type: 'Cloud Bottom', strength: 4, source: 'ichimoku' }
+          );
+      }
+      
+      const swingPoints = this.findSwingPoints(highs, lows, 3);
+      swingPoints.supportLevels.forEach(price => {
+          keyLevels.push({ price, type: 'Swing Low', strength: 2, source: 'classic' });
+      });
+      swingPoints.resistanceLevels.forEach(price => {
+          keyLevels.push({ price, type: 'Swing High', strength: 2, source: 'classic' });
+      });
+      
+      const clusters = this.findPriceClusters(priceHistory, 15);
+      clusters.forEach(cluster => {
+          keyLevels.push({
+              price: cluster.price,
+              type: 'Price Cluster',
+              strength: cluster.strength,
+              source: 'cluster'
+          });
+      });
+
+      const lastPrice = priceHistory[priceHistory.length - 1]?.price || 0;
+      const roundLevels = this.findRoundLevels(lastPrice, 1000, 5000);
+      roundLevels.forEach(price => {
+          keyLevels.push({ price, type: 'Round Number', strength: 1.5, source: 'round' });
+      });
+      
+      return this.mergeNearbyLevels(keyLevels, 25);
+  }
+
+  createHaramiSignal(direction: string, level: any, pattern: any, currentPrice: number, trendAnalysis: any, distance: number) {
+      const tickSize = this.config.market?.tickSize || 1;
+      const atr = this.indicators.atr || currentPrice * 0.001;
+      
+      let score = pattern.strength * 2;
+      score += level.strength * 1.5;
+      
+      if (direction === 'BUY' && trendAnalysis?.direction.includes('BULLISH')) score += 3;
+      if (direction === 'SELL' && trendAnalysis?.direction.includes('BEARISH')) score += 3;
+      
+      if (distance < 15) score += 2;
+      else if (distance < 25) score += 1;
+      
+      let sl = direction === 'BUY'
+          ? Math.min(level.price - tickSize * 12, pattern.confirmation.stopLoss)
+          : Math.max(level.price + tickSize * 12, pattern.confirmation.stopLoss);
+      
+      const risk = Math.abs(currentPrice - sl);
+      const tp = direction === 'BUY'
+          ? currentPrice + (risk * 2.2)
+          : currentPrice - (risk * 2.2);
+      
+      return {
+          signal: {
+              type: direction,
+              entry: currentPrice,
+              sl: Math.round(sl),
+              tp1: Math.round(tp),
+              score: Math.min(20, score),
+              reasons: [
+                  `${level.type} at ${level.price}`,
+                  pattern.name,
+                  `Distance: ${distance.toFixed(0)} units`,
+                  ...(trendAnalysis?.reasons || []).slice(0, 1),
+                  ...pattern.reasons
+              ],
+              confidence: Math.min(100, 65 + (score * 1.5)),
+              timestamp: Date.now(),
+              strategy: 'ICHIMOKU_HARAMI',
+              pattern: pattern.name,
+              level: {
+                  price: level.price,
+                  type: level.type,
+                  strength: level.strength
+              },
+              trend: trendAnalysis?.direction,
+              confirmationLevel: pattern.confirmation.requireBreak,
+              indicators: {
+                  tenkan: this.indicators.tenkan,
+                  kijun: this.indicators.kijun,
+                  cloudColor: trendAnalysis?.cloudTrend
+              }
+          },
+          score: score
+      };
+  }
+
+  createPiercingSignal(direction: string, level: any, pattern: any, currentPrice: number, trendAnalysis: any, distance: number) {
+      const tickSize = this.config.market?.tickSize || 1;
+      const atr = this.indicators.atr || currentPrice * 0.001;
+      
+      let score = pattern.strength * 2.2;
+      score += level.strength * 1.5;
+      
+      if (trendAnalysis?.direction.includes('BULLISH')) score += 3.5;
+      
+      if (distance < 20) score += 1.5;
+      if (pattern.penetration > '70%') score += 1;
+      
+      const sl = level.price - tickSize * 15;
+      const risk = Math.abs(currentPrice - sl);
+      const tp = currentPrice + (risk * 2.5);
+      
+      return {
+          signal: {
+              type: 'BUY',
+              entry: currentPrice,
+              sl: Math.round(sl),
+              tp1: Math.round(tp),
+              score: Math.min(20, score),
+              reasons: [
+                  `${level.type} at ${level.price}`,
+                  `Piercing Line (${pattern.penetration} penetration)`,
+                  'Strong bullish reversal pattern',
+                  ...(trendAnalysis?.reasons || []).slice(0, 1)
+              ],
+              confidence: Math.min(100, 70 + (score * 1.2)),
+              timestamp: Date.now(),
+              strategy: 'PIERCING_SR',
+              pattern: 'Piercing Line',
+              level: level,
+              penetration: pattern.penetration
+          },
+          score: score
+      };
+  }
+
+  createDarkCloudSignal(direction: string, level: any, pattern: any, currentPrice: number, trendAnalysis: any, distance: number) {
+      const tickSize = this.config.market?.tickSize || 1;
+      const atr = this.indicators.atr || currentPrice * 0.001;
+      
+      let score = pattern.strength * 2.2;
+      score += level.strength * 1.5;
+      
+      if (trendAnalysis?.direction.includes('BEARISH')) score += 3.5;
+      
+      if (distance < 20) score += 1.5;
+      if (pattern.penetration > '70%') score += 1;
+      
+      const sl = level.price + tickSize * 15;
+      const risk = Math.abs(sl - currentPrice);
+      const tp = currentPrice - (risk * 2.5);
+      
+      return {
+          signal: {
+              type: 'SELL',
+              entry: currentPrice,
+              sl: Math.round(sl),
+              tp1: Math.round(tp),
+              score: Math.min(20, score),
+              reasons: [
+                  `${level.type} at ${level.price}`,
+                  `Dark Cloud Cover (${pattern.penetration} penetration)`,
+                  'Strong bearish reversal pattern',
+                  ...(trendAnalysis?.reasons || []).slice(0, 1)
+              ],
+              confidence: Math.min(100, 70 + (score * 1.2)),
+              timestamp: Date.now(),
+              strategy: 'DARKCLOUD_SR',
+              pattern: 'Dark Cloud Cover',
+              level: level,
+              penetration: pattern.penetration
+          },
+          score: score
+      };
+  }
+
+  // ==========================================
+  // توابع کمکی عمومی
+  // ==========================================
+
+  detectTrend(prices: number[], period: number) {
+      if (prices.length < period) {
+          return { direction: 'NONE', strength: 0, slope: 0 };
+      }
+      
+      const slice = prices.slice(-period);
+      const sma = this.calculateSMA(slice, period)[period - 1] || slice[slice.length - 1];
+      const currentPrice = slice[slice.length - 1];
+      
+      let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+      for (let i = 0; i < period; i++) {
+          sumX += i;
+          sumY += slice[i];
+          sumXY += i * slice[i];
+          sumX2 += i * i;
+      }
+      
+      const slope = (period * sumXY - sumX * sumY) / (period * sumX2 - sumX * sumX);
+      
+      let direction = 'NONE';
+      if (slope > 0.1) direction = 'UP';
+      else if (slope < -0.1) direction = 'DOWN';
+      
+      const distance = Math.abs(currentPrice - sma) / sma;
+      const strength = Math.min(100, distance * 1000);
+      
+      return { direction, strength, slope };
+  }
+
+  findSwingPoints(highs: number[], lows: number[], leftRightBars = 2) {
+      const supportLevels = [];
+      const resistanceLevels = [];
+      
+      for (let i = leftRightBars; i < highs.length - leftRightBars; i++) {
+          let isSwingHigh = true;
+          for (let j = 1; j <= leftRightBars; j++) {
+              if (highs[i] <= highs[i - j] || highs[i] <= highs[i + j]) {
+                  isSwingHigh = false;
+                  break;
+              }
+          }
+          if (isSwingHigh) {
+              resistanceLevels.push(highs[i]);
+          }
+          
+          let isSwingLow = true;
+          for (let j = 1; j <= leftRightBars; j++) {
+              if (lows[i] >= lows[i - j] || lows[i] >= lows[i + j]) {
+                  isSwingLow = false;
+                  break;
+              }
+          }
+          if (isSwingLow) {
+              supportLevels.push(lows[i]);
+          }
+      }
+      
+      return { supportLevels, resistanceLevels };
+  }
+
+  findPriceClusters(priceHistory: any[], binSize = 10) {
+      const clusters = [];
+      const priceMap = new Map();
+      
+      for (const candle of priceHistory) {
+          const price = candle.price;
+          const bin = Math.round(price / binSize) * binSize;
+          
+          if (!priceMap.has(bin)) {
+              priceMap.set(bin, { count: 0, touches: 0 });
+          }
+          
+          priceMap.get(bin).count++;
+          
+          if (Math.abs(price - bin) <= 2) {
+              priceMap.get(bin).touches++;
+          }
+      }
+      
+      for (const [price, data] of priceMap.entries()) {
+          if (data.count >= 3) {
+              clusters.push({
+                  price,
+                  strength: Math.min(5, Math.floor(data.touches / 2) + 1),
+                  touches: data.touches
+              });
+          }
+      }
+      
+      return clusters.sort((a, b) => b.strength - a.strength).slice(0, 10);
+  }
+
+  findRoundLevels(currentPrice: number, step = 1000, range = 5000) {
+      const levels = [];
+      const baseLevel = Math.round(currentPrice / step) * step;
+      
+      for (let i = -3; i <= 3; i++) {
+          levels.push(baseLevel + (i * step));
+      }
+      
+      return levels;
+  }
+
+  mergeNearbyLevels(levels: any[], threshold: number) {
+      const merged: any[] = [];
+      const sorted = levels.sort((a, b) => a.price - b.price);
+      
+      for (const level of sorted) {
+          const existing = merged.find(m => Math.abs(m.price - level.price) <= threshold);
+          
+          if (existing) {
+              existing.price = (existing.price + level.price) / 2;
+              existing.strength = (existing.strength + level.strength) / 2;
+              existing.types = [...(existing.types || [existing.type]), level.type];
+          } else {
+              merged.push({ ...level, types: [level.type] });
+          }
+      }
+      
+      return merged;
+  }
+
+  detectCandlePatterns(priceHistory1min: any[]) {
+      const patterns = [];
+      
+      if (priceHistory1min.length < 5) return patterns;
+      
+      const candles = priceHistory1min.slice(-5).map(c => ({
+          open: c.open ?? c.price,
+          high: c.high ?? c.price,
+          low: c.low ?? c.price,
+          close: c.price
+      }));
+      
+      const pinBar = this.detectPinBar(candles[candles.length - 1]);
+      if (pinBar) patterns.push(pinBar);
+      
+      if (candles.length >= 2) {
+          const engulfing = this.detectEngulfing(candles[candles.length - 2], candles[candles.length - 1]);
+          if (engulfing) patterns.push(engulfing);
+      }
+      
+      const doji = this.detectDoji(candles[candles.length - 1]);
+      if (doji) patterns.push(doji);
+      
+      const hammer = this.detectHammer(candles[candles.length - 1]);
+      if (hammer) patterns.push(hammer);
+      
+      if (candles.length >= 3) {
+          const star = this.detectStarPattern(candles.slice(-3));
+          if (star) patterns.push(star);
+      }
+      
+      if (candles.length >= 2) {
+          const insideBar = this.detectInsideBar(candles[candles.length - 2], candles[candles.length - 1]);
+          if (insideBar) patterns.push(insideBar);
+      }
+      
+      return patterns;
+  }
+
+  detectPinBar(candle: any) {
+      const body = Math.abs(candle.close - candle.open);
+      const upperWick = candle.high - Math.max(candle.open, candle.close);
+      const lowerWick = Math.min(candle.open, candle.close) - candle.low;
+      const range = candle.high - candle.low;
+      
+      if (range === 0) return null;
+      
+      const bodyRatio = body / range;
+      
+      if (lowerWick > body * 2.5 && upperWick < body * 0.3 && bodyRatio < 0.4) {
+          return {
+              name: 'Bullish Pin Bar',
+              type: 'BULLISH',
+              strength: 3,
+              reasons: ['Long lower wick', 'Small body']
+          };
+      }
+      
+      if (upperWick > body * 2.5 && lowerWick < body * 0.3 && bodyRatio < 0.4) {
+          return {
+              name: 'Bearish Pin Bar',
+              type: 'BEARISH',
+              strength: 3,
+              reasons: ['Long upper wick', 'Small body']
+          };
+      }
+      
+      return null;
+  }
+
+  detectEngulfing(prevCandle: any, currCandle: any) {
+      const prevBullish = prevCandle.close > prevCandle.open;
+      const prevBearish = prevCandle.close < prevCandle.open;
+      
+      if (prevBearish && currCandle.close > currCandle.open) {
+          if (currCandle.open < prevCandle.close && currCandle.close > prevCandle.open) {
+              return {
+                  name: 'Bullish Engulfing',
+                  type: 'BULLISH',
+                  strength: 4,
+                  reasons: ['Engulfed previous candle', 'Strong reversal']
+              };
+          }
+      }
+      
+      if (prevBullish && currCandle.close < currCandle.open) {
+          if (currCandle.open > prevCandle.close && currCandle.close < prevCandle.open) {
+              return {
+                  name: 'Bearish Engulfing',
+                  type: 'BEARISH',
+                  strength: 4,
+                  reasons: ['Engulfed previous candle', 'Strong reversal']
+              };
+          }
+      }
+      
+      return null;
+  }
+
+  detectDoji(candle: any) {
+      const body = Math.abs(candle.close - candle.open);
+      const range = candle.high - candle.low;
+      
+      if (range > 0 && body / range < 0.1) {
+          return {
+              name: 'Doji',
+              type: 'NEUTRAL',
+              strength: 2,
+              reasons: ['Indecision', 'Potential reversal']
+          };
+      }
+      
+      return null;
+  }
+
+  detectHammer(candle: any) {
+      const body = Math.abs(candle.close - candle.open);
+      const upperWick = candle.high - Math.max(candle.open, candle.close);
+      const lowerWick = Math.min(candle.open, candle.close) - candle.low;
+      const range = candle.high - candle.low;
+      
+      if (range === 0) return null;
+      
+      const bodyRatio = body / range;
+      
+      if (lowerWick > body * 2 && upperWick < body * 0.2 && bodyRatio < 0.3) {
+          return {
+              name: 'Hammer',
+              type: 'BULLISH',
+              strength: 3,
+              reasons: ['Rejection of lower prices', 'Bullish reversal']
+          };
+      }
+      
+      if (upperWick > body * 2 && lowerWick < body * 0.2 && bodyRatio < 0.3) {
+          return {
+              name: 'Shooting Star',
+              type: 'BEARISH',
+              strength: 3,
+              reasons: ['Rejection of higher prices', 'Bearish reversal']
+          };
+      }
+      
+      return null;
+  }
+
+  detectStarPattern(threeCandles: any[]) {
+      if (threeCandles.length < 3) return null;
+      
+      const [c1, c2, c3] = threeCandles;
+      
+      const c1Bearish = c1.close < c1.open;
+      const c2Small = Math.abs(c2.close - c2.open) < (c1.high - c1.low) * 0.3;
+      const c3Bullish = c3.close > c3.open && c3.close > (c1.open + c1.close) / 2;
+      
+      if (c1Bearish && c2Small && c3Bullish) {
+          return {
+              name: 'Morning Star',
+              type: 'BULLISH',
+              strength: 5,
+              reasons: ['Three-candle reversal', 'Strong bullish signal']
+          };
+      }
+      
+      const c1Bullish = c1.close > c1.open;
+      const c3Bearish = c3.close < c3.open && c3.close < (c1.open + c1.close) / 2;
+      
+      if (c1Bullish && c2Small && c3Bearish) {
+          return {
+              name: 'Evening Star',
+              type: 'BEARISH',
+              strength: 5,
+              reasons: ['Three-candle reversal', 'Strong bearish signal']
+          };
+      }
+      
+      return null;
+  }
+
+  detectInsideBar(motherCandle: any, insideCandle: any) {
+      const insideHigh = insideCandle.high <= motherCandle.high;
+      const insideLow = insideCandle.low >= motherCandle.low;
+      
+      if (insideHigh && insideLow) {
+          return {
+              name: 'Inside Bar',
+              type: 'NEUTRAL',
+              strength: 2,
+              reasons: ['Consolidation', 'Breakout pending']
+          };
+      }
+      
+      return null;
+  }
+
+  findBullishPatterns(patterns: any[], priceHistory: any[]) {
+      return patterns.filter(p => p.type === 'BULLISH');
+  }
+
+  findBearishPatterns(patterns: any[], priceHistory: any[]) {
+      return patterns.filter(p => p.type === 'BEARISH');
+  }
+
+  isSupportLevel(level: any, currentPrice: number) {
+      const supportTypes = ['Swing Low', 'Cluster', 'Round Number'];
+      return supportTypes.includes(level.type) && currentPrice >= level.price;
+  }
+
+  isResistanceLevel(level: any, currentPrice: number) {
+      const resistanceTypes = ['Swing High', 'Cluster', 'Round Number'];
+      return resistanceTypes.includes(level.type) && currentPrice <= level.price;
+  }
+
+  calculateSignalScore(level: any, pattern: any, direction: string, currentPrice: number) {
+      let score = 0;
+      
+      score += level.strength || 2;
+      score += pattern.strength || 2;
+      
+      const distance = Math.abs(currentPrice - level.price);
+      if (distance < 10) score += 2;
+      else if (distance < 25) score += 1;
+      
+      if ((direction === 'BUY' && pattern.type === 'BULLISH') ||
+          (direction === 'SELL' && pattern.type === 'BEARISH')) {
+          score += 2;
+      }
+      
+      return score;
+  }
+
+  calculateTP(level: any, direction: string, entryPrice: number) {
+      const tickSize = this.config.market?.tickSize || 1;
+      const rr = this.config.strategy?.quant?.riskRewardRatio || 2;
+      
+      if (direction === 'BUY') {
+          const risk = entryPrice - (level.price - tickSize * 10);
+          return entryPrice + (risk * rr);
+      } else {
+          const risk = (level.price + tickSize * 10) - entryPrice;
+          return entryPrice - (risk * rr);
+      }
   }
 }
