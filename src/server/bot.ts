@@ -100,7 +100,19 @@ export class FarazGoldBot {
     };
     this.logs.push(logEntry);
     if (this.logs.length > 100) this.logs.shift();
-    console.log(`[${logEntry.time}] [${type}] ${message}`);
+
+    // ANSI Colors for terminal
+    const colors = {
+      reset: "\x1b[0m",
+      info: "\x1b[36m",    // Cyan
+      success: "\x1b[32m", // Green
+      error: "\x1b[31m",   // Red
+      signal: "\x1b[35m",  // Magenta
+      ws: "\x1b[33m"       // Yellow
+    };
+
+    const color = colors[type.toLowerCase() as keyof typeof colors] || colors.reset;
+    console.log(`${colors.reset}[${logEntry.time}] ${color}[${type}] ${message}${colors.reset}`);
   }
 
   setupAxios() {
@@ -119,29 +131,28 @@ export class FarazGoldBot {
       cookies.push(`refresh_token=${this.refreshToken}`);
     }
     
+    const cookieString = cookies.join('; ');
+    
     this.api = axios.create({
       baseURL: auth.baseUrl,
       timeout: 30000,
+      withCredentials: true,
       headers: {
         ...authHeader,
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36',
         'Accept': 'application/json, text/plain, */*',
-        'Accept-Language': 'fa-IR,fa;q=0.9,en-US;q=0.8,en;q=0.7',
-        'Sec-Ch-Ua': '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
-        'Sec-Ch-Ua-Mobile': '?0',
-        'Sec-Ch-Ua-Platform': '"Windows"',
-        'Sec-Fetch-Dest': 'empty',
-        'Sec-Fetch-Mode': 'cors',
-        'Sec-Fetch-Site': 'same-origin',
-        'Content-Type': 'application/json',
-        'Origin': auth.baseUrl,
-        'Referer': `${auth.baseUrl}/room/`,
+        'Accept-Language': 'en-US,en;q=0.9',
         'X-CSRFToken': auth.csrftoken,
         'X-Requested-With': 'XMLHttpRequest',
-        'Connection': 'keep-alive',
-        'Cache-Control': 'no-cache',
-        'Pragma': 'no-cache',
-        'Cookie': cookies.join('; ')
+        'Cookie': cookieString,
+        'Referer': `${auth.baseUrl}/room/`,
+        'Origin': auth.baseUrl,
+        'sec-ch-ua': '"Not_A Brand";v="99", "Google Chrome";v="109", "Chromium";v="109"',
+        'sec-ch-ua-mobile': '?0',
+        'sec-ch-ua-platform': '"Windows"',
+        'sec-fetch-dest': 'empty',
+        'sec-fetch-mode': 'cors',
+        'sec-fetch-site': 'same-origin'
       },
       httpsAgent: new https.Agent({ 
         keepAlive: true,
@@ -1260,15 +1271,13 @@ ${analysisText}
 
         const orderData: any = {
           action: signal.type.toLowerCase(),
-          units: signal.units || 1,
-          price: this.price,
-          portfolio_id: this.portfolio?.portfolio_id,
-          mode: this.portfolio?.mode || "hedge"
+          order_type: 'verbal',
+          units: String(signal.units || 1),
+          price: -1,
+          take_profit: String(Math.round(tp)),
+          stop_loss: String(Math.round(sl)),
+          signal_token: ""
         };
-        
-        // Add optional fields if they exist
-        if (tp) orderData.take_profit = tp;
-        if (sl) orderData.stop_loss = sl;
         
         let response;
         let attempts = 0;
@@ -1284,6 +1293,9 @@ ${analysisText}
             response = await this.api.post('/api/room/api/submit-order/', orderData);
             break;
           } catch (e: any) {
+            const status = e.response?.status;
+            const data = e.response?.data;
+            this.log(`Trade Entry API Error: Status ${status} | Data: ${JSON.stringify(data || e.message)}`, "ERROR");
             attempts++;
             if (attempts >= maxAttempts || !e.message?.includes('timeout')) {
               throw e;
@@ -1601,6 +1613,7 @@ ${analysisText}
             } catch (e: any) {
               const status = e.response?.status;
               const data = e.response?.data;
+              this.log(`Close Trade API Error (${url}): Status ${status} | Data: ${JSON.stringify(data || e.message)}`, "ERROR");
               // If 500 or 404, the ID might be wrong for this endpoint, try next
               if (status === 500 || status === 404) {
                 this.log(`Endpoint ${url} returned ${status}. Trying next fallback...`, "INFO");
@@ -1629,16 +1642,18 @@ ${analysisText}
           const closeAction = isBuy ? 'sell' : 'buy';
           const orderData: any = {
             action: closeAction,
-            units: pos.units || 1,
-            price: this.price,
-            portfolio_id: this.portfolio?.portfolio_id,
-            mode: this.portfolio?.mode || "hedge"
+            order_type: 'verbal',
+            units: String(pos.units || 1),
+            price: -1,
+            signal_token: ""
           };
           
           // Humanized delay for fallback close
           await this.sleepWithJitter(200, 600);
           
-          const res = await this.api.post('/api/room/api/submit-order/', orderData);
+          const res = await this.api.post('/api/room/api/submit-order/', orderData, {
+            headers: { 'Accept': 'application/json, text/plain, */*', 'X-Requested-With': 'XMLHttpRequest' }
+          });
           apiResponse = res?.data;
           const rawStatus = apiResponse?.status;
           ok = rawStatus === true || rawStatus === 'true' || rawStatus === 1 || rawStatus === '1' || rawStatus === 'success' || Boolean(apiResponse?.order_id) || Boolean(apiResponse?.id) || (typeof apiResponse?.message === 'string' && apiResponse.message.includes('ثبت'));
@@ -1781,6 +1796,8 @@ ${analysisText}
           } catch (e: any) {
             lastError = e;
             const status = e.response?.status;
+            const data = e.response?.data;
+            this.log(`Edit TP API Error (${url}): Status ${status} | Data: ${JSON.stringify(data || e.message)}`, "ERROR");
             if (status === 500 || status === 404) {
               this.log(`Endpoint ${url} returned ${status} for TP edit. Trying next...`, "INFO");
             } else {
@@ -1820,10 +1837,12 @@ ${analysisText}
           if (ok) break;
           try {
             const res = await this.api.post(url, {
-              stop_loss: String(Math.round(newSl)),
-              sl: String(Math.round(newSl)) // Send both just in case
+              stop_loss: String(Math.round(newSl))
             }, {
-              headers: { 'Accept': '*/*', 'X-Requested-With': 'XMLHttpRequest' },
+              headers: { 
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest' 
+              },
               timeout: 5000
             });
             
@@ -1841,6 +1860,8 @@ ${analysisText}
           } catch (e: any) {
             lastError = e;
             const status = e.response?.status;
+            const data = e.response?.data;
+            this.log(`Edit SL API Error (${url}): Status ${status} | Data: ${JSON.stringify(data || e.message)}`, "ERROR");
             if (status === 500 || status === 404) {
               this.log(`Endpoint ${url} returned ${status} for SL edit. Trying next...`, "INFO");
             } else {
