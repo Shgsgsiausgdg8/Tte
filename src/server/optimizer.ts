@@ -23,21 +23,9 @@ function randInt(a: number, b: number){ return Math.floor(Math.random()*(b-a+1))
 
 function propose(base: any) {
   const cfg = deepClone(base);
+  const activeStrategy = cfg.activeStrategy || 'SCALP';
 
-  const emaFast = cfg.strategy?.indicators?.ema?.fast ?? 8;
-  const emaSlow = cfg.strategy?.indicators?.ema?.slow ?? 21;
-  const rsiP = cfg.strategy?.indicators?.rsi?.period ?? 9;
-
-  cfg.strategy.indicators.ema.fast = clamp(randInt(emaFast-3, emaFast+3), 3, 30);
-  cfg.strategy.indicators.ema.slow = clamp(randInt(emaSlow-6, emaSlow+8), 8, 80);
-  if (cfg.strategy.indicators.ema.slow <= cfg.strategy.indicators.ema.fast + 2) {
-    cfg.strategy.indicators.ema.slow = cfg.strategy.indicators.ema.fast + 5;
-  }
-
-  cfg.strategy.indicators.rsi.period = clamp(randInt(rsiP-4, rsiP+6), 5, 30);
-  cfg.strategy.indicators.rsi.oversold = clamp(randInt((cfg.strategy.indicators.rsi.oversold ?? 35)-5, (cfg.strategy.indicators.rsi.oversold ?? 35)+5), 15, 45);
-  cfg.strategy.indicators.rsi.overbought = clamp(randInt((cfg.strategy.indicators.rsi.overbought ?? 65)-5, (cfg.strategy.indicators.rsi.overbought ?? 65)+5), 55, 85);
-
+  // Common parameters
   cfg.targetsTicks.stopTicks = clamp(randInt((cfg.targetsTicks.stopTicks ?? 12)-4, (cfg.targetsTicks.stopTicks ?? 12)+6), 6, 40);
   cfg.targetsTicks.tpTicks = clamp(randInt((cfg.targetsTicks.tpTicks ?? 18)-6, (cfg.targetsTicks.tpTicks ?? 18)+10), 8, 80);
 
@@ -45,6 +33,42 @@ function propose(base: any) {
   cfg.targetsTicks.trailing.trailTicks = clamp(randInt((cfg.targetsTicks.trailing.trailTicks ?? 10)-4, (cfg.targetsTicks.trailing.trailTicks ?? 10)+8), 4, 80);
 
   cfg.strategy.minSignalScore = clamp(randInt((cfg.strategy.minSignalScore ?? 1), (cfg.strategy.minSignalScore ?? 1)+2), 1, 5);
+
+  if (activeStrategy === 'HST') {
+    const hst = cfg.strategy.hst || { hmaLength: 55, stPeriod: 10, stMultiplier: 3 };
+    hst.hmaLength = clamp(randInt(hst.hmaLength - 10, hst.hmaLength + 10), 10, 200);
+    hst.stPeriod = clamp(randInt(hst.stPeriod - 3, hst.stPeriod + 3), 5, 50);
+    hst.stMultiplier = clamp(Number((hst.stMultiplier + (Math.random() * 1 - 0.5)).toFixed(1)), 1, 10);
+    cfg.strategy.hst = hst;
+  } else if (activeStrategy === 'QUANT') {
+    const quant = cfg.strategy.quant || { maFast: 50, maSlow: 200, swingLength: 5, patternTolerancePct: 0.05 };
+    quant.maFast = clamp(randInt(quant.maFast - 10, quant.maFast + 10), 10, 100);
+    quant.maSlow = clamp(randInt(quant.maSlow - 20, quant.maSlow + 20), 50, 500);
+    quant.swingLength = clamp(randInt(quant.swingLength - 2, quant.swingLength + 2), 2, 10);
+    quant.patternTolerancePct = clamp(Number((quant.patternTolerancePct + (Math.random() * 0.04 - 0.02)).toFixed(3)), 0.01, 0.5);
+    cfg.strategy.quant = quant;
+  } else if (activeStrategy === 'TREND') {
+    const trend = cfg.strategy.trend || { maFast: 20, maSlow: 50, macdFast: 12, macdSlow: 26, macdSignal: 9 };
+    trend.maFast = clamp(randInt(trend.maFast - 5, trend.maFast + 5), 5, 50);
+    trend.maSlow = clamp(randInt(trend.maSlow - 10, trend.maSlow + 10), 20, 200);
+    trend.macdFast = clamp(randInt(trend.macdFast - 3, trend.macdFast + 3), 5, 30);
+    trend.macdSlow = clamp(randInt(trend.macdSlow - 5, trend.macdSlow + 5), 15, 60);
+    cfg.strategy.trend = trend;
+  } else {
+    const emaFast = cfg.strategy?.indicators?.ema?.fast ?? 8;
+    const emaSlow = cfg.strategy?.indicators?.ema?.slow ?? 21;
+    const rsiP = cfg.strategy?.indicators?.rsi?.period ?? 9;
+
+    cfg.strategy.indicators.ema.fast = clamp(randInt(emaFast-3, emaFast+3), 3, 30);
+    cfg.strategy.indicators.ema.slow = clamp(randInt(emaSlow-6, emaSlow+8), 8, 80);
+    if (cfg.strategy.indicators.ema.slow <= cfg.strategy.indicators.ema.fast + 2) {
+      cfg.strategy.indicators.ema.slow = cfg.strategy.indicators.ema.fast + 5;
+    }
+
+    cfg.strategy.indicators.rsi.period = clamp(randInt(rsiP-4, rsiP+6), 5, 30);
+    cfg.strategy.indicators.rsi.oversold = clamp(randInt((cfg.strategy.indicators.rsi.oversold ?? 35)-5, (cfg.strategy.indicators.rsi.oversold ?? 35)+5), 15, 45);
+    cfg.strategy.indicators.rsi.overbought = clamp(randInt((cfg.strategy.indicators.rsi.overbought ?? 65)-5, (cfg.strategy.indicators.rsi.overbought ?? 65)+5), 55, 85);
+  }
 
   if (cfg.filters) {
     const minAtr = Number(cfg.filters.minAtrPercent ?? 0.01);
@@ -107,16 +131,8 @@ function pickSplits() {
 }
 
 function toPatch(bestCfg: any) {
-  return {
+  const patch: any = {
     strategy: {
-      indicators: {
-        ema: { fast: bestCfg.strategy.indicators.ema.fast, slow: bestCfg.strategy.indicators.ema.slow },
-        rsi: {
-          period: bestCfg.strategy.indicators.rsi.period,
-          oversold: bestCfg.strategy.indicators.rsi.oversold,
-          overbought: bestCfg.strategy.indicators.rsi.overbought
-        }
-      },
       minSignalScore: bestCfg.strategy.minSignalScore
     },
     targetsTicks: {
@@ -129,6 +145,25 @@ function toPatch(bestCfg: any) {
     },
     filters: { minAtrPercent: bestCfg.filters?.minAtrPercent }
   };
+
+  if (bestCfg.activeStrategy === 'HST') {
+    patch.strategy.hst = bestCfg.strategy.hst;
+  } else if (bestCfg.activeStrategy === 'QUANT') {
+    patch.strategy.quant = bestCfg.strategy.quant;
+  } else if (bestCfg.activeStrategy === 'TREND') {
+    patch.strategy.trend = bestCfg.strategy.trend;
+  } else {
+    patch.strategy.indicators = {
+      ema: { fast: bestCfg.strategy.indicators.ema.fast, slow: bestCfg.strategy.indicators.ema.slow },
+      rsi: {
+        period: bestCfg.strategy.indicators.rsi.period,
+        oversold: bestCfg.strategy.indicators.rsi.oversold,
+        overbought: bestCfg.strategy.indicators.rsi.overbought
+      }
+    };
+  }
+  
+  return patch;
 }
 
 export async function runOptimization(inFile: string, outFile: string, iters: number = 80) {

@@ -583,8 +583,8 @@ export class Strategy {
   // ==========================================
   analyzeHST(priceHistory: any[], currentPrice: number) {
     const closes = priceHistory.map(p => p.price);
-    const highs = priceHistory.map(p => p.high ?? p.high ?? p.price);
-    const lows = priceHistory.map(p => p.low ?? p.low ?? p.price);
+    const highs = priceHistory.map(p => p.high ?? p.price);
+    const lows = priceHistory.map(p => p.low ?? p.price);
     const price = currentPrice || closes[closes.length - 1];
 
     const hstCfg = this.config.strategy?.hst || { 
@@ -1029,9 +1029,29 @@ export class Strategy {
   }
 
   calculateSuperTrend(highs: number[], lows: number[], closes: number[], period: number, multiplier: number) {
-    if (closes.length < period) return [];
+    if (closes.length < period + 1) return [];
     
     const st: { value: number, direction: number }[] = [];
+    
+    // Calculate True Range
+    const trs: number[] = [0];
+    for (let i = 1; i < closes.length; i++) {
+      const h = highs[i];
+      const l = lows[i];
+      const pc = closes[i - 1];
+      trs.push(Math.max(h - l, Math.abs(h - pc), Math.abs(l - pc)));
+    }
+
+    // Calculate ATR using RMA (Smoothed Moving Average)
+    const atrs: number[] = new Array(closes.length).fill(0);
+    let sumTr = 0;
+    for (let i = 1; i <= period; i++) sumTr += trs[i];
+    atrs[period] = sumTr / period;
+
+    for (let i = period + 1; i < closes.length; i++) {
+      atrs[i] = (atrs[i - 1] * (period - 1) + trs[i]) / period;
+    }
+
     let prevFinalUpperBand = 0;
     let prevFinalLowerBand = 0;
     let prevDirection = 1;
@@ -1039,22 +1059,7 @@ export class Strategy {
     for (let i = period; i < closes.length; i++) {
       const currentClose = closes[i];
       const prevClose = closes[i - 1];
-      
-      // Calculate True Range for this candle
-      const tr1 = highs[i] - lows[i];
-      const tr2 = Math.abs(highs[i] - prevClose);
-      const tr3 = Math.abs(lows[i] - prevClose);
-      const tr = Math.max(tr1, tr2, tr3);
-      
-      // Approximate ATR (simple average for speed, ideally should be RMA)
-      let atrSum = 0;
-      for (let j = i - period + 1; j <= i; j++) {
-        const jTr1 = highs[j] - lows[j];
-        const jTr2 = Math.abs(highs[j] - closes[j-1]);
-        const jTr3 = Math.abs(lows[j] - closes[j-1]);
-        atrSum += Math.max(jTr1, jTr2, jTr3);
-      }
-      const atr = atrSum / period;
+      const atr = atrs[i];
       
       const basicUpperBand = ((highs[i] + lows[i]) / 2) + (multiplier * atr);
       const basicLowerBand = ((highs[i] + lows[i]) / 2) - (multiplier * atr);
@@ -1062,16 +1067,18 @@ export class Strategy {
       let finalUpperBand = basicUpperBand;
       let finalLowerBand = basicLowerBand;
       
-      if (basicUpperBand < prevFinalUpperBand || prevClose > prevFinalUpperBand) {
-        finalUpperBand = basicUpperBand;
-      } else {
-        finalUpperBand = prevFinalUpperBand;
-      }
-      
-      if (basicLowerBand > prevFinalLowerBand || prevClose < prevFinalLowerBand) {
-        finalLowerBand = basicLowerBand;
-      } else {
-        finalLowerBand = prevFinalLowerBand;
+      if (i > period) {
+        if (basicUpperBand < prevFinalUpperBand || prevClose > prevFinalUpperBand) {
+          finalUpperBand = basicUpperBand;
+        } else {
+          finalUpperBand = prevFinalUpperBand;
+        }
+        
+        if (basicLowerBand > prevFinalLowerBand || prevClose < prevFinalLowerBand) {
+          finalLowerBand = basicLowerBand;
+        } else {
+          finalLowerBand = prevFinalLowerBand;
+        }
       }
       
       let direction = prevDirection;

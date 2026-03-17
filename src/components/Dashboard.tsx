@@ -870,6 +870,28 @@ export default function Dashboard() {
                       >
                         <div className="grid grid-cols-2 gap-4">
                           <div>
+                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">Real Access Token</label>
+                            <input 
+                              type="password" 
+                              value={settings.api?.real?.accessToken || ''}
+                              onChange={(e) => setSettings({ ...settings, api: { ...settings.api, real: { ...settings.api.real, accessToken: e.target.value } } })}
+                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm focus:border-rose-500/50 outline-none transition-all"
+                              placeholder="توکن دسترسی ریل"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">Real Refresh Token</label>
+                            <input 
+                              type="password" 
+                              value={settings.api?.real?.refreshToken || ''}
+                              onChange={(e) => setSettings({ ...settings, api: { ...settings.api, real: { ...settings.api.real, refreshToken: e.target.value } } })}
+                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm focus:border-rose-500/50 outline-none transition-all"
+                              placeholder="توکن رفرش ریل"
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
                             <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">Real CSRF Token</label>
                             <input 
                               type="password" 
@@ -946,9 +968,30 @@ export default function Dashboard() {
                     </div>
                     
                     {!settings.api?.useRealAccount && (
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">Demo CSRF Token</label>
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">Demo Access Token</label>
+                            <input 
+                              type="password" 
+                              value={settings.api?.demo?.accessToken || ''}
+                              onChange={(e) => setSettings({ ...settings, api: { ...settings.api, demo: { ...settings.api.demo, accessToken: e.target.value } } })}
+                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm focus:border-emerald-500/50 outline-none transition-all"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">Demo Refresh Token</label>
+                            <input 
+                              type="password" 
+                              value={settings.api?.demo?.refreshToken || ''}
+                              onChange={(e) => setSettings({ ...settings, api: { ...settings.api, demo: { ...settings.api.demo, refreshToken: e.target.value } } })}
+                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm focus:border-emerald-500/50 outline-none transition-all"
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">Demo CSRF Token</label>
                           <input 
                             type="password" 
                             value={settings.api?.demo?.csrftoken || ''}
@@ -966,6 +1009,7 @@ export default function Dashboard() {
                           />
                         </div>
                       </div>
+                    </div>
                     )}
                   </div>
                 </section>

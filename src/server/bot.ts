@@ -35,6 +35,8 @@ export class FarazGoldBot {
   
   api: AxiosInstance | null = null;
   ws: WebSocket | null = null;
+  accessToken: string | null = null;
+  refreshToken: string | null = null;
   isConnected: boolean = false;
   reconnectAttempts: number = 0;
   lastPongTime: number = Date.now();
@@ -105,12 +107,23 @@ export class FarazGoldBot {
     const apiCfg = this.settings.api || defaultConfig.api;
     const isReal = apiCfg.useRealAccount;
     const auth = isReal ? apiCfg.real : apiCfg.demo;
-    const cookies = `csrftoken=${auth.csrftoken}; sessionid=${auth.sessionid}`;
+    
+    // Use the tokens if we have them
+    const authHeader = this.accessToken ? { 'Authorization': `Bearer ${this.accessToken}` } : {};
+    
+    const cookies = [
+      `csrftoken=${auth.csrftoken}`,
+      `sessionid=${auth.sessionid}`
+    ];
+    if (this.refreshToken) {
+      cookies.push(`refresh_token=${this.refreshToken}`);
+    }
     
     this.api = axios.create({
       baseURL: auth.baseUrl,
       timeout: 30000,
       headers: {
+        ...authHeader,
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
         'Accept': 'application/json, text/plain, */*',
         'Accept-Language': 'fa-IR,fa;q=0.9,en-US;q=0.8,en;q=0.7',
@@ -128,13 +141,63 @@ export class FarazGoldBot {
         'Connection': 'keep-alive',
         'Cache-Control': 'no-cache',
         'Pragma': 'no-cache',
-        'Cookie': cookies
+        'Cookie': cookies.join('; ')
       },
       httpsAgent: new https.Agent({ 
         keepAlive: true,
-        rejectUnauthorized: false // Sometimes needed for custom TLS setups
+        rejectUnauthorized: false 
       })
     });
+
+    // Add interceptor for token refresh
+    this.api.interceptors.response.use(
+      response => response,
+      async error => {
+        const originalRequest = error.config;
+        if (error.response?.status === 401 && !originalRequest._retry && this.refreshToken) {
+          originalRequest._retry = true;
+          const refreshed = await this.refreshAuthToken();
+          if (refreshed) {
+            originalRequest.headers['Authorization'] = `Bearer ${this.accessToken}`;
+            // Update cookies in the retry request too
+            const apiCfg = this.settings.api || defaultConfig.api;
+            const auth = apiCfg.useRealAccount ? apiCfg.real : apiCfg.demo;
+            originalRequest.headers['Cookie'] = `csrftoken=${auth.csrftoken}; sessionid=${auth.sessionid}; refresh_token=${this.refreshToken}`;
+            return this.api(originalRequest);
+          }
+        }
+        return Promise.reject(error);
+      }
+    );
+  }
+
+  async refreshAuthToken() {
+    try {
+      const apiCfg = this.settings.api || defaultConfig.api;
+      const auth = apiCfg.useRealAccount ? apiCfg.real : apiCfg.demo;
+      
+      this.log("Attempting to refresh auth token...", "INFO");
+      const response = await axios.post(`${auth.baseUrl}/api/User/api/token/refresh/`, {
+        refresh: this.refreshToken
+      }, {
+        headers: {
+          'Cookie': `refresh_token=${this.refreshToken}; csrftoken=${auth.csrftoken}`,
+          'Content-Type': 'application/json',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+        }
+      });
+      
+      if (response.data && response.data.access) {
+        this.accessToken = response.data.access;
+        if (response.data.refresh) this.refreshToken = response.data.refresh;
+        this.log("Token refreshed successfully.", "INFO");
+        this.setupAxios(); // Re-create axios with new token
+        return true;
+      }
+    } catch (e) {
+      this.log(`Token refresh failed: ${e}`, "ERROR");
+    }
+    return false;
   }
 
   async sleepWithJitter(minMs: number, maxMs: number) {
@@ -161,6 +224,11 @@ export class FarazGoldBot {
           },
           source: 'API' // Force API
         };
+        
+        const apiCfg = this.settings.api || defaultConfig.api;
+        const auth = apiCfg.useRealAccount ? apiCfg.real : apiCfg.demo;
+        this.accessToken = auth.accessToken || null;
+        this.refreshToken = auth.refreshToken || null;
       } else {
         throw new Error("Settings not found");
       }
@@ -264,7 +332,15 @@ export class FarazGoldBot {
   async sendTelegramMessage(msg: string) {
     if (this.tgBot && this.settings.telegram?.chatId) {
       try {
-        await this.tgBot.sendMessage(this.settings.telegram.chatId, msg, { parse_mode: 'Markdown' });
+        // Convert Markdown *bold* to HTML <b>bold</b>
+        let htmlMsg = msg;
+        let isBold = false;
+        while (htmlMsg.includes('*')) {
+          htmlMsg = htmlMsg.replace('*', isBold ? '</b>' : '<b>');
+          isBold = !isBold;
+        }
+        
+        await this.tgBot.sendMessage(this.settings.telegram.chatId, htmlMsg, { parse_mode: 'HTML' });
       } catch (e) {
         this.log(`Telegram Send Error: ${e}`, "ERROR");
       }
@@ -312,6 +388,12 @@ ${analysisText}
     
     // Force API source
     this.settings.source = 'API';
+    
+    // Refresh token if we have a refresh token but no access token
+    if (this.refreshToken && !this.accessToken) {
+      await this.refreshAuthToken();
+    }
+    
     await this.updatePortfolio();
     await this.fetchHistoricalBars();
     this.connectToExternalWS();
@@ -348,14 +430,14 @@ ${analysisText}
     }, 1000);
   }
 
-  async fetchHistoricalBars() {
+  async fetchHistoricalBars(retryCount = 0) {
     if (!this.api) return;
     try {
       const to = Math.floor(Date.now() / 1000);
       const from = to - (24 * 60 * 60); // Last 24 hours
       this.log(`Fetching historical bars from ${from} to ${to}...`, "INFO");
       
-      const response = await this.api.get('/room/api/get-bars/', {
+      const response = await this.api.get('/api/room/api/get-bars/', {
         params: {
           symbol: 'mazane',
           from: from,
@@ -393,15 +475,20 @@ ${analysisText}
         this.log("Historical data loaded into bot state.", "SUCCESS");
         this.checkForSignal();
       }
-    } catch (error) {
-      this.log(`Historical Bars Fetch Error: ${error}`, "ERROR");
+    } catch (error: any) {
+      const status = error.response ? error.response.status : 'Network Error';
+      this.log(`Historical Bars Fetch Error: ${status} - ${error.message}`, "ERROR");
+      if (retryCount < 3) {
+        this.log(`Retrying historical bars fetch in 5 seconds (Attempt ${retryCount + 1}/3)...`, "INFO");
+        setTimeout(() => this.fetchHistoricalBars(retryCount + 1), 5000);
+      }
     }
   }
 
   async fetchCurrentPriceViaAPI() {
     if (!this.api) return;
     try {
-      const response = await this.api.get('/room/api/get-last-price/', { 
+      const response = await this.api.get('/api/room/api/get-last-price/', { 
         params: { symbol: 'mazane' },
         timeout: 3000 // Short timeout for price sync
       });
@@ -420,7 +507,7 @@ ${analysisText}
   async updatePortfolio(retryCount = 0, autoCreate = true) {
     if (!this.api) return;
     try {
-      const response = await this.api.post('/room/api/check-portfolio/', {});
+      const response = await this.api.post('/api/room/api/check-portfolio/', {});
       this.portfolio = response.data;
       
       // Auto-create portfolio if it doesn't exist
@@ -437,7 +524,7 @@ ${analysisText}
       } else {
         // If not in portfolio, try to fetch them from a dedicated endpoint
         try {
-          const posResponse = await this.api.get('/room/api/open-positions/');
+          const posResponse = await this.api.get('/api/room/api/open-positions/');
           if (posResponse.data && Array.isArray(posResponse.data)) {
             this.syncPositions(posResponse.data);
           } else if (posResponse.data && posResponse.data.positions) {
@@ -453,18 +540,18 @@ ${analysisText}
       }
     } catch (error: any) {
       const isTimeout = error.message?.includes('timeout') || error.code === 'ECONNABORTED';
-      const is504 = error.response?.status === 504;
+      const isServerError = [502, 503, 504].includes(error.response?.status);
       const isNetworkError = error.code === 'EAI_AGAIN' || error.message?.includes('EAI_AGAIN') || error.code === 'ENOTFOUND';
 
-      if (retryCount < 3 && (isTimeout || is504 || isNetworkError)) {
+      if (retryCount < 3 && (isTimeout || isServerError || isNetworkError)) {
         const delay = Math.min(10000, 2000 * Math.pow(1.5, retryCount));
         await new Promise(resolve => setTimeout(resolve, delay));
         return this.updatePortfolio(retryCount + 1, autoCreate);
       }
 
-      if (isNetworkError || isTimeout || is504) {
+      if (isNetworkError || isTimeout || isServerError) {
         if (Math.random() < 0.1) { 
-          this.log(`Portfolio Update: Server busy or network issue (${error.message || 'Timeout/504'}).`, "INFO");
+          this.log(`Portfolio Update: Server busy or network issue (${error.message || 'Timeout/50x'}).`, "INFO");
         }
       } else {
         this.log(`Portfolio Update Error: ${error.message || error}`, "ERROR");
@@ -478,7 +565,7 @@ ${analysisText}
       const initialBalance = units * 2300000;
       const lineValuePerKhat = 23000;
       
-      const response = await this.api.post('/room/api/create-portfolio/', {
+      const response = await this.api.post('/api/room/api/create-portfolio/', {
         portfolio_type: "isolated",
         mode: "hedge",
         initial_balance: initialBalance,
@@ -627,15 +714,24 @@ ${analysisText}
     const isReal = apiCfg.useRealAccount;
     const auth = isReal ? apiCfg.real : apiCfg.demo;
     
-    const url = auth.wsUrl || (isReal ? 'wss://farazgold.com/ws/' : 'wss://demo.farazgold.com/ws/');
-    const cookies = `csrftoken=${auth.csrftoken}; sessionid=${auth.sessionid}`;
+    const baseWsUrl = auth.wsUrl || (isReal ? 'wss://farazgold.com/ws/' : 'wss://demo.farazgold.com/ws/');
+    const url = baseWsUrl.includes('?') 
+      ? `${baseWsUrl}&token=${this.accessToken || ''}`
+      : `${baseWsUrl}?token=${this.accessToken || ''}`;
+    const cookies = [
+      `csrftoken=${auth.csrftoken}`,
+      `sessionid=${auth.sessionid}`
+    ];
+    if (this.refreshToken) {
+      cookies.push(`refresh_token=${this.refreshToken}`);
+    }
     
-    this.log(`Connecting to FarazGold WS (${isReal ? 'REAL' : 'DEMO'}): ${url}`, "WS");
+    this.log(`Connecting to FarazGold WS (${isReal ? 'REAL' : 'DEMO'}): ${url.split('?')[0]}`, "WS");
     
     try {
       this.ws = new WebSocket(url, {
         headers: {
-          'Cookie': cookies,
+          'Cookie': cookies.join('; '),
           'Origin': auth.baseUrl,
           'Referer': `${auth.baseUrl}/room/`,
           'X-Requested-With': 'XMLHttpRequest',
@@ -650,6 +746,10 @@ ${analysisText}
       
       this.ws.on('unexpected-response', (req, res) => {
         this.log(`WS unexpected-response: ${res.statusCode}`, "ERROR");
+        if (this.ws) {
+          this.ws.terminate(); // This should trigger the 'close' event
+        }
+        this.scheduleReconnect(); // Call it directly just in case 'close' isn't emitted
       });
 
       this.ws.on('open', () => {
@@ -664,10 +764,8 @@ ${analysisText}
         }
         
         this.ws?.send(JSON.stringify({
-          action: 'subscribe',
-          symbol: 'mazane',
-          timeframe: '1',
-          history: 300
+          action: 'SubAdd',
+          subs: ['0~farazgold~mazane~gold~1']
         }));
         
         this.startPingLoop();
@@ -677,8 +775,31 @@ ${analysisText}
         const now = Date.now();
         this.lastMessageTime = now;
         try {
-          const msg = JSON.parse(data.toString());
+          const msgStr = data.toString();
+          const msg = JSON.parse(msgStr);
           
+          // Handle new subscription format messages
+          if (msg.action === 'Update' && msg.data) {
+            const d = msg.data;
+            if (d.symbol === '0~farazgold~mazane~gold~1' || d.symbol === 'mazane') {
+              if (d.price) {
+                this.price = d.price;
+                this.processCandle({
+                  time: Math.floor(now / 1000),
+                  close: d.price,
+                  open: d.price,
+                  high: d.price,
+                  low: d.price,
+                  volume: 1
+                });
+              }
+              if (d.data_buy && d.data_sell) {
+                this.orderBook.bids = d.data_buy;
+                this.orderBook.asks = d.data_sell;
+              }
+            }
+          }
+
           if (msg.type === 'ping') {
             if (this.ws?.readyState === WebSocket.OPEN) {
               // Add a tiny random delay before responding to ping to simulate human network latency
@@ -827,7 +948,7 @@ ${analysisText}
           }
 
           // Log unknown messages for analysis
-          const knownKeys = ['bars', 'history', 'market_status', 'price', 'best_buy', 'best_sell', 'spread', 'new_transactions_open', 'transactions_open', 'new_transactions_history', 'transactions_history', 'server_time', 'type', 'data_buy', 'data_sell', 'new_user_orders', 'M', 'FSYM', 'TSYM', 'TYPE', 'TS', 'P'];
+          const knownKeys = ['action', 'data', 'symbol', 'message', 'bars', 'history', 'market_status', 'price', 'best_buy', 'best_sell', 'spread', 'new_transactions_open', 'transactions_open', 'new_transactions_history', 'transactions_history', 'server_time', 'type', 'data_buy', 'data_sell', 'new_user_orders', 'M', 'FSYM', 'TSYM', 'TYPE', 'TS', 'P'];
           const hasUnknownKeys = Object.keys(msg).some(key => !knownKeys.includes(key));
           if (hasUnknownKeys) {
              const unknownData = Object.keys(msg).filter(key => !knownKeys.includes(key)).reduce((obj, key) => {
@@ -1137,13 +1258,15 @@ ${analysisText}
 
         const orderData: any = {
           action: signal.type.toLowerCase(),
-          order_type: 'verbal',
-          units: String(signal.units || "1"),
-          price: String(this.price),
-          take_profit: String(tp),
-          stop_loss: String(sl),
-          signal_token: ""
+          units: signal.units || 1,
+          price: this.price,
+          portfolio_id: this.portfolio?.portfolio_id,
+          mode: this.portfolio?.mode || "hedge"
         };
+        
+        // Add optional fields if they exist
+        if (tp) orderData.take_profit = tp;
+        if (sl) orderData.stop_loss = sl;
         
         let response;
         let attempts = 0;
@@ -1156,7 +1279,7 @@ ${analysisText}
         
         while (attempts < maxAttempts) {
           try {
-            response = await this.api.post('/room/api/submit-order/', orderData);
+            response = await this.api.post('/api/room/api/submit-order/', orderData);
             break;
           } catch (e: any) {
             attempts++;
@@ -1415,10 +1538,10 @@ ${analysisText}
 
         if (pos.transactionId) {
           const endpoints = [
-            `/room/api/close-futures-transaction/${pos.transactionId}/`,
-            `/room/api/close-futures-position/${pos.transactionId}/`,
-            `/room/api/close-transaction/${pos.transactionId}/`,
-            `/room/api/close-order/${pos.transactionId}/`
+            `/api/room/api/close-futures-transaction/${pos.transactionId}/`,
+            `/api/room/api/close-futures-position/${pos.transactionId}/`,
+            `/api/room/api/close-transaction/${pos.transactionId}/`,
+            `/api/room/api/close-order/${pos.transactionId}/`
           ];
 
           for (const url of endpoints) {
@@ -1469,18 +1592,16 @@ ${analysisText}
           const closeAction = isBuy ? 'sell' : 'buy';
           const orderData: any = {
             action: closeAction,
-            order_type: 'verbal',
-            units: String(pos.units || 1),
-            price: String(this.price),
-            take_profit: "",
-            stop_loss: "",
-            signal_token: ""
+            units: pos.units || 1,
+            price: this.price,
+            portfolio_id: this.portfolio?.portfolio_id,
+            mode: this.portfolio?.mode || "hedge"
           };
           
           // Humanized delay for fallback close
           await this.sleepWithJitter(200, 600);
           
-          const res = await this.api.post('/room/api/submit-order/', orderData);
+          const res = await this.api.post('/api/room/api/submit-order/', orderData);
           apiResponse = res?.data;
           const rawStatus = apiResponse?.status;
           ok = rawStatus === true || rawStatus === 'true' || rawStatus === 1 || rawStatus === '1' || rawStatus === 'success' || Boolean(apiResponse?.order_id) || Boolean(apiResponse?.id) || (typeof apiResponse?.message === 'string' && apiResponse.message.includes('ثبت'));
@@ -1589,10 +1710,10 @@ ${analysisText}
         this.log(`Updating TP for transaction ${transactionId} to ${newTp}...`, "INFO");
         
         const endpoints = [
-          `/room/api/edit-take-profit/${transactionId}/`,
-          `/room/api/edit-futures-transaction/${transactionId}/`,
-          `/room/api/edit-transaction/${transactionId}/`,
-          `/room/api/edit-order/${transactionId}/`
+          `/api/room/api/edit-take-profit/${transactionId}/`,
+          `/api/room/api/edit-futures-transaction/${transactionId}/`,
+          `/api/room/api/edit-transaction/${transactionId}/`,
+          `/api/room/api/edit-order/${transactionId}/`
         ];
 
         let ok = false;
@@ -1649,10 +1770,10 @@ ${analysisText}
         this.log(`Updating SL for transaction ${transactionId} to ${newSl}...`, "INFO");
         
         const endpoints = [
-          `/room/api/edit-stop-loss/${transactionId}/`,
-          `/room/api/edit-futures-transaction/${transactionId}/`,
-          `/room/api/edit-transaction/${transactionId}/`,
-          `/room/api/edit-order/${transactionId}/`
+          `/api/room/api/edit-stop-loss/${transactionId}/`,
+          `/api/room/api/edit-futures-transaction/${transactionId}/`,
+          `/api/room/api/edit-transaction/${transactionId}/`,
+          `/api/room/api/edit-order/${transactionId}/`
         ];
 
         let ok = false;

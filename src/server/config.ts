@@ -251,13 +251,17 @@ export const config = {
       wsUrl: 'wss://demo.farazgold.com/ws/',
       baseUrl: 'https://demo.farazgold.com',
       csrftoken: 'GTiZlvd8jNoMuko3nkjjU0lhC8m6Yy3m',
-      sessionid: 'njmnqc7hfkeyayowprwheqc73lvp98as'
+      sessionid: 'njmnqc7hfkeyayowprwheqc73lvp98as',
+      accessToken: '',
+      refreshToken: ''
     },
     real: {
       wsUrl: 'wss://farazgold.com/ws/',
       baseUrl: 'https://farazgold.com',
       csrftoken: '',
-      sessionid: ''
+      sessionid: '',
+      accessToken: '',
+      refreshToken: ''
     }
   },
 
