@@ -12,6 +12,19 @@ import { loadBestParams, scheduleOptimization } from './autotuneManager';
 const SETTINGS_PATH = path.join(process.cwd(), 'src/server/settings.json');
 const STATE_FILE = path.join(process.cwd(), 'src/server/state.json');
 
+const PSYCHOLOGY_TIPS = [
+  "صبر، کلید سودآوری است. منتظر تاییدیه بمانید.",
+  "معامله‌گر حرفه‌ای با استاپ‌لاس خود دوست است؛ استاپ‌لاس محافظ سرمایه شماست نه دشمن سود شما.",
+  "بازار همیشه فرصت می‌دهد، اگر امروز فرصتی نبود، فردا هست.",
+  "مدیریت سرمایه مهم‌تر از استراتژی است. هرگز بیش از حد ریسک نکنید.",
+  "احساسات خود را در معامله دخالت ندهید. به استراتژی خود پایبند باشید.",
+  "طمع، قاتل حساب‌های معاملاتی است. به تارگت‌های خود قانع باشید.",
+  "ضرر بخشی از معامله‌گری است. مهم این است که ضررها کوچک و سودها بزرگ باشند.",
+  "در بازارهای پرنوسان، حجم معاملات خود را کاهش دهید.",
+  "همیشه قبل از ورود به معامله، نقطه خروج خود را مشخص کنید.",
+  "انتقام از بازار غیرممکن است. پس از یک ضرر، کمی استراحت کنید."
+];
+
 export class FarazGoldBot {
   price: number = 0;
   opens: number[] = [];
@@ -142,10 +155,10 @@ export class FarazGoldBot {
 
     // Send to Rubika/Telegram if logEnabled
     if (this.settings.rubika?.enabled && this.settings.rubika?.logEnabled) {
-      this.sendRubikaMessage(`📝 [${type}] ${message}`);
+      this.sendRubikaLog(`📝 [${type}] ${message}`);
     }
     if (this.settings.telegram?.enabled && this.settings.telegram?.logEnabled) {
-      this.sendTelegramMessage(`📝 [${type}] ${message}`);
+      this.sendTelegramLog(`📝 [${type}] ${message}`);
     }
   }
 
@@ -331,7 +344,7 @@ export class FarazGoldBot {
       this.closedPositions = [];
       this.dailyStartBalance = this.portfolio?.balance || 0;
       this.saveState();
-      this.sendTelegramReport();
+      this.sendReport();
     }
   }
 
@@ -379,63 +392,75 @@ export class FarazGoldBot {
 
   formatSignalMessage(signal: any): string {
     const signalId = signal.signalId || '---';
-    const type = signal.type === 'BUY' ? '📈 خرید (BUY)' : '📉 فروش (SELL)';
+    const type = signal.type === 'BUY' ? 'خرید (BUY)' : 'فروش (SELL)';
     const emoji = signal.type === 'BUY' ? '🚀' : '🔻';
     const entry = signal.entry?.toLocaleString('fa-IR') || '---';
     const tp1 = signal.tp1?.toLocaleString('fa-IR') || '---';
     const tp2 = signal.tp2?.toLocaleString('fa-IR') || '---';
     const tp3 = signal.tp3?.toLocaleString('fa-IR') || '---';
     const sl = signal.sl?.toLocaleString('fa-IR') || '---';
-    const score = signal.score || '---';
-    const strength = signal.strength === 'STRONG' ? '🔥 بسیار قوی' : (signal.strength === 'WEAK' ? '⚠️ ضعیف' : '✅ معمولی');
-    const time = new Date().toLocaleTimeString('fa-IR');
-
-    // MTF Confirmation
-    const mtf = signal.mtf || { m1: 'NEUTRAL', m5: 'NEUTRAL', m15: 'NEUTRAL' };
-    const getTrendEmoji = (trend: string) => trend === 'UP' ? '🟢 صعودی' : (trend === 'DOWN' ? '🔴 نزولی' : '⚪️ خنثی');
-    const mtfText = `
-⏱ *تاییدیه چند‌زمانه (MTF):*
-▫️ تایم ۱ دقیقه: ${getTrendEmoji(mtf.m1)}
-▫️ تایم ۵ دقیقه: ${getTrendEmoji(mtf.m5)}
-▫️ تایم ۱۵ دقیقه: ${getTrendEmoji(mtf.m15)}
-    `.trim();
-
-    const help = signal.type === 'BUY' 
-      ? "📈 سیگنال خرید — پیشنهاد می‌شود در محدوده‌ی ورود وارد شوید و حد ضرر را حتماً رعایت کنید."
-      : "📉 سیگنال فروش — پیشنهاد می‌شود در محدوده‌ی ورود وارد شوید و حد ضرر را حتماً رعایت کنید.";
-
-    const quickGuide = this.settings.telegram?.quickGuide || "💡 مدیریت سرمایه فراموش نشود.";
+    
+    const riskPercent = this.settings.risk?.riskPerTrade || 2;
+    const randomTip = PSYCHOLOGY_TIPS[Math.floor(Math.random() * PSYCHOLOGY_TIPS.length)];
 
     return `
-#${signalId}
-${emoji} *سیگنال جدید شناسایی شد* ${emoji}
-━━━━━━━━━━━━━━
-📌 *نوع معامله:* ${type}
-💪 *قدرت سیگنال:* ${strength}
-💰 *نقطه ورود:* ${entry}
-🎯 *تارگت اول:* ${tp1}
-🎯 *تارگت دوم:* ${tp2}
-🎯 *تارگت سوم:* ${tp3}
-🛑 *حد ضرر:* ${sl}
-⭐ *امتیاز سیگنال:* ${score}/100
-⏰ *زمان:* ${time}
-━━━━━━━━━━━━━━
-${mtfText}
-━━━━━━━━━━━━━━
-📝 *توضیحات:*
-${help}
+${emoji} سیگنال ${type} جدید #${signalId}
+💎 نماد: طلای آبشده (مظنه)
 
-📖 *راهنمای سریع:*
-${quickGuide}
+📥 نقطه ورود: ${entry}
+🛡 حد ضرر (SL): ${sl}
+🎯 تارگت ۱: ${tp1}
+🎯 تارگت ۲: ${tp2}
+🎯 تارگت ۳: ${tp3}
 
-⚠️ *سلب مسئولیت:* تمام سیگنال‌ها جنبه پیشنهادی دارند. مسئولیت نهایی با معامله‌گر است.
+📊 مدیریت سرمایه:
+- ریسک پیشنهادی: ${riskPercent}٪ از موجودی
+- ورود در یک پله
+
+🧠 نکته روانشناسی:
+"${randomTip}"
+
+🆔 @FarazGold_Bot
     `.trim();
   }
 
-  async sendRubikaMessage(text: string) {
-    if (!this.settings.rubika?.enabled || !this.settings.rubika?.botToken || !this.settings.rubika?.chatId) return;
+  async sendRubikaMessage(text: string, replyToMessageId?: string): Promise<string | undefined> {
+    if (!this.settings.rubika?.enabled || !this.settings.rubika?.botToken || !this.settings.rubika?.chatId) return undefined;
     
     const chatIds = this.settings.rubika.chatId.split(',').map((id: string) => id.trim()).filter(Boolean);
+    const url = `https://botapi.rubika.ir/v3/${this.settings.rubika.botToken}/sendMessage`;
+    
+    let lastMessageId: string | undefined;
+
+    for (const chatId of chatIds) {
+      try {
+        const payload: any = {
+          chat_id: chatId,
+          text: text
+        };
+        if (replyToMessageId) {
+          payload.reply_to_message_id = replyToMessageId;
+        }
+
+        const res = await axios.post(url, payload, { timeout: 10000 });
+        if (res.data?.data?.message_id) {
+          lastMessageId = res.data.data.message_id;
+        }
+      } catch (e: any) {
+        console.error(`Rubika Error (${chatId}): ${e.message}`);
+      }
+    }
+    return lastMessageId;
+  }
+
+  async sendRubikaLog(text: string) {
+    if (!this.settings.rubika?.enabled || !this.settings.rubika?.botToken) return;
+    
+    // Use logChatId if available, otherwise fallback to chatId
+    const targetChatId = this.settings.rubika.logChatId || this.settings.rubika.chatId;
+    if (!targetChatId) return;
+
+    const chatIds = targetChatId.split(',').map((id: string) => id.trim()).filter(Boolean);
     const url = `https://botapi.rubika.ir/v3/${this.settings.rubika.botToken}/sendMessage`;
     
     for (const chatId of chatIds) {
@@ -445,17 +470,38 @@ ${quickGuide}
           text: text
         }, { timeout: 10000 });
       } catch (e: any) {
-        console.error(`Rubika Error (${chatId}): ${e.message}`);
+        console.error(`Rubika Log Error (${chatId}): ${e.message}`);
       }
     }
   }
 
-  async sendTelegramMessage(text: string) {
+  async sendTelegramLog(text: string) {
     if (!this.settings.telegram?.enabled) return;
+    
+    const targetChatId = this.settings.telegram.logChatId || this.settings.telegram.chatId;
+    if (!targetChatId) return;
+
+    const chatIds = targetChatId.split(',').map((id: string) => id.trim()).filter(Boolean);
+    
+    if (this.tgBot) {
+      for (const chatId of chatIds) {
+        try {
+          await this.tgBot.sendMessage(chatId, text, { parse_mode: 'HTML' });
+        } catch (e: any) {
+          console.error(`Telegram Log Error (${chatId}): ${e.message}`);
+        }
+      }
+    }
+  }
+
+  async sendTelegramMessage(text: string, replyToMessageId?: number): Promise<number | undefined> {
+    if (!this.settings.telegram?.enabled) return undefined;
     
     // Support multiple chat IDs
     const chatIds = this.settings.telegram.chatId.split(',').map((id: string) => id.trim()).filter(Boolean);
     
+    let lastMessageId: number | undefined;
+
     if (this.tgBot) {
       for (const chatId of chatIds) {
         try {
@@ -467,15 +513,22 @@ ${quickGuide}
             isBold = !isBold;
           }
           
-          await this.tgBot.sendMessage(chatId, htmlMsg, { parse_mode: 'HTML' });
+          const options: any = { parse_mode: 'HTML' };
+          if (replyToMessageId) {
+            options.reply_to_message_id = replyToMessageId;
+          }
+
+          const msg = await this.tgBot.sendMessage(chatId, htmlMsg, options);
+          lastMessageId = msg.message_id;
         } catch (e: any) {
           console.error(`Telegram Error (${chatId}): ${e.message}`);
         }
       }
     }
+    return lastMessageId;
   }
 
-  async sendTelegramReport() {
+  async sendReport() {
     if (!this.isTrading) return;
     
     // Generate a quick analysis
@@ -509,6 +562,7 @@ ${analysisText}
 
 📅 تاریخ: ${new Date().toLocaleTimeString('fa-IR')}`;
     await this.sendTelegramMessage(report);
+    await this.sendRubikaMessage(report.replace(/\*/g, ''));
   }
 
   async start() {
@@ -557,7 +611,7 @@ ${analysisText}
       
       // Send periodic report every 30 minutes (1800000 ms)
       if (now % 1800000 < 1000) {
-        this.sendTelegramReport();
+        this.sendReport();
       }
     }, 1000);
   }
@@ -1085,9 +1139,17 @@ ${analysisText}
                     const signalId = pos.signalId || '---';
                     this.openPositions.delete(id);
                     this.saveState();
-                    this.sendTelegramMessage(`🏁 *معامله بسته شد (سرور)*
+                    
+                    const msg = `🏁 *معامله بسته شد (سرور)*
 #${signalId}
-سود/ضرر: ${(tx.pnl || 0).toLocaleString('fa-IR')} تومان`);
+سود/ضرر: ${(tx.pnl || 0).toLocaleString('fa-IR')} تومان`;
+                    this.sendTelegramMessage(msg, pos.telegramMessageId);
+                    
+                    const rubikaMsg = `🏁 معامله بسته شد (سرور)
+#${signalId}
+سود/ضرر: ${(tx.pnl || 0).toLocaleString('fa-IR')} تومان`;
+                    this.sendRubikaMessage(rubikaMsg, pos.rubikaMessageId);
+                    
                     break;
                   }
                 }
@@ -1399,6 +1461,7 @@ ${analysisText}
 لطفاً حساب خود را شارژ کنید.`;
         this.log(`Trade Skipped: Insufficient balance (${this.portfolio.balance.toLocaleString('fa-IR')} < ${minRequiredBalance.toLocaleString('fa-IR')})`, "ERROR");
         this.sendTelegramMessage(msg);
+        this.sendRubikaMessage(msg);
         return;
       }
     }
@@ -1493,6 +1556,10 @@ ${analysisText}
         if (ok) {
           const transId = response?.data?.order_id || response?.data?.id || response?.data?.transaction_id;
           const id = Date.now();
+          
+          const tgMsgId = await this.sendTelegramMessage(this.formatSignalMessage(signal));
+          const rubikaMsgId = await this.sendRubikaMessage(this.formatSignalMessage(signal));
+
           this.openPositions.set(id, { 
             ...signal, 
             id, 
@@ -1505,7 +1572,9 @@ ${analysisText}
             originalSl: sl,
             currentStep: 0,
             slEnforced: false,
-            lastEnforceAttempt: Date.now()
+            lastEnforceAttempt: Date.now(),
+            telegramMessageId: tgMsgId,
+            rubikaMessageId: rubikaMsgId
           });
           this.log(`Trade Executed: ${signal.type} at ${this.price} (ID: ${transId})`, "SUCCESS");
           
@@ -1526,9 +1595,6 @@ ${analysisText}
               this.log(`SL/TP Enforcement Error for ${transId}: ${err.message}`, "ERROR");
             });
           }
-
-          this.sendTelegramMessage(this.formatSignalMessage(signal));
-          this.sendRubikaMessage(this.formatSignalMessage(signal));
         } else {
           const errorMsg = response?.data?.message || "";
           this.log(`Trade Entry Failed. Full Response: ${JSON.stringify(response?.data || {})}`, "ERROR");
@@ -1542,6 +1608,7 @@ ${analysisText}
 موجودی حساب شما برای باز کردن این پوزیشن کافی نیست.`;
             this.log(`Trade Entry Failed: Insufficient balance in account.`, "ERROR");
             this.sendTelegramMessage(msg);
+            this.sendRubikaMessage(msg);
           }
         }
       } catch (e) {
@@ -1549,6 +1616,10 @@ ${analysisText}
       }
     } else {
       const id = Date.now();
+      
+      const tgMsgId = await this.sendTelegramMessage(this.formatSignalMessage(signal));
+      const rubikaMsgId = await this.sendRubikaMessage(this.formatSignalMessage(signal));
+
       this.openPositions.set(id, { 
         ...signal, 
         id, 
@@ -1557,11 +1628,11 @@ ${analysisText}
         status: 'open', 
         units: 1, 
         currentStep: 0, 
-        originalSl: signal.sl 
+        originalSl: signal.sl,
+        telegramMessageId: tgMsgId,
+        rubikaMessageId: rubikaMsgId
       });
       this.log(`Trade Executed (SIM/OFFLINE): ${signal.type} at ${this.price}`, "SUCCESS");
-      this.sendTelegramMessage(this.formatSignalMessage(signal));
-      this.sendRubikaMessage(this.formatSignalMessage(signal));
     }
   }
 
@@ -1620,12 +1691,12 @@ ${analysisText}
 #${position.signalId || '---'}
 💰 قیمت: ${currentPrice.toLocaleString('fa-IR')}
 🛡️ حد ضرر به نقطه ورود منتقل شد (ریسک فری).
-🚀 در حال حرکت به سمت تارگت دوم: ${position.tp2.toLocaleString('fa-IR')}`);
+🚀 در حال حرکت به سمت تارگت دوم: ${position.tp2.toLocaleString('fa-IR')}`, position.telegramMessageId);
           
           this.sendRubikaMessage(`🎯 تارگت اول لمس شد! #${position.signalId || '---'}
 💰 قیمت: ${currentPrice.toLocaleString('fa-IR')}
 🛡️ حد ضرر به نقطه ورود منتقل شد.
-🚀 هدف بعدی: ${position.tp2.toLocaleString('fa-IR')}`);
+🚀 هدف بعدی: ${position.tp2.toLocaleString('fa-IR')}`, position.rubikaMessageId);
           
           continue;
         }
@@ -1647,12 +1718,12 @@ ${analysisText}
 #${position.signalId || '---'}
 💰 قیمت: ${currentPrice.toLocaleString('fa-IR')}
 🔒 سود قفل شد (حد ضرر به تارگت اول منتقل شد).
-🚀 در حال حرکت به سمت تارگت نهایی: ${position.tp3.toLocaleString('fa-IR')}`);
+🚀 در حال حرکت به سمت تارگت نهایی: ${position.tp3.toLocaleString('fa-IR')}`, position.telegramMessageId);
           
           this.sendRubikaMessage(`🎯 تارگت دوم لمس شد! #${position.signalId || '---'}
 💰 قیمت: ${currentPrice.toLocaleString('fa-IR')}
 🔒 سود قفل شد (حد ضرر به تارگت اول منتقل شد).
-🚀 هدف نهایی: ${position.tp3.toLocaleString('fa-IR')}`);
+🚀 هدف نهایی: ${position.tp3.toLocaleString('fa-IR')}`, position.rubikaMessageId);
           
           continue;
         }
@@ -2033,14 +2104,14 @@ ${analysisText}
 💰 ${profitText}: ${pnl.toLocaleString('fa-IR')} تومان
 📝 علت: ${reasonText}
 🏁 قیمت خروج: ${closePrice.toLocaleString('fa-IR')}
-📈 سود کل امروز: ${this.dailyPnL.toLocaleString('fa-IR')}`);
+📈 سود کل امروز: ${this.dailyPnL.toLocaleString('fa-IR')}`, pos.telegramMessageId);
 
     this.sendRubikaMessage(`${profitEmoji} معامله بسته شد ${profitEmoji}
 #${signalId}
 📌 نوع: ${pos.type === 'BUY' ? 'خرید' : 'فروش'}
 💰 ${profitText}: ${pnl.toLocaleString('fa-IR')} تومان
 📝 علت: ${reasonText}
-🏁 قیمت خروج: ${closePrice.toLocaleString('fa-IR')}`);
+🏁 قیمت خروج: ${closePrice.toLocaleString('fa-IR')}`, pos.rubikaMessageId);
   }
 
   async enforceStopLossTakeProfit(transactionId: number, sl: number, tp: number, localId: number): Promise<boolean> {
