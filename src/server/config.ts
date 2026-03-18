@@ -111,13 +111,15 @@ export const config = {
   strategy: {
     enabled: true,
     highQualityMode: false,
+    enableStrengthScaling: false,
     entry: {
       maxDistanceFromSlowEmaPercent: 0.5
     },
     tradeCooldown: 8,
     minSignalScore: 1,
     highQuality: {
-      volumeMultiplier: 2.5, // Increase volume for HQ signals
+      autoScaleVolume: false,
+      volumeMultiplier: 1.5, // Increase volume for HQ signals
       tp1Percent: 60, // Target 60% of ATR for TP1
       tp2Percent: 120, // Target 120% of ATR for TP2
       trailing: {
@@ -372,7 +374,19 @@ export const config = {
   telegram: {
     enabled: false,
     botToken: '',
-    chatId: ''
+    chatId: '', // Single or comma-separated
+    quickGuide: '• ورود: زمانی که قیمت نزدیک به Entry است وارد معامله شوید.\n• تارگت و حد ضرر را دقیق تنظیم کنید تا از ریسک اضافی جلوگیری شود.\n• اگر امتیاز بالا باشد، احتمال موفقیت سیگنال بالاتر است.',
+    logEnabled: false
+  },
+
+  // ==========================================
+  // 📱 Rubika
+  // ==========================================
+  rubika: {
+    enabled: false,
+    botToken: '',
+    chatId: '', // Single or comma-separated
+    logEnabled: false
   },
 
   // ==========================================

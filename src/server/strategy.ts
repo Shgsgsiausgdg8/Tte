@@ -129,17 +129,24 @@ export class Strategy {
     this.calculateIndicators(closes, highs, lows, volumes);
 
     const ind = this.indicators;
-    const cfg = this.config.strategy?.indicators || this.config.strategy || {};
+    const scalpCfg = this.config.strategy?.scalp || {};
+    
+    const rsi = this.calculateRSI(closes, scalpCfg.rsiPeriod || 14);
+    const emaFast = this.calculateEMA(closes, scalpCfg.emaFast || 9);
+    const emaSlow = this.calculateEMA(closes, scalpCfg.emaSlow || 21);
+    const atr = this.calculateATR(highs, lows, closes, 14);
 
-    if (!ind.rsi || !ind.emaFast || !ind.emaSlow) return { signal: null, reason: 'Indicators not ready' };
+    const cfg = {
+      rsi: {
+        oversold: scalpCfg.rsiOversold || 40,
+        overbought: scalpCfg.rsiOverbought || 60
+      }
+    };
 
-    const rsi = ind.rsi;
-    const emaFast = ind.emaFast;
-    const emaSlow = ind.emaSlow;
-    const atr = ind.atr || price * 0.002;
+    if (rsi === null || emaFast === null || emaSlow === null) return { signal: null, reason: 'Indicators not ready' };
 
     const atrPercent = (atr / price) * 100;
-    const minAtrPercent = Number(this.config.strategy?.filters?.minAtrPercent ?? 0.005);
+    const minAtrPercent = Number(scalpCfg.minAtrPercent ?? 0.005);
     if (atrPercent < minAtrPercent) return { signal: null, reason: 'Low volatility' };
 
     let score = 0;
@@ -155,8 +162,7 @@ export class Strategy {
     const momentumUp = lastClose > prevClose;
     const momentumDown = lastClose < prevClose;
 
-    const entryCfg = (this.config.strategy?.entry || {});
-    const maxDistPct = Number(entryCfg.maxDistanceFromSlowEmaPercent ?? 0.08);
+    const maxDistPct = Number(scalpCfg.maxDistanceFromSlowEmaPercent ?? 0.08);
     const maxDist = (maxDistPct / 100);
 
     // Stricter distance check from slow EMA to avoid buying at the top or selling at the bottom
@@ -165,8 +171,8 @@ export class Strategy {
     const nearSlowForSell = distToSlowEma <= maxDist;
 
     // Require stronger RSI levels for entry
-    const rsiOversold = cfg.rsi?.oversold || 40; // Stricter than 45
-    const rsiOverbought = cfg.rsi?.overbought || 60; // Stricter than 55
+    const rsiOversold = cfg.rsi.oversold;
+    const rsiOverbought = cfg.rsi.overbought;
 
     if (trendUp && nearSlowForBuy) {
       if (rsi <= rsiOversold) {
@@ -370,7 +376,10 @@ export class Strategy {
       entry: price,
       sl,
       tp1: tp,
+      tp2: type === 'BUY' ? price + (tp - price) * 1.8 : price - (price - tp) * 1.8,
+      tp3: type === 'BUY' ? price + (tp - price) * 3.0 : price - (price - tp) * 3.0,
       score,
+      strength: score >= 5 ? 'STRONG' : (score >= 3 ? 'NORMAL' : 'WEAK'),
       reasons,
       confidence: Math.min(100, 50 + (score * 10)),
       timestamp: Date.now(),
@@ -455,7 +464,10 @@ export class Strategy {
       entry: price,
       sl,
       tp1: tp,
+      tp2: type === 'BUY' ? price + tpDist * 1.8 : price - tpDist * 1.8,
+      tp3: type === 'BUY' ? price + tpDist * 3.0 : price - tpDist * 3.0,
       score,
+      strength: score >= 5 ? 'STRONG' : (score >= 3 ? 'NORMAL' : 'WEAK'),
       reasons,
       confidence: Math.min(100, 50 + (score * 15)),
       timestamp: Date.now(),
@@ -475,10 +487,18 @@ export class Strategy {
     const lows = priceHistory.map(p => p.low ?? p.price);
     const price = currentPrice || closes[closes.length - 1];
 
+    const fastCfg = this.config.strategy?.fast || {
+      emaFast: 5,
+      emaSlow: 13,
+      rsiPeriod: 7,
+      rsiOversold: 40,
+      rsiOverbought: 60
+    };
+
     // Very short periods for fast reaction
-    const rsi = this.calculateRSI(closes, 7);
-    const emaFast = this.calculateEMA(closes, 5);
-    const emaSlow = this.calculateEMA(closes, 13);
+    const rsi = this.calculateRSI(closes, fastCfg.rsiPeriod || 7);
+    const emaFast = this.calculateEMA(closes, fastCfg.emaFast || 5);
+    const emaSlow = this.calculateEMA(closes, fastCfg.emaSlow || 13);
     
     const lastClose = closes[closes.length - 1];
     const prevClose = closes[closes.length - 2] || lastClose;
@@ -490,7 +510,7 @@ export class Strategy {
 
     // Aggressive Buy
     if (price > emaFast && emaFast > emaSlow) {
-      if (rsi < 40 && momentum > 0) { // Stricter RSI
+      if (rsi < (fastCfg.rsiOversold || 40) && momentum > 0) { // Stricter RSI
         type = 'BUY';
         score = 2;
         reasons.push('Fast EMA Cross', 'RSI Oversold Pullback');
@@ -502,7 +522,7 @@ export class Strategy {
     } 
     // Aggressive Sell
     else if (price < emaFast && emaFast < emaSlow) {
-      if (rsi > 60 && momentum < 0) { // Stricter RSI
+      if (rsi > (fastCfg.rsiOverbought || 60) && momentum < 0) { // Stricter RSI
         type = 'SELL';
         score = 2;
         reasons.push('Fast EMA Cross', 'RSI Overbought Pullback');
@@ -622,30 +642,21 @@ export class Strategy {
 
     this.roundNumberHit = null;
 
-    const sl = type === 'BUY' ? currentPrice - (cfg.stopLossPips * tickSize) : currentPrice + (cfg.stopLossPips * tickSize);
-    const tp = type === 'BUY' ? currentPrice + (cfg.takeProfitPips * tickSize) : currentPrice - (cfg.takeProfitPips * tickSize);
-
-    const signal = {
-      type,
-      entry: currentPrice,
-      sl,
-      tp1: tp,
-      score: 3,
-      reasons,
-      confidence: 85,
-      timestamp: now,
-      pattern: patternName,
-      strategy: 'NUMERICAL',
-      indicators: { 
-        momentumUp, 
-        momentumDown, 
-        roundNumber,
-        rsi: this.indicators.rsi?.toFixed(1),
-        emaFast: this.indicators.emaFast?.toFixed(0),
-        emaSlow: this.indicators.emaSlow?.toFixed(0),
-        atr: this.indicators.atr?.toFixed(0)
-      }
-    };
+    const atr = this.indicators.atr || (currentPrice * 0.0005);
+    const signal = this.createSignal(type, currentPrice, 3, reasons, atr, 'NUMERICAL');
+    signal.pattern = patternName;
+    
+    // Override SL/TP if numerical config has specific pips
+    if (cfg.stopLossPips) {
+      signal.sl = type === 'BUY' ? currentPrice - (cfg.stopLossPips * tickSize) : currentPrice + (cfg.stopLossPips * tickSize);
+    }
+    if (cfg.takeProfitPips) {
+      signal.tp1 = type === 'BUY' ? currentPrice + (cfg.takeProfitPips * tickSize) : currentPrice - (cfg.takeProfitPips * tickSize);
+      // Re-calculate TP2/TP3 based on new TP1
+      const tpDist = Math.abs(signal.tp1 - currentPrice);
+      signal.tp2 = type === 'BUY' ? currentPrice + (tpDist * 1.8) : currentPrice - (tpDist * 1.8);
+      signal.tp3 = type === 'BUY' ? currentPrice + (tpDist * 3.0) : currentPrice - (tpDist * 3.0);
+    }
 
     return { signal, reason: 'Numerical signal OK' };
   }
@@ -949,21 +960,31 @@ export class Strategy {
     const isBuy = type === 'BUY';
     let sl = isBuy ? price - slDist : price + slDist;
     let tp1 = isBuy ? price + tpDist : price - tpDist;
+    
+    // Multiple TPs
+    let tp2 = isBuy ? price + (tpDist * 1.8) : price - (tpDist * 1.8);
+    let tp3 = isBuy ? price + (tpDist * 3.0) : price - (tpDist * 3.0);
 
     // Final safety fallback
     if (isNaN(sl) || sl === 0) sl = isBuy ? price - (10 * tickSize) : price + (10 * tickSize);
     if (isNaN(tp1) || tp1 === 0) tp1 = isBuy ? price + (15 * tickSize) : price - (15 * tickSize);
+    if (isNaN(tp2) || tp2 === 0) tp2 = isBuy ? price + (25 * tickSize) : price - (25 * tickSize);
+    if (isNaN(tp3) || tp3 === 0) tp3 = isBuy ? price + (40 * tickSize) : price - (40 * tickSize);
 
     return {
       type,
       entry: price,
       sl: Math.round(sl),
       tp1: Math.round(tp1),
+      tp2: Math.round(tp2),
+      tp3: Math.round(tp3),
       score,
+      strength: score >= 5 ? 'STRONG' : (score >= 3 ? 'NORMAL' : 'WEAK'),
       reasons,
       confidence: 50 + (score * 15),
       timestamp: Date.now(),
       strategy: strategyName,
+      pattern: null as string | null,
       indicators: {
         rsi: this.indicators.rsi?.toFixed(1),
         emaFast: this.indicators.emaFast?.toFixed(0),
@@ -1201,7 +1222,7 @@ export class Strategy {
   // HELPER: Aggregate 1m to 5m
   // ==========================================
   aggregateTo5Min(priceHistory1min: any[]) {
-    const history5min = [];
+    const history5min: any[] = [];
     let current5MinBar: any = null;
     
     for (const bar of priceHistory1min) {
@@ -1229,6 +1250,58 @@ export class Strategy {
     }
     if (current5MinBar) history5min.push(current5MinBar);
     return history5min;
+  }
+
+  // ==========================================
+  // HELPER: Aggregate 1m to 15m
+  // ==========================================
+  aggregateTo15Min(priceHistory1min: any[]) {
+    const history15min: any[] = [];
+    let current15MinBar: any = null;
+    
+    for (const bar of priceHistory1min) {
+      const time = bar.time || Date.now();
+      const time15min = Math.floor(time / (15 * 60 * 1000)) * (15 * 60 * 1000);
+      
+      if (!current15MinBar || current15MinBar.time !== time15min) {
+        if (current15MinBar) history15min.push(current15MinBar);
+        current15MinBar = {
+          time: time15min,
+          open: bar.open ?? bar.price,
+          high: bar.high ?? bar.price,
+          low: bar.low ?? bar.price,
+          close: bar.price,
+          price: bar.price,
+          volume: bar.volume || 0
+        };
+      } else {
+        current15MinBar.high = Math.max(current15MinBar.high, bar.high ?? bar.price);
+        current15MinBar.low = Math.min(current15MinBar.low, bar.low ?? bar.price);
+        current15MinBar.close = bar.price;
+        current15MinBar.price = bar.price;
+        current15MinBar.volume += (bar.volume || 0);
+      }
+    }
+    if (current15MinBar) history15min.push(current15MinBar);
+    return history15min;
+  }
+
+  // ==========================================
+  // HELPER: Get MTF Trend Status
+  // ==========================================
+  getMTFStatus(priceHistory1min: any[]) {
+    const closes1 = priceHistory1min.map(p => p.price);
+    const history5 = this.aggregateTo5Min(priceHistory1min);
+    const history15 = this.aggregateTo15Min(priceHistory1min);
+    
+    const closes5 = history5.map(p => p.price);
+    const closes15 = history15.map(p => p.price);
+    
+    return {
+      m1: this.detectTrend(closes1, 14),
+      m5: this.detectTrend(closes5, 14),
+      m15: this.detectTrend(closes15, 14)
+    };
   }
 
   // ==========================================
@@ -1384,6 +1457,12 @@ export class Strategy {
   // 8. MTF SUPPORT/RESISTANCE + CANDLE PATTERNS
   // ==========================================
   analyzeMTFPatterns(priceHistory5min: any[], priceHistory1min: any[], currentPrice: number, effectiveMinScore: number = this.minSignalScore) {
+      const mtfCfg = this.config.strategy?.mtfPattern || {
+          proximityThreshold: 50,
+          swingLeftRight: 2,
+          clusterBinSize: 10
+      };
+
       const supports = [];
       const resistances = [];
       
@@ -1391,8 +1470,8 @@ export class Strategy {
       const lows5 = priceHistory5min.map(p => p.low ?? p.price);
       const closes5 = priceHistory5min.map(p => p.price);
       
-      const swingPoints = this.findSwingPoints(highs5, lows5, 2);
-      const priceClusters = this.findPriceClusters(priceHistory5min, 10);
+      const swingPoints = this.findSwingPoints(highs5, lows5, mtfCfg.swingLeftRight || 2);
+      const priceClusters = this.findPriceClusters(priceHistory5min, mtfCfg.clusterBinSize || 10);
       const roundLevels = this.findRoundLevels(currentPrice, 1000);
       
       const allLevels = [
@@ -1408,7 +1487,7 @@ export class Strategy {
       
       const currentPrice1min = currentPrice || priceHistory1min[priceHistory1min.length - 1]?.price;
       const tickSize = this.config.market?.tickSize || 1;
-      const proximityThreshold = 50;
+      const proximityThreshold = mtfCfg.proximityThreshold || 50;
       
       let bestSignal: any = null;
       let bestScore = 0;
@@ -1506,7 +1585,21 @@ export class Strategy {
   // 9. ICHIMOKU CLOUD + S/R + CANDLE PATTERNS
   // ==========================================
   analyzeIchimokuMTF(priceHistory5min: any[], priceHistory1min: any[], currentPrice: number, effectiveMinScore: number = this.minSignalScore) {
-      const ichimoku = this.calculateIchimoku(priceHistory5min);
+      const ichiCfg = this.config.strategy?.ichimokuMtf || {
+          proximityThreshold: 40,
+          swingLeftRight: 3,
+          clusterBinSize: 20,
+          tenkanPeriod: 9,
+          kijunPeriod: 26,
+          senkouBPeriod: 52
+      };
+
+      const ichimoku = this.calculateIchimoku(
+          priceHistory5min, 
+          ichiCfg.tenkanPeriod || 9, 
+          ichiCfg.kijunPeriod || 26, 
+          ichiCfg.senkouBPeriod || 52
+      );
       if (!ichimoku) return { signal: null, reason: 'Ichimoku data not ready' };
 
       const closes5 = priceHistory5min.map(p => p.price);
@@ -1524,8 +1617,8 @@ export class Strategy {
           { price: ichimoku.chikou, type: 'Chikou Span', strength: 3, description: 'Lagging Line - Confirmation' }
       );
       
-      const swingPoints = this.findSwingPoints(highs5, lows5, 3);
-      const priceClusters = this.findPriceClusters(priceHistory5min, 20);
+      const swingPoints = this.findSwingPoints(highs5, lows5, ichiCfg.swingLeftRight || 3);
+      const priceClusters = this.findPriceClusters(priceHistory5min, ichiCfg.clusterBinSize || 20);
       const roundLevels = this.findRoundLevels(currentPrice5, 1000);
       
       const allLevels = [
@@ -1542,7 +1635,7 @@ export class Strategy {
       
       const currentPrice1min = currentPrice || priceHistory1min[priceHistory1min.length - 1]?.price;
       const tickSize = this.config.market?.tickSize || 1;
-      const proximityThreshold = 40;
+      const proximityThreshold = ichiCfg.proximityThreshold || 40;
       
       let bestSignal: any = null;
       let bestScore = 0;
@@ -1607,7 +1700,20 @@ export class Strategy {
   // 10. ICHIMOKU + HARAMI + S/R (Black Cloud & Harami)
   // ==========================================
   analyzeIchimokuHaramiMTF(priceHistory5min: any[], priceHistory1min: any[], currentPrice: number, effectiveMinScore: number = this.minSignalScore) {
-      const ichimoku = this.calculateIchimoku(priceHistory5min);
+      const haramiCfg = this.config.strategy?.ichimokuHarami || {
+          proximityThreshold: 40,
+          minScore: 8,
+          tenkanPeriod: 9,
+          kijunPeriod: 26,
+          senkouBPeriod: 52
+      };
+
+      const ichimoku = this.calculateIchimoku(
+          priceHistory5min,
+          haramiCfg.tenkanPeriod || 9,
+          haramiCfg.kijunPeriod || 26,
+          haramiCfg.senkouBPeriod || 52
+      );
       if (!ichimoku) {
           return { signal: null, reason: 'Ichimoku data not ready' };
       }
@@ -1620,7 +1726,7 @@ export class Strategy {
       
       const currentPrice1min = currentPrice || priceHistory1min[priceHistory1min.length - 1]?.price;
       const tickSize = this.config.market?.tickSize || 1;
-      const proximityThreshold = 40;
+      const proximityThreshold = haramiCfg.proximityThreshold || 40;
       
       let signals = [];
       
@@ -1682,7 +1788,7 @@ export class Strategy {
       signals.sort((a, b) => b.score - a.score);
       const bestSignal = signals[0];
       
-      if (bestSignal.score < 8) {
+      if (bestSignal.score < (haramiCfg.minScore || 8)) {
           return {
               signal: null,
               reason: `Signal score too low: ${bestSignal.score}`,
@@ -1697,8 +1803,8 @@ export class Strategy {
   // توابع کمکی ایچیموکو
   // ==========================================
 
-  calculateIchimoku(priceHistory: any[]) {
-      if (priceHistory.length < 52) {
+  calculateIchimoku(priceHistory: any[], tenkanPeriod: number = 9, kijunPeriod: number = 26, senkouBPeriod: number = 52) {
+      if (priceHistory.length < Math.max(tenkanPeriod, kijunPeriod, senkouBPeriod)) {
           return null;
       }
       
@@ -1706,19 +1812,16 @@ export class Strategy {
       const lows = priceHistory.map(p => p.low ?? p.price);
       const closes = priceHistory.map(p => p.price);
       
-      const tenkanPeriod = 9;
       const tenkanHigh = Math.max(...highs.slice(-tenkanPeriod));
       const tenkanLow = Math.min(...lows.slice(-tenkanPeriod));
       const tenkan = (tenkanHigh + tenkanLow) / 2;
       
-      const kijunPeriod = 26;
       const kijunHigh = Math.max(...highs.slice(-kijunPeriod));
       const kijunLow = Math.min(...lows.slice(-kijunPeriod));
       const kijun = (kijunHigh + kijunLow) / 2;
       
       const senkouA = (tenkan + kijun) / 2;
       
-      const senkouBPeriod = 52;
       const senkouBHigh = Math.max(...highs.slice(-senkouBPeriod));
       const senkouBLow = Math.min(...lows.slice(-senkouBPeriod));
       const senkouB = (senkouBHigh + senkouBLow) / 2;
