@@ -829,6 +829,8 @@ ${analysisText}
          }
       }
       
+      const isGhostTrade = !existingPos && apiSl === 0 && apiTp === 0;
+
       syncedPositions.set(id, {
         id: id,
         transactionId: transId,
@@ -846,7 +848,8 @@ ${analysisText}
         pyramidTriggered: existingPos?.pyramidTriggered || false,
         currentStep: existingPos?.currentStep || 0,
         originalSl: existingPos?.originalSl || finalSl,
-        isFixingSlTp: existingPos?.isFixingSlTp || false
+        isFixingSlTp: existingPos?.isFixingSlTp || false,
+        isGhostTrade: isGhostTrade
       });
     }
     
@@ -901,6 +904,20 @@ ${analysisText}
     
     this.openPositions = syncedPositions;
     this.saveState();
+    
+    // 3. Panic close ghost trades (trades opened without SL/TP and without signal)
+    for (const [id, pos] of this.openPositions.entries()) {
+      if ((pos as any).isGhostTrade) {
+        this.log(`🚨 GHOST TRADE DETECTED: Position ${id} found with NO SL/TP! Panic closing to protect account!`, "ERROR");
+        this.sendTelegramMessage(`🚨 *هشدار امنیتی: معامله روح (Ghost Trade)*
+یک معامله بدون حد ضرر و سود در حساب شما پیدا شد که توسط ربات ثبت نشده بود. برای محافظت از سرمایه، ربات بلافاصله آن را می‌بندد.
+شناسه: ${id}`);
+        this.sendRubikaMessage(`🚨 هشدار امنیتی: معامله روح (Ghost Trade)
+یک معامله بدون حد ضرر و سود در حساب شما پیدا شد که توسط ربات ثبت نشده بود. برای محافظت از سرمایه، ربات بلافاصله آن را می‌بندد.
+شناسه: ${id}`);
+        this.closeTrade(id, 'panic_ghost_trade');
+      }
+    }
   }
 
   connectToExternalWS() {
@@ -1873,7 +1890,8 @@ ${analysisText}
         }
       }
 
-      // Pyramiding Logic (5 ticks profit)
+      // Pyramiding Logic (5 ticks profit) - DISABLED to prevent ghost trades without SL
+      /*
       if (this.settings.activeStrategy === 'NUMERICAL' && !position.pyramidTriggered) {
         const currentDist = isBuy ? currentPrice - entryPrice : entryPrice - currentPrice;
         if (currentDist >= 5 * tickSize) {
@@ -1899,6 +1917,7 @@ ${analysisText}
           this.enterTrade(signal);
         }
       }
+      */
     }
   }
 
