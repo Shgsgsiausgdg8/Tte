@@ -1379,6 +1379,29 @@ ${analysisText}
       
       this.log(`Signal Detected: ${result.signal.type} (${result.signal.pattern || 'SCALP'}) Score: ${result.signal.score} ID: ${result.signal.signalId}`, "SIGNAL");
       this.recorder.recordSignal({ ...result.signal, price: this.price });
+
+      // Reversal Logic
+      const reversalCfg = this.settings.targetsTicks?.reversal;
+      let reversed = false;
+      if (reversalCfg?.enabled && result.signal.score >= (reversalCfg.minOppositeSignalScore || 2)) {
+        const tickSize = this.settings.market?.tickSize || 1;
+        for (const [id, pos] of this.openPositions.entries()) {
+          const isBuy = pos.type === 'BUY';
+          const isOpposite = (isBuy && result.signal.type === 'SELL') || (!isBuy && result.signal.type === 'BUY');
+          
+          if (isOpposite) {
+            const currentDist = isBuy ? this.price - pos.entryPrice : pos.entryPrice - this.price;
+            const lossTicks = -currentDist / tickSize;
+            
+            if (lossTicks >= (reversalCfg.triggerLossTicks || 6)) {
+              this.log(`Reversal Triggered: Closing losing ${pos.type} trade to open ${result.signal.type}`, "ERROR");
+              this.closeTrade(id, 'reversal');
+              reversed = true;
+            }
+          }
+        }
+      }
+
       this.enterTrade(result.signal);
     } else if (result.reason && result.reason !== 'No signal' && result.reason !== 'Indicators not ready') {
       // Log reason occasionally or if it's important
@@ -1761,7 +1784,7 @@ ${analysisText}
         const currentDist = isBuy ? currentPrice - entryPrice : entryPrice - currentPrice;
         const currentProfitPct = (currentDist / tpDist) * 100;
 
-        const steps = steppedCfg.steps || [];
+        const steps = [...(steppedCfg.steps || [])].sort((a, b) => a.triggerPct - b.triggerPct);
         for (let i = steps.length - 1; i >= 0; i--) {
           const step = steps[i];
           const stepIndex = i + 1;
@@ -1890,19 +1913,33 @@ ${analysisText}
         }
       }
 
-      // Pyramiding Logic (5 ticks profit) - DISABLED to prevent ghost trades without SL
-      /*
-      if (this.settings.activeStrategy === 'NUMERICAL' && !position.pyramidTriggered) {
+      // Pyramiding Logic
+      const pyramidingCfg = this.settings.strategy?.pyramiding;
+      if (pyramidingCfg?.enabled && !position.pyramidTriggered) {
         const currentDist = isBuy ? currentPrice - entryPrice : entryPrice - currentPrice;
-        if (currentDist >= 5 * tickSize) {
+        const profitTicks = pyramidingCfg.profitTicksTrigger || 5;
+        
+        if (currentDist >= profitTicks * tickSize) {
           position.pyramidTriggered = true;
-          position.sl = entryPrice; // Move SL of first step to entry
+          
+          // Move SL of first step to entry (Break Even)
+          const isImprovement = isBuy ? entryPrice > position.sl : entryPrice < position.sl;
+          if (isImprovement) {
+            position.sl = entryPrice;
+            if (position.transactionId) {
+              this.editStopLoss(position.transactionId, entryPrice);
+            }
+          }
+          
+          // Calculate safe SL for second step
+          const stopDist = (this.settings.targetsTicks?.stopTicks || 12) * tickSize;
+          const secondStepSl = isBuy ? currentPrice - stopDist : currentPrice + stopDist;
           
           // Open second step
           const signal = {
             type: position.type,
             entry: currentPrice,
-            sl: entryPrice, // SL of second step is entry of first step
+            sl: secondStepSl, // Safe SL for second step
             tp1: position.tp1, // Same TP
             tp2: position.tp2,
             tp3: position.tp3,
@@ -1912,12 +1949,11 @@ ${analysisText}
             confidence: position.confidence,
             timestamp: Date.now(),
             pattern: 'Pyramiding',
-            strategy: 'NUMERICAL'
+            strategy: this.settings.activeStrategy
           };
           this.enterTrade(signal);
         }
       }
-      */
     }
   }
 

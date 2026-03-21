@@ -1229,18 +1229,209 @@ export default function Dashboard() {
                         </button>
                       </div>
                       {settings.targets?.steppedRiskFree?.enabled && (
-                        <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-4 space-y-3">
-                          <div className="flex justify-between text-[10px] font-mono">
-                            <span className="text-slate-400">مرحله ۱ (۳۰٪ سود):</span>
-                            <span className="text-emerald-500">کاهش ۵۰٪ ریسک</span>
+                        <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-4 space-y-4">
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="text-xs font-bold text-emerald-500">تنظیمات مراحل</span>
+                            <button 
+                              onClick={() => {
+                                const currentSteps = settings.targets?.steppedRiskFree?.steps || [];
+                                setSettings({
+                                  ...settings,
+                                  targets: {
+                                    ...settings.targets,
+                                    steppedRiskFree: {
+                                      ...settings.targets?.steppedRiskFree,
+                                      steps: [...currentSteps, { triggerPct: 50, movePct: 0 }]
+                                    }
+                                  }
+                                });
+                              }}
+                              className="text-[10px] bg-emerald-500/20 text-emerald-500 px-2 py-1 rounded hover:bg-emerald-500/30 transition-colors"
+                            >
+                              + افزودن مرحله
+                            </button>
                           </div>
-                          <div className="flex justify-between text-[10px] font-mono">
-                            <span className="text-slate-400">مرحله ۲ (۶۰٪ سود):</span>
-                            <span className="text-emerald-500">ریسک‌فری کامل (نقطه ورود)</span>
+                          
+                          {(settings.targets?.steppedRiskFree?.steps || []).map((step: any, index: number) => (
+                            <div key={index} className="flex items-center gap-3 bg-white/5 p-3 rounded-xl relative group">
+                              <div className="flex-1">
+                                <label className="text-[9px] text-slate-500 uppercase font-mono mb-1 block">فعال‌سازی (درصد از حد سود)</label>
+                                <div className="relative">
+                                  <input 
+                                    type="number" 
+                                    value={step.triggerPct}
+                                    onChange={(e) => {
+                                      const newSteps = [...(settings.targets?.steppedRiskFree?.steps || [])];
+                                      newSteps[index] = { ...newSteps[index], triggerPct: parseFloat(e.target.value) };
+                                      setSettings({
+                                        ...settings,
+                                        targets: {
+                                          ...settings.targets,
+                                          steppedRiskFree: { ...settings.targets?.steppedRiskFree, steps: newSteps }
+                                        }
+                                      });
+                                    }}
+                                    className="w-full bg-black/20 border border-white/5 rounded-xl px-3 py-2 text-xs outline-none focus:border-emerald-500/50"
+                                  />
+                                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-500">%</span>
+                                </div>
+                              </div>
+                              <div className="flex-1">
+                                <label className="text-[9px] text-slate-500 uppercase font-mono mb-1 block">جابجایی حد ضرر</label>
+                                <div className="relative">
+                                  <input 
+                                    type="number" 
+                                    value={step.movePct}
+                                    onChange={(e) => {
+                                      const newSteps = [...(settings.targets?.steppedRiskFree?.steps || [])];
+                                      newSteps[index] = { ...newSteps[index], movePct: parseFloat(e.target.value) };
+                                      setSettings({
+                                        ...settings,
+                                        targets: {
+                                          ...settings.targets,
+                                          steppedRiskFree: { ...settings.targets?.steppedRiskFree, steps: newSteps }
+                                        }
+                                      });
+                                    }}
+                                    className="w-full bg-black/20 border border-white/5 rounded-xl px-3 py-2 text-xs outline-none focus:border-emerald-500/50"
+                                  />
+                                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-500">%</span>
+                                </div>
+                              </div>
+                              <button 
+                                onClick={() => {
+                                  const newSteps = [...(settings.targets?.steppedRiskFree?.steps || [])];
+                                  newSteps.splice(index, 1);
+                                  setSettings({
+                                    ...settings,
+                                    targets: {
+                                      ...settings.targets,
+                                      steppedRiskFree: { ...settings.targets?.steppedRiskFree, steps: newSteps }
+                                    }
+                                  });
+                                }}
+                                className="absolute -left-2 -top-2 w-5 h-5 bg-rose-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-xs"
+                              >
+                                ×
+                              </button>
+                            </div>
+                          ))}
+                          <div className="text-[9px] text-slate-400 mt-2 p-2 bg-black/20 rounded-xl">
+                            <span className="text-emerald-500 font-bold">راهنما:</span><br/>
+                            • <b>فعال‌سازی:</b> وقتی قیمت به این درصد از فاصله تا حد سود رسید، مرحله اجرا می‌شود.<br/>
+                            • <b>جابجایی:</b> مقدار منفی (مثلاً ۵۰-) یعنی کاهش ۵۰٪ ریسک اولیه. مقدار ۰ یعنی ریسک‌فری کامل (انتقال به نقطه ورود). مقدار مثبت (مثلاً ۲۵) یعنی قفل کردن ۲۵٪ از سود.
                           </div>
-                          <div className="flex justify-between text-[10px] font-mono">
-                            <span className="text-slate-400">مرحله ۳ (۸۵٪ سود):</span>
-                            <span className="text-emerald-500">قفل ۲۵٪ سود</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </section>
+
+                {/* Aggressive Systems */}
+                <section>
+                  <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-3">
+                    <Zap className="w-4 h-4" /> سیستم‌های تهاجمی
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Reversal System */}
+                    <div className="flex flex-col bg-white/5 p-4 rounded-2xl">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium">سیستم ریورس (Reversal)</span>
+                          <span className="text-[10px] text-slate-500">باز کردن پوزیشن معکوس در صورت ضرر</span>
+                        </div>
+                        <button 
+                          onClick={() => setSettings({ 
+                            ...settings, 
+                            targetsTicks: { 
+                              ...settings.targetsTicks, 
+                              reversal: { ...settings.targetsTicks?.reversal, enabled: !settings.targetsTicks?.reversal?.enabled } 
+                            } 
+                          })}
+                          className={`w-12 h-6 rounded-full transition-colors relative ${settings.targetsTicks?.reversal?.enabled ? 'bg-orange-500' : 'bg-slate-700'}`}
+                        >
+                          <motion.div 
+                            animate={{ x: settings.targetsTicks?.reversal?.enabled ? 24 : 4 }}
+                            className="absolute top-1 w-4 h-4 bg-white rounded-full"
+                          />
+                        </button>
+                      </div>
+                      {settings.targetsTicks?.reversal?.enabled && (
+                        <div className="space-y-4 bg-orange-500/5 border border-orange-500/20 p-4 rounded-2xl">
+                          <div>
+                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">تعداد تیک ضرر برای فعال‌سازی</label>
+                            <input 
+                              type="number" 
+                              value={settings.targetsTicks?.reversal?.triggerLossTicks || 6}
+                              onChange={(e) => setSettings({ 
+                                ...settings, 
+                                targetsTicks: { 
+                                  ...settings.targetsTicks, 
+                                  reversal: { ...settings.targetsTicks?.reversal, triggerLossTicks: parseInt(e.target.value) } 
+                                } 
+                              })}
+                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-orange-500/50"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">حداقل قدرت سیگنال معکوس</label>
+                            <input 
+                              type="number" 
+                              value={settings.targetsTicks?.reversal?.minOppositeSignalScore || 2}
+                              onChange={(e) => setSettings({ 
+                                ...settings, 
+                                targetsTicks: { 
+                                  ...settings.targetsTicks, 
+                                  reversal: { ...settings.targetsTicks?.reversal, minOppositeSignalScore: parseInt(e.target.value) } 
+                                } 
+                              })}
+                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-orange-500/50"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Pyramiding System */}
+                    <div className="flex flex-col bg-white/5 p-4 rounded-2xl">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium">سیستم پله‌ای (Pyramiding)</span>
+                          <span className="text-[10px] text-slate-500">افزایش حجم در روند سودده</span>
+                        </div>
+                        <button 
+                          onClick={() => setSettings({ 
+                            ...settings, 
+                            strategy: { 
+                              ...settings.strategy, 
+                              pyramiding: { ...settings.strategy?.pyramiding, enabled: !settings.strategy?.pyramiding?.enabled } 
+                            } 
+                          })}
+                          className={`w-12 h-6 rounded-full transition-colors relative ${settings.strategy?.pyramiding?.enabled ? 'bg-orange-500' : 'bg-slate-700'}`}
+                        >
+                          <motion.div 
+                            animate={{ x: settings.strategy?.pyramiding?.enabled ? 24 : 4 }}
+                            className="absolute top-1 w-4 h-4 bg-white rounded-full"
+                          />
+                        </button>
+                      </div>
+                      {settings.strategy?.pyramiding?.enabled && (
+                        <div className="space-y-4 bg-orange-500/5 border border-orange-500/20 p-4 rounded-2xl">
+                          <div>
+                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">تعداد تیک سود برای ورود پله دوم</label>
+                            <input 
+                              type="number" 
+                              value={settings.strategy?.pyramiding?.profitTicksTrigger || 5}
+                              onChange={(e) => setSettings({ 
+                                ...settings, 
+                                strategy: { 
+                                  ...settings.strategy, 
+                                  pyramiding: { ...settings.strategy?.pyramiding, profitTicksTrigger: parseInt(e.target.value) } 
+                                } 
+                              })}
+                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-orange-500/50"
+                            />
+                            <p className="text-[8px] text-slate-500 mt-1">پس از این مقدار سود، پله دوم وارد می‌شود.</p>
                           </div>
                         </div>
                       )}

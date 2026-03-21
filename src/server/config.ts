@@ -133,6 +133,10 @@ export const config = {
         bufferTicks: 1
       }
     },
+    pyramiding: {
+      enabled: false,
+      profitTicksTrigger: 5
+    },
     antiSpam: {
       enabled: true,
       minMinutesBetweenSameSideSignals: 1
