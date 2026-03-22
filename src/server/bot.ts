@@ -355,6 +355,8 @@ export class FarazGoldBot {
     const oldApi = this.settings.api || {};
     const newApi = newSettings.api || {};
     
+    const timeframeChanged = this.settings.timeframe?.value !== newSettings.timeframe?.value;
+    
     const sourceChanged = this.settings.source !== newSettings.source || 
                          oldApi.useRealAccount !== newApi.useRealAccount ||
                          (newApi.useRealAccount ? 
@@ -373,7 +375,21 @@ export class FarazGoldBot {
     
     this.recorder = new DataRecorder(newSettings.dataRecorder);
 
-    if (sourceChanged) {
+    if (timeframeChanged) {
+      this.log(`Timeframe changed to ${newSettings.timeframe?.label}. Clearing history and restarting...`, "INFO");
+      this.opens = [];
+      this.closes = [];
+      this.highs = [];
+      this.lows = [];
+      this.volumes = [];
+      this.timestamps = [];
+      this.currentCandle = null;
+      this.lastCandleTime = 0;
+      
+      // Re-fetch history for new timeframe
+      this.fetchHistoricalBars();
+      this.connectToExternalWS();
+    } else if (sourceChanged) {
       this.log(`Price source settings changed (${newApi.useRealAccount ? 'REAL' : 'DEMO'}). Restarting source...`, "INFO");
       this.connectToExternalWS();
     }
@@ -633,15 +649,16 @@ ${analysisText}
     if (!this.api) return;
     try {
       const to = Math.floor(Date.now() / 1000);
-      const from = to - (24 * 60 * 60); // Last 24 hours
-      this.log(`Fetching historical bars from ${from} to ${to}...`, "INFO");
+      const resolution = Math.floor((this.settings.timeframe?.value || 60) / 60);
+      const from = to - (24 * 60 * 60 * (resolution > 1 ? 5 : 1)); // Fetch more history for higher timeframes
+      this.log(`Fetching historical bars (${resolution}m) from ${from} to ${to}...`, "INFO");
       
       const response = await this.api.get('/api/room/api/get-bars/', {
         params: {
           symbol: 'mazane',
           from: from,
           to: to,
-          resolution: 1
+          resolution: resolution
         }
       });
 
@@ -942,8 +959,15 @@ ${analysisText}
     const apiCfg = this.settings.api || defaultConfig.api;
     const isReal = apiCfg.useRealAccount;
     const auth = isReal ? apiCfg.real : apiCfg.demo;
+    const resolution = Math.floor((this.settings.timeframe?.value || 60) / 60);
     
-    const baseWsUrl = auth.wsUrl || (isReal ? 'wss://farazgold.com/ws/' : 'wss://demo.farazgold.com/ws/');
+    let baseWsUrl = auth.wsUrl || (isReal ? 'wss://farazgold.com/ws/' : 'wss://demo.farazgold.com/ws/');
+    
+    // Inject resolution into URL if it's a TradingView-style URL
+    if (baseWsUrl.includes('resolution=')) {
+      baseWsUrl = baseWsUrl.replace(/resolution=\d+/, `resolution=${resolution}`);
+    }
+    
     const url = baseWsUrl.includes('?') 
       ? `${baseWsUrl}&token=${this.accessToken || ''}`
       : `${baseWsUrl}?token=${this.accessToken || ''}`;
@@ -994,7 +1018,7 @@ ${analysisText}
         
         this.ws?.send(JSON.stringify({
           action: 'SubAdd',
-          subs: ['0~farazgold~mazane~gold~1']
+          subs: [`0~farazgold~mazane~gold~${resolution}`]
         }));
         
         this.startPingLoop();
@@ -2376,8 +2400,9 @@ ${analysisText}
   }
 
   getState() {
+    const timeframeValue = this.settings.timeframe?.value || 60;
     const candles = this.closes.map((c, i) => ({
-      x: this.timestamps[i] || (Date.now() - (this.closes.length - i) * 60000),
+      x: this.timestamps[i] || (Date.now() - (this.closes.length - i) * timeframeValue * 1000),
       y: [
         this.opens[i] || c,    // Open
         this.highs[i] || c,    // High
