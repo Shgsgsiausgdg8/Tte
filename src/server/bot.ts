@@ -65,6 +65,7 @@ export class FarazGoldBot {
   wsReconnectTimer: NodeJS.Timeout | null = null;
   pingTimer: NodeJS.Timeout | null = null;
   mainLoopTimer: NodeJS.Timeout | null = null;
+  tokenRefreshTimer: NodeJS.Timeout | null = null;
   marketStatus: 'OPEN' | 'CLOSED' = 'OPEN'; // Default to OPEN so it trades even if status is not received
   currentSpread: number = 0;
   portfolioLogged: boolean = false;
@@ -241,7 +242,9 @@ export class FarazGoldBot {
         headers: {
           'Cookie': `refresh_token=${this.refreshToken}; csrftoken=${auth.csrftoken}`,
           'Content-Type': 'application/json',
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+          'Origin': auth.baseUrl,
+          'Referer': `${auth.baseUrl}/`
         }
       });
       
@@ -571,16 +574,26 @@ ${analysisText}
     // Force API source
     this.settings.source = 'API';
     
-    // Refresh token if we have a refresh token but no access token
-    if (this.refreshToken && !this.accessToken) {
-      await this.refreshAuthToken();
-    }
-    
     await this.updatePortfolio();
     await this.fetchHistoricalBars();
     this.connectToExternalWS();
     
     if (this.mainLoopTimer) clearInterval(this.mainLoopTimer);
+    if (this.tokenRefreshTimer) clearInterval(this.tokenRefreshTimer);
+    
+    // Initial token refresh on every system startup
+    if (this.refreshToken) {
+      this.log("Startup token refresh triggered.", "INFO");
+      await this.refreshAuthToken();
+    }
+
+    // Set up periodic token refresh (every 12 hours)
+    this.tokenRefreshTimer = setInterval(async () => {
+      if (this.refreshToken) {
+        this.log("Periodic token refresh triggered (12h cycle).", "INFO");
+        await this.refreshAuthToken();
+      }
+    }, 12 * 60 * 60 * 1000);
     
     let isUpdatingPortfolio = false;
     
@@ -1394,7 +1407,7 @@ ${analysisText}
             const lossTicks = -currentDist / tickSize;
             
             if (lossTicks >= (reversalCfg.triggerLossTicks || 6)) {
-              this.log(`Reversal Triggered: Closing losing ${pos.type} trade to open ${result.signal.type}`, "ERROR");
+              this.log(`Reversal Triggered: Closing losing ${pos.type} trade to open ${result.signal.type}`, "INFO");
               this.closeTrade(id, 'reversal');
               reversed = true;
             }

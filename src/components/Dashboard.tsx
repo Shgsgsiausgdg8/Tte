@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Chart from 'react-apexcharts';
-import { Activity, TrendingUp, TrendingDown, AlertCircle, Clock, Power, ShieldCheck, Settings, Send, Save, X, ChevronRight, Terminal, RefreshCw, Lock, ShieldAlert } from 'lucide-react';
+import { Activity, TrendingUp, TrendingDown, AlertCircle, Clock, Power, ShieldCheck, Settings, Send, Save, X, ChevronRight, Terminal, RefreshCw, Lock, ShieldAlert, Zap } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const formatPrice = (price: number) => {
@@ -150,6 +150,137 @@ export default function Dashboard() {
     }
   };
 
+  // Calculate Highs and Lows for Chart Annotations
+  const candles = botState?.candles || [];
+  const { maxHigh, minLow, maxHighTime, minLowTime } = React.useMemo(() => {
+    let maxHigh = -Infinity;
+    let minLow = Infinity;
+    let maxHighTime = 0;
+    let minLowTime = 0;
+
+    candles.forEach((c: any) => {
+      const [open, high, low, close] = c.y;
+      if (high > maxHigh) { maxHigh = high; maxHighTime = c.x; }
+      if (low < minLow) { minLow = low; minLowTime = c.x; }
+    });
+    return { maxHigh, minLow, maxHighTime, minLowTime };
+  }, [candles]);
+
+  const chartAnnotations = React.useMemo(() => {
+    const points = [];
+    if (maxHigh !== -Infinity && candles.length > 0) {
+      points.push({
+        x: maxHighTime,
+        y: maxHigh,
+        marker: { size: 4, fillColor: '#10b981', strokeColor: '#fff', strokeWidth: 2 },
+        label: {
+          borderColor: '#10b981',
+          style: { color: '#fff', background: '#10b981', fontSize: '10px', fontFamily: 'monospace' },
+          text: `سقف: ${maxHigh.toLocaleString('fa-IR')}`
+        }
+      });
+    }
+    if (minLow !== Infinity && candles.length > 0) {
+      points.push({
+        x: minLowTime,
+        y: minLow,
+        marker: { size: 4, fillColor: '#f43f5e', strokeColor: '#fff', strokeWidth: 2 },
+        label: {
+          borderColor: '#f43f5e',
+          style: { color: '#fff', background: '#f43f5e', fontSize: '10px', fontFamily: 'monospace' },
+          text: `کف: ${minLow.toLocaleString('fa-IR')}`
+        }
+      });
+    }
+    return { points };
+  }, [maxHigh, minLow, maxHighTime, minLowTime, candles.length]);
+
+  // Prepare series data
+  const seriesData = React.useMemo(() => {
+    const series: any[] = [{
+      name: 'قیمت',
+      type: 'candlestick',
+      data: candles
+    }];
+
+    if (botState?.settings?.activeStrategy === 'HST') {
+      if (botState.hmaLine && botState.hmaLine.length > 0) {
+        series.push({
+          name: 'HMA',
+          type: 'line',
+          data: botState.hmaLine
+        });
+      }
+      
+      if (botState.stLine && botState.stLine.length > 0) {
+        const stUp: any[] = [];
+        const stDown: any[] = [];
+        botState.stLine.forEach((pt: any) => {
+          if (pt.direction === 1) {
+            stUp.push({ x: pt.x, y: pt.y });
+            stDown.push({ x: pt.x, y: null });
+          } else {
+            stDown.push({ x: pt.x, y: pt.y });
+            stUp.push({ x: pt.x, y: null });
+          }
+        });
+        series.push({ name: 'ST Up', type: 'line', data: stUp });
+        series.push({ name: 'ST Down', type: 'line', data: stDown });
+      }
+    }
+    return series;
+  }, [candles, botState?.hmaLine, botState?.stLine, botState?.settings?.activeStrategy]);
+
+  const chartOptions = React.useMemo(() => ({
+    chart: {
+      type: 'candlestick' as const,
+      background: 'transparent',
+      toolbar: { show: false },
+      animations: { enabled: false },
+      sparkline: { enabled: false },
+    },
+    theme: { mode: 'dark' as const },
+    annotations: chartAnnotations,
+    plotOptions: {
+      candlestick: {
+        colors: { upward: '#10b981', downward: '#f43f5e' },
+        wick: { useFillColor: true }
+      }
+    },
+    stroke: {
+      width: [1, 2, 2, 2],
+      curve: 'smooth' as const
+    },
+    colors: ['#10b981', '#3b82f6', '#10b981', '#f43f5e'],
+    xaxis: {
+      type: 'datetime' as const,
+      labels: {
+        style: { colors: '#64748b', fontFamily: 'monospace' },
+        datetimeUTC: false,
+      },
+      axisBorder: { show: false },
+      axisTicks: { show: false },
+      tooltip: { enabled: false }
+    },
+    yaxis: {
+      tooltip: { enabled: true },
+      decimalsInFloat: 0,
+      forceNiceScale: true,
+      labels: {
+        style: { colors: '#64748b', fontFamily: 'monospace' },
+        formatter: (val: number) => val.toLocaleString('fa-IR')
+      }
+    },
+    grid: {
+      borderColor: '#1e293b',
+      strokeDashArray: 4,
+    },
+    tooltip: {
+      theme: 'dark',
+      x: { format: 'HH:mm' }
+    }
+  }), [chartAnnotations]);
+
   if (error && !botState) return (
     <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center p-6 text-center">
       <AlertCircle className="w-12 h-12 text-rose-500 mb-4" />
@@ -168,91 +299,6 @@ export default function Dashboard() {
       />
     </div>
   );
-
-  // Calculate Highs and Lows for Chart Annotations
-  const candles = botState.candles || [];
-  let maxHigh = -Infinity;
-  let minLow = Infinity;
-  let maxHighTime = 0;
-  let minLowTime = 0;
-
-  candles.forEach(c => {
-    const [open, high, low, close] = c.y;
-    if (high > maxHigh) { maxHigh = high; maxHighTime = c.x; }
-    if (low < minLow) { minLow = low; minLowTime = c.x; }
-  });
-
-  const chartAnnotations = { points: [] as any[] };
-
-  if (maxHigh !== -Infinity && candles.length > 0) {
-    chartAnnotations.points.push({
-      x: maxHighTime,
-      y: maxHigh,
-      marker: { size: 4, fillColor: '#10b981', strokeColor: '#fff', strokeWidth: 2 },
-      label: {
-        borderColor: '#10b981',
-        style: { color: '#fff', background: '#10b981', fontSize: '10px', fontFamily: 'monospace' },
-        text: `سقف: ${maxHigh.toLocaleString('fa-IR')}`
-      }
-    });
-  }
-  
-  if (minLow !== Infinity && candles.length > 0) {
-    chartAnnotations.points.push({
-      x: minLowTime,
-      y: minLow,
-      marker: { size: 4, fillColor: '#f43f5e', strokeColor: '#fff', strokeWidth: 2 },
-      label: {
-        borderColor: '#f43f5e',
-        style: { color: '#fff', background: '#f43f5e', fontSize: '10px', fontFamily: 'monospace' },
-        text: `کف: ${minLow.toLocaleString('fa-IR')}`
-      }
-    });
-  }
-
-  // Prepare series data
-  const seriesData: any[] = [{
-    name: 'قیمت',
-    type: 'candlestick',
-    data: botState.candles || []
-  }];
-
-  if (botState.settings?.activeStrategy === 'HST') {
-    if (botState.hmaLine && botState.hmaLine.length > 0) {
-      seriesData.push({
-        name: 'HMA',
-        type: 'line',
-        data: botState.hmaLine
-      });
-    }
-    
-    if (botState.stLine && botState.stLine.length > 0) {
-      // Split SuperTrend into Up and Down for coloring
-      const stUp: any[] = [];
-      const stDown: any[] = [];
-      
-      botState.stLine.forEach((pt: any) => {
-        if (pt.direction === 1) {
-          stUp.push({ x: pt.x, y: pt.y });
-          stDown.push({ x: pt.x, y: null }); // Break the line
-        } else {
-          stDown.push({ x: pt.x, y: pt.y });
-          stUp.push({ x: pt.x, y: null }); // Break the line
-        }
-      });
-      
-      seriesData.push({
-        name: 'ST Up',
-        type: 'line',
-        data: stUp
-      });
-      seriesData.push({
-        name: 'ST Down',
-        type: 'line',
-        data: stDown
-      });
-    }
-  }
 
   return (
     <div className="min-h-screen bg-[#050505] text-slate-200 font-sans selection:bg-emerald-500/30 overflow-x-hidden">
@@ -515,60 +561,9 @@ export default function Dashboard() {
             
             <div className="h-[280px] sm:h-[400px] w-full" dir="ltr">
               <Chart
-                options={{
-                  chart: {
-                    type: 'line',
-                    background: 'transparent',
-                    toolbar: { show: false },
-                    animations: { enabled: false }
-                  },
-                  theme: { mode: 'dark' },
-                  annotations: chartAnnotations,
-                  plotOptions: {
-                    candlestick: {
-                      colors: {
-                        upward: '#10b981',
-                        downward: '#f43f5e'
-                      },
-                      wick: {
-                        useFillColor: true
-                      }
-                    }
-                  },
-                  stroke: {
-                    width: [1, 2, 2, 2], // 1 for candle, 2 for lines
-                    curve: 'smooth'
-                  },
-                  colors: ['#10b981', '#3b82f6', '#10b981', '#f43f5e'], // Candle, HMA, ST Up, ST Down
-                  xaxis: {
-                    type: 'datetime',
-                    labels: {
-                      style: { colors: '#64748b', fontFamily: 'monospace' },
-                      datetimeUTC: false,
-                    },
-                    axisBorder: { show: false },
-                    axisTicks: { show: false }
-                  },
-                  yaxis: {
-                    tooltip: { enabled: true },
-                    decimalsInFloat: 0,
-                    forceNiceScale: true,
-                    labels: {
-                      style: { colors: '#64748b', fontFamily: 'monospace' },
-                      formatter: (val) => val.toLocaleString('fa-IR')
-                    }
-                  },
-                  grid: {
-                    borderColor: '#1e293b',
-                    strokeDashArray: 4,
-                  },
-                  tooltip: {
-                    theme: 'dark',
-                    x: { format: 'HH:mm' }
-                  }
-                }}
+                options={chartOptions}
                 series={seriesData}
-                type="line"
+                type="candlestick"
                 height="100%"
                 width="100%"
               />
