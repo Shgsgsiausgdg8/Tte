@@ -171,15 +171,13 @@ export class FarazGoldBot {
     // Use the tokens if we have them
     const authHeader = this.accessToken ? { 'Authorization': `Bearer ${this.accessToken}` } : {};
     
-    const cookies = [
-      `csrftoken=${auth.csrftoken}`,
-      `sessionid=${auth.sessionid}`
-    ];
-    if (this.refreshToken) {
-      cookies.push(`refresh_token=${this.refreshToken}`);
-    }
+    const cookies = [];
+    if (auth.csrftoken) cookies.push(`csrftoken=${auth.csrftoken}`);
+    if (auth.sessionid) cookies.push(`sessionid=${auth.sessionid}`);
+    if (this.refreshToken) cookies.push(`refresh_token=${this.refreshToken}`);
     
     const cookieString = cookies.join('; ');
+    const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
     
     this.api = axios.create({
       baseURL: auth.baseUrl,
@@ -187,15 +185,15 @@ export class FarazGoldBot {
       withCredentials: true,
       headers: {
         ...authHeader,
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36',
+        'User-Agent': userAgent,
         'Accept': 'application/json, text/plain, */*',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'X-CSRFToken': auth.csrftoken,
+        'Accept-Language': 'fa-IR,fa;q=0.9,en-US;q=0.8,en;q=0.7',
+        ...(auth.csrftoken ? { 'X-CSRFToken': auth.csrftoken } : {}),
         'X-Requested-With': 'XMLHttpRequest',
         'Cookie': cookieString,
         'Referer': `${auth.baseUrl}/room/`,
         'Origin': auth.baseUrl,
-        'sec-ch-ua': '"Not_A Brand";v="99", "Google Chrome";v="109", "Chromium";v="109"',
+        'sec-ch-ua': '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
         'sec-ch-ua-mobile': '?0',
         'sec-ch-ua-platform': '"Windows"',
         'sec-fetch-dest': 'empty',
@@ -233,18 +231,22 @@ export class FarazGoldBot {
   async refreshAuthToken() {
     try {
       const apiCfg = this.settings.api || defaultConfig.api;
-      const auth = apiCfg.useRealAccount ? apiCfg.real : apiCfg.demo;
+      const isReal = apiCfg.useRealAccount;
+      const auth = isReal ? apiCfg.real : apiCfg.demo;
+      const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
       
       this.log("Attempting to refresh auth token...", "INFO");
       const response = await axios.post(`${auth.baseUrl}/api/User/api/token/refresh/`, {
         refresh: this.refreshToken
       }, {
         headers: {
-          'Cookie': `refresh_token=${this.refreshToken}; csrftoken=${auth.csrftoken}`,
+          'Cookie': `refresh_token=${this.refreshToken}; csrftoken=${auth.csrftoken}; sessionid=${auth.sessionid}`,
           'Content-Type': 'application/json',
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+          'User-Agent': userAgent,
           'Origin': auth.baseUrl,
-          'Referer': `${auth.baseUrl}/`
+          'Referer': `${auth.baseUrl}/`,
+          'Accept': 'application/json, text/plain, */*',
+          ...(auth.csrftoken ? { 'X-CSRFToken': auth.csrftoken } : {})
         }
       });
       
@@ -252,6 +254,19 @@ export class FarazGoldBot {
         this.accessToken = response.data.access;
         if (response.data.refresh) this.refreshToken = response.data.refresh;
         this.log("Token refreshed successfully.", "INFO");
+        
+        // Persist new tokens to settings file
+        const apiCfg = this.settings.api || defaultConfig.api;
+        if (isReal) {
+          apiCfg.real.accessToken = this.accessToken;
+          apiCfg.real.refreshToken = this.refreshToken;
+        } else {
+          apiCfg.demo.accessToken = this.accessToken;
+          apiCfg.demo.refreshToken = this.refreshToken;
+        }
+        this.settings.api = apiCfg;
+        fs.writeFileSync(SETTINGS_PATH, JSON.stringify(this.settings, null, 2));
+        
         this.setupAxios(); // Re-create axios with new token
         return true;
       }
@@ -979,6 +994,7 @@ ${analysisText}
       cookies.push(`refresh_token=${this.refreshToken}`);
     }
     
+    const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
     this.log(`Connecting to FarazGold WS (${isReal ? 'REAL' : 'DEMO'}): ${url.split('?')[0]}`, "WS");
     
     try {
@@ -988,8 +1004,8 @@ ${analysisText}
           'Origin': auth.baseUrl,
           'Referer': `${auth.baseUrl}/room/`,
           'X-Requested-With': 'XMLHttpRequest',
-          'X-CSRFToken': auth.csrftoken,
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+          ...(auth.csrftoken ? { 'X-CSRFToken': auth.csrftoken } : {}),
+          'User-Agent': userAgent,
           'Accept-Language': 'fa-IR,fa;q=0.9,en-US;q=0.8,en;q=0.7',
           'Sec-Ch-Ua': '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
           'Sec-Ch-Ua-Mobile': '?0',
