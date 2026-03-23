@@ -2176,15 +2176,12 @@ export default function Dashboard() {
                         </div>
                       </div>
                     )}
-                  </motion.section>
-                )}
-              </div>
 
                     {/* Entry Optimization Section */}
-                    <div className="space-y-6 pt-6 border-t border-white/5">
+                    <div className="space-y-6 pt-6 mt-6 border-t border-white/10">
                       <div className="flex items-center gap-2 mb-4">
                         <Zap className="w-4 h-4 text-amber-500" />
-                        <h3 className="text-sm font-bold">بهینه‌سازی ورود (Entry Optimization)</h3>
+                        <h3 className="text-[10px] font-bold text-amber-500 uppercase tracking-widest">بهینه‌سازی ورود (Entry Optimization)</h3>
                       </div>
                       
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -2217,7 +2214,7 @@ export default function Dashboard() {
                         </div>
 
                         {settings.strategy?.pullback?.enabled && (
-                          <div>
+                          <div className="sm:col-span-2">
                             <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">میزان عقب‌نشینی (تیک)</label>
                             <input 
                               type="number" 
@@ -2230,6 +2227,9 @@ export default function Dashboard() {
                         )}
                       </div>
                     </div>
+                  </motion.section>
+                )}
+              </div>
 
               <div className="mt-6 sm:mt-10 flex flex-col sm:flex-row gap-3 sm:gap-4">
                 <button 
