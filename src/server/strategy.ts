@@ -563,7 +563,7 @@ export class Strategy {
       roundNumberBase: 10000
     };
 
-    const tickSize = Number(this.config.market?.tickSize ?? 1000);
+    const tickSize = Number(this.config.market?.tickSize ?? 1);
     const roundBase = cfg.roundNumberBase || 10000;
 
     // 1. Calculate Momentum (last 5 seconds)
@@ -966,10 +966,21 @@ export class Strategy {
     let tp3 = isBuy ? price + (tpDist * 3.0) : price - (tpDist * 3.0);
 
     // Final safety fallback
-    if (isNaN(sl) || sl === 0) sl = isBuy ? price - (10 * tickSize) : price + (10 * tickSize);
-    if (isNaN(tp1) || tp1 === 0) tp1 = isBuy ? price + (15 * tickSize) : price - (15 * tickSize);
-    if (isNaN(tp2) || tp2 === 0) tp2 = isBuy ? price + (25 * tickSize) : price - (25 * tickSize);
-    if (isNaN(tp3) || tp3 === 0) tp3 = isBuy ? price + (40 * tickSize) : price - (40 * tickSize);
+    const minRequiredDist = (market.tickSize || 1) * 10;
+    if (isNaN(sl) || sl === 0) sl = isBuy ? price - minRequiredDist : price + minRequiredDist;
+    if (isNaN(tp1) || tp1 === 0) tp1 = isBuy ? price + minRequiredDist : price - minRequiredDist;
+    if (isNaN(tp2) || tp2 === 0) tp2 = isBuy ? price + (minRequiredDist * 2) : price - (minRequiredDist * 2);
+    if (isNaN(tp3) || tp3 === 0) tp3 = isBuy ? price + (minRequiredDist * 4) : price - (minRequiredDist * 4);
+
+    // Ensure they are not too close to entry (at least 5 ticks)
+    const minTicks = (market.tickSize || 1) * 5;
+    if (isBuy) {
+      if (sl >= price - minTicks) sl = price - minTicks;
+      if (tp1 <= price + minTicks) tp1 = price + minTicks;
+    } else {
+      if (sl <= price + minTicks) sl = price + minTicks;
+      if (tp1 >= price - minTicks) tp1 = price - minTicks;
+    }
 
     return {
       type,

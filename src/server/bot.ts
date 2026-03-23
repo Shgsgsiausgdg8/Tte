@@ -1433,29 +1433,40 @@ ${analysisText}
       this.log(`Signal Detected: ${result.signal.type} (${result.signal.pattern || 'SCALP'}) Score: ${result.signal.score} ID: ${result.signal.signalId}`, "SIGNAL");
       this.recorder.recordSignal({ ...result.signal, price: this.price });
 
-      // Reversal Logic
+      // Reversal Logic & Opposite Signal Protection
       const reversalCfg = this.settings.targetsTicks?.reversal;
-      let reversed = false;
-      if (reversalCfg?.enabled && result.signal.score >= (reversalCfg.minOppositeSignalScore || 2)) {
-        const tickSize = this.settings.market?.tickSize || 1;
-        for (const [id, pos] of this.openPositions.entries()) {
-          const isBuy = pos.type === 'BUY';
-          const isOpposite = (isBuy && result.signal.type === 'SELL') || (!isBuy && result.signal.type === 'BUY');
-          
-          if (isOpposite) {
-            const currentDist = isBuy ? this.price - pos.entryPrice : pos.entryPrice - this.price;
+      let canEnter = true;
+      
+      // Check if we have opposite positions
+      for (const [id, pos] of this.openPositions.entries()) {
+        const isBuy = pos.type === 'BUY';
+        const isOpposite = (isBuy && result.signal.type === 'SELL') || (!isBuy && result.signal.type === 'BUY');
+        
+        if (isOpposite) {
+          // If we have an opposite position, we only enter if reversal is ENABLED and triggered
+          if (reversalCfg?.enabled && result.signal.score >= (reversalCfg.minOppositeSignalScore || 2)) {
+            const tickSize = this.settings.market?.tickSize || 1;
+            const entryPrice = pos.entry || pos.price;
+            const currentDist = isBuy ? this.price - entryPrice : entryPrice - this.price;
             const lossTicks = -currentDist / tickSize;
             
             if (lossTicks >= (reversalCfg.triggerLossTicks || 6)) {
-              this.log(`Reversal Triggered: Closing losing ${pos.type} trade to open ${result.signal.type}`, "INFO");
+              this.log(`Reversal Triggered: Closing losing ${pos.type} trade (Loss: ${lossTicks} ticks) to open ${result.signal.type}`, "INFO");
               this.closeTrade(id, 'reversal');
-              reversed = true;
+            } else {
+              this.log(`Opposite signal detected but reversal criteria not met (Loss: ${lossTicks} < ${reversalCfg.triggerLossTicks}). Skipping entry.`, "INFO");
+              canEnter = false;
             }
+          } else {
+            this.log(`Opposite signal detected but reversal is DISABLED. Skipping entry to avoid unintended hedging.`, "INFO");
+            canEnter = false;
           }
         }
       }
 
-      this.enterTrade(result.signal);
+      if (canEnter) {
+        this.enterTrade(result.signal);
+      }
     } else if (result.reason && result.reason !== 'No signal' && result.reason !== 'Indicators not ready') {
       // Log reason occasionally or if it's important
       if (Math.random() < 0.01) { // 1% of the time to avoid flooding
@@ -1609,6 +1620,8 @@ ${analysisText}
           signal_token: ""
         };
         
+        this.log(`Order Data Prepared: ${JSON.stringify(orderData)}`, "INFO");
+        
         let response;
         let attempts = 0;
         const maxAttempts = 2;
@@ -1620,7 +1633,9 @@ ${analysisText}
         
         while (attempts < maxAttempts) {
           try {
+            this.log(`Submitting order to API (Attempt ${attempts + 1})...`, "INFO");
             response = await this.api.post('/api/room/api/submit-order/', orderData);
+            this.log(`Order Submission Response: ${JSON.stringify(response?.data || {})}`, "INFO");
             break;
           } catch (e: any) {
             const status = e.response?.status;
@@ -1662,6 +1677,8 @@ ${analysisText}
             status: 'open', 
             units: units,
             isHQ: isHQ,
+            sl: sl, // Use adjusted SL
+            tp1: tp, // Use adjusted TP
             originalSl: sl,
             currentStep: 0,
             slEnforced: false,
@@ -1674,19 +1691,22 @@ ${analysisText}
           // CRITICAL: Explicitly enforce SL/TP after entry to ensure they are set on the server
           // Some API versions might ignore SL/TP in the initial submit-order call
           if (transId) {
-            this.enforceStopLossTakeProfit(transId, sl, tp, id).then(success => {
-              const pos = this.openPositions.get(id);
-              if (pos) {
-                pos.slEnforced = success;
-                if (success) {
-                  this.log(`SL/TP Enforced successfully for ${transId}`, "SUCCESS");
-                } else {
-                  this.log(`SL/TP Enforcement FAILED for ${transId}. Will retry in next loop.`, "ERROR");
+            // Wait 2s before enforcing to ensure order is fully registered on server
+            setTimeout(() => {
+              this.enforceStopLossTakeProfit(transId, sl, tp, id).then(success => {
+                const pos = this.openPositions.get(id);
+                if (pos) {
+                  pos.slEnforced = success;
+                  if (success) {
+                    this.log(`SL/TP Enforced successfully for ${transId}`, "SUCCESS");
+                  } else {
+                    this.log(`SL/TP Enforcement FAILED for ${transId}. Will retry in next loop.`, "ERROR");
+                  }
                 }
-              }
-            }).catch(err => {
-              this.log(`SL/TP Enforcement Error for ${transId}: ${err.message}`, "ERROR");
-            });
+              }).catch(err => {
+                this.log(`SL/TP Enforcement Error for ${transId}: ${err.message}`, "ERROR");
+              });
+            }, 2000);
           }
         } else {
           const errorMsg = response?.data?.message || "";
@@ -2223,13 +2243,15 @@ ${analysisText}
   }
 
   async enforceStopLossTakeProfit(transactionId: number, sl: number, tp: number, localId: number): Promise<boolean> {
-    let slSuccess = sl === 0; // If 0, we don't need to set it
-    let tpSuccess = tp === 0;
+    this.log(`Enforcing SL/TP for transaction ${transactionId}: SL=${sl}, TP=${tp}`, "INFO");
+    
+    let slSuccess = sl === 0 || isNaN(sl); // If 0 or NaN, we don't need to set it
+    let tpSuccess = tp === 0 || isNaN(tp);
 
-    if (sl > 0) {
+    if (sl > 0 && !isNaN(sl)) {
       slSuccess = await this.editStopLoss(transactionId, sl);
     }
-    if (tp > 0) {
+    if (tp > 0 && !isNaN(tp)) {
       tpSuccess = await this.editTakeProfit(transactionId, tp);
     }
 
