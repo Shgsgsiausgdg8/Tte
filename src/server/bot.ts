@@ -738,7 +738,7 @@ ${analysisText}
   async updatePortfolio(retryCount = 0, autoCreate = true) {
     if (!this.api) return;
     try {
-      const response = await this.api.post('/api/room/api/check-portfolio/', {});
+      const response = await this.api.post('/api/room/api/check-portfolio/', {}, { timeout: 10000 });
       this.portfolio = response.data;
       this.isMarketClosed = false; // Successfully reached API
       
@@ -775,8 +775,9 @@ ${analysisText}
       const isServerError = [502, 503, 504].includes(error.response?.status);
       const isNetworkError = error.code === 'EAI_AGAIN' || error.message?.includes('EAI_AGAIN') || error.code === 'ENOTFOUND';
 
-      if (retryCount < 3 && (isTimeout || isServerError || isNetworkError)) {
-        const delay = Math.min(10000, 2000 * Math.pow(1.5, retryCount));
+      if (retryCount < 5 && (isTimeout || isServerError || isNetworkError)) {
+        const baseDelay = isServerError ? 3000 : 2000;
+        const delay = Math.min(15000, baseDelay * Math.pow(1.8, retryCount)) + (Math.random() * 1000);
         await new Promise(resolve => setTimeout(resolve, delay));
         return this.updatePortfolio(retryCount + 1, autoCreate);
       }
@@ -790,9 +791,8 @@ ${analysisText}
           this.log(`Market is currently CLOSED or access denied (403). Bot will pause portfolio updates for 5 minutes.`, "INFO");
         }
       } else if (isNetworkError || isTimeout || isServerError) {
-        if (Math.random() < 0.1) { 
-          this.log(`Portfolio Update: Server busy or network issue (${error.message || 'Timeout/50x'}).`, "INFO");
-        }
+        // Only log if we've exhausted all retries
+        this.log(`Portfolio Update: Server busy or network issue after ${retryCount} retries (${error.message || 'Timeout/50x'}).`, "INFO");
       } else {
         this.log(`Portfolio Update Error: ${error.message || error}`, "ERROR");
       }
