@@ -131,6 +131,16 @@
       "stMultiplier": 3,
       "requireCloseAboveHMA": true,
       "mode": "NORMAL"
+    },
+    "pullback": {
+      "enabled": false,
+      "retracementTicks": 5,
+      "maxWaitBars": 10
+    },
+    "mtf": {
+      "enabled": false,
+      "higherTimeframe": "5m",
+      "requireTrendAlignment": true
     }
   },
   "websocket": {

@@ -2180,6 +2180,57 @@ export default function Dashboard() {
                 )}
               </div>
 
+                    {/* Entry Optimization Section */}
+                    <div className="space-y-6 pt-6 border-t border-white/5">
+                      <div className="flex items-center gap-2 mb-4">
+                        <Zap className="w-4 h-4 text-amber-500" />
+                        <h3 className="text-sm font-bold">بهینه‌سازی ورود (Entry Optimization)</h3>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                        <div className="flex items-center justify-between bg-white/5 p-4 rounded-2xl border border-white/5">
+                          <div className="flex flex-col">
+                            <span className="text-xs font-bold">ورود در پولبک (Pullback)</span>
+                            <span className="text-[9px] text-slate-500">انتظار برای قیمت بهتر بعد از سیگنال</span>
+                          </div>
+                          <button 
+                            type="button"
+                            onClick={() => setSettings({ ...settings, strategy: { ...settings.strategy, pullback: { ...settings.strategy?.pullback, enabled: !settings.strategy?.pullback?.enabled } } })}
+                            className={`w-10 h-5 rounded-full transition-colors relative ${settings.strategy?.pullback?.enabled ? 'bg-amber-500' : 'bg-slate-700'}`}
+                          >
+                            <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${settings.strategy?.pullback?.enabled ? 'left-6' : 'left-1'}`} />
+                          </button>
+                        </div>
+
+                        <div className="flex items-center justify-between bg-white/5 p-4 rounded-2xl border border-white/5">
+                          <div className="flex flex-col">
+                            <span className="text-xs font-bold">تاییدیه چند زمانی (MTF)</span>
+                            <span className="text-[9px] text-slate-500">هماهنگی با روند تایم‌فریم ۵ دقیقه</span>
+                          </div>
+                          <button 
+                            type="button"
+                            onClick={() => setSettings({ ...settings, strategy: { ...settings.strategy, mtf: { ...settings.strategy?.mtf, enabled: !settings.strategy?.mtf?.enabled } } })}
+                            className={`w-10 h-5 rounded-full transition-colors relative ${settings.strategy?.mtf?.enabled ? 'bg-blue-500' : 'bg-slate-700'}`}
+                          >
+                            <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${settings.strategy?.mtf?.enabled ? 'left-6' : 'left-1'}`} />
+                          </button>
+                        </div>
+
+                        {settings.strategy?.pullback?.enabled && (
+                          <div>
+                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">میزان عقب‌نشینی (تیک)</label>
+                            <input 
+                              type="number" 
+                              value={settings.strategy?.pullback?.retracementTicks || 5}
+                              onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, pullback: { ...settings.strategy?.pullback, retracementTicks: parseInt(e.target.value) } } })}
+                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-amber-500/50"
+                            />
+                            <p className="text-[8px] text-slate-500 mt-2">چند تیک قیمت برگردد تا وارد شویم؟ (پیش‌فرض: ۵)</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
               <div className="mt-6 sm:mt-10 flex flex-col sm:flex-row gap-3 sm:gap-4">
                 <button 
                   onClick={async () => {

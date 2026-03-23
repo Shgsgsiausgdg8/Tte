@@ -76,6 +76,7 @@ export class FarazGoldBot {
   private lastMarketClosedTime: number = 0;
   private isMarketClosed: boolean = false;
   private settingsWatcher: fs.FSWatcher | null = null;
+  private pendingPullback: any = null;
 
   orderBook = {
     bids: [] as any[],
@@ -1397,6 +1398,27 @@ ${analysisText}
       this.currentCandle.volume += 1;
     }
 
+    // Check for pending pullback triggers
+    if (this.pendingPullback) {
+      const pb = this.pendingPullback;
+      const isBuy = pb.signal.type === 'BUY';
+      const triggered = isBuy ? newPrice <= pb.targetPrice : newPrice >= pb.targetPrice;
+      
+      if (triggered) {
+        this.log(`🎯 Pullback Triggered! ${pb.signal.type} at ${newPrice} (Target: ${pb.targetPrice})`, "SUCCESS");
+        const signalToExecute = { ...pb.signal, entry: newPrice };
+        this.pendingPullback = null;
+        this.enterTrade(signalToExecute);
+      } else {
+        // Timeout check: if too many bars passed, cancel pullback
+        const barsPassed = Math.floor((now - pb.timestamp) / timeframeMs);
+        if (barsPassed > (pb.signal.pullbackConfig?.maxWaitBars || 10)) {
+          this.log(`Pullback Canceled: Timeout (${barsPassed} bars passed)`, "INFO");
+          this.pendingPullback = null;
+        }
+      }
+    }
+
     this.checkForSignal();
   }
 
@@ -1465,7 +1487,20 @@ ${analysisText}
       }
 
       if (canEnter) {
-        this.enterTrade(result.signal);
+        if (result.signal.isPullback) {
+          const tickSize = this.settings.market?.tickSize || 1;
+          const retracement = (result.signal.pullbackConfig?.retracementTicks || 5) * tickSize;
+          const targetPrice = result.signal.type === 'BUY' ? this.price - retracement : this.price + retracement;
+          
+          this.pendingPullback = {
+            signal: result.signal,
+            targetPrice,
+            timestamp: now
+          };
+          this.log(`⏳ Pullback Entry Set: Waiting for price to reach ${targetPrice} (${result.signal.type})`, "INFO");
+        } else {
+          this.enterTrade(result.signal);
+        }
       }
     } else if (result.reason && result.reason !== 'No signal' && result.reason !== 'Indicators not ready') {
       // Log reason occasionally or if it's important

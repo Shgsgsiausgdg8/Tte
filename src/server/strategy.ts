@@ -18,6 +18,23 @@ export class Strategy {
     this.highQualityMode = config.strategy?.highQualityMode || false;
   }
 
+  getMTFStatus(priceHistory: any[]) {
+    if (!this.config.strategy?.mtf?.enabled) return null;
+    const history5 = this.aggregateTo5Min(priceHistory);
+    if (history5.length < 20) return { status: 'WAITING', trend: 'UNKNOWN' };
+    
+    const closes5 = history5.map(p => p.price);
+    const emaFast5 = this.calculateEMA(closes5, 20);
+    const emaSlow5 = this.calculateEMA(closes5, 50);
+    const trend5 = emaFast5 > emaSlow5 ? 'BUY' : 'SELL';
+    
+    return {
+      status: 'CONFIRMED',
+      trend: trend5,
+      timeframe: '5m'
+    };
+  }
+
   analyze(priceHistory: any[], openPositionsCount: number, currentPrice: number, dryRun: boolean = false) {
     if (!Array.isArray(priceHistory) || priceHistory.length < 50) {
       return { signal: null, reason: `Waiting for data... (${priceHistory?.length || 0}/50)` };
@@ -97,6 +114,27 @@ export class Strategy {
     }
 
     if (result?.signal && !dryRun) {
+      // 1. Real Multi-Timeframe Confirmation
+      if (this.config.strategy?.mtf?.enabled) {
+        const history5 = this.aggregateTo5Min(priceHistory);
+        if (history5.length >= 20) {
+          const closes5 = history5.map(p => p.price);
+          const emaFast5 = this.calculateEMA(closes5, 20);
+          const emaSlow5 = this.calculateEMA(closes5, 50);
+          const trend5 = emaFast5 > emaSlow5 ? 'BUY' : 'SELL';
+          
+          if (result.signal.type !== trend5) {
+            return { signal: null, reason: `MTF Trend Mismatch (1m: ${result.signal.type}, 5m: ${trend5})` };
+          }
+        }
+      }
+
+      // 2. Pullback Entry Flag
+      if (this.config.strategy?.pullback?.enabled) {
+        result.signal.isPullback = true;
+        result.signal.pullbackConfig = this.config.strategy.pullback;
+      }
+
       const anti = this.config.strategy?.antiSpam || {};
       if (anti.enabled && this.lastSignalType === result.signal.type) {
         const minMs = (anti.minMinutesBetweenSameSideSignals || 2) * 60 * 1000;
@@ -1295,24 +1333,6 @@ export class Strategy {
     }
     if (current15MinBar) history15min.push(current15MinBar);
     return history15min;
-  }
-
-  // ==========================================
-  // HELPER: Get MTF Trend Status
-  // ==========================================
-  getMTFStatus(priceHistory1min: any[]) {
-    const closes1 = priceHistory1min.map(p => p.price);
-    const history5 = this.aggregateTo5Min(priceHistory1min);
-    const history15 = this.aggregateTo15Min(priceHistory1min);
-    
-    const closes5 = history5.map(p => p.price);
-    const closes15 = history15.map(p => p.price);
-    
-    return {
-      m1: this.detectTrend(closes1, 14),
-      m5: this.detectTrend(closes5, 14),
-      m15: this.detectTrend(closes15, 14)
-    };
   }
 
   // ==========================================
