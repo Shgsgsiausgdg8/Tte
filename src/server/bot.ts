@@ -33,6 +33,14 @@ export class FarazGoldBot {
   lows: number[] = [];
   volumes: number[] = [];
   timestamps: number[] = [];
+  
+  // MTF Data (5m)
+  mtfCloses: number[] = [];
+  mtfHighs: number[] = [];
+  mtfLows: number[] = [];
+  mtfVolumes: number[] = [];
+  mtfTimestamps: number[] = [];
+
   isTrading: boolean = true;
   openPositions: Map<number, any> = new Map();
   strategy: Strategy;
@@ -654,6 +662,11 @@ ${analysisText}
         }
       }
       
+      // Fetch MTF bars every 5 minutes
+      if (now % 300000 < 1000) {
+        this.fetchMTFBars();
+      }
+      
       // Send periodic report every 30 minutes (1800000 ms)
       if (now % 1800000 < 1000) {
         this.sendReport();
@@ -714,6 +727,47 @@ ${analysisText}
         this.log(`Retrying historical bars fetch in 5 seconds (Attempt ${retryCount + 1}/3)...`, "INFO");
         setTimeout(() => this.fetchHistoricalBars(retryCount + 1), 5000);
       }
+    }
+  }
+
+  async fetchMTFBars(retryCount = 0) {
+    if (!this.api) return;
+    try {
+      const to = Math.floor(Date.now() / 1000);
+      const resolution = 5; // 5 minutes
+      const from = to - (24 * 60 * 60 * 3); // 3 days of 5m history
+      this.log(`Fetching MTF bars (${resolution}m) from ${from} to ${to}...`, "INFO");
+      
+      const response = await this.api.get('/api/room/api/get-bars/', {
+        params: {
+          symbol: 'mazane',
+          from: from,
+          to: to,
+          resolution: resolution
+        }
+      });
+
+      if (Array.isArray(response.data)) {
+        this.log(`Received ${response.data.length} MTF bars.`, "SUCCESS");
+        this.mtfCloses = [];
+        this.mtfHighs = [];
+        this.mtfLows = [];
+        this.mtfVolumes = [];
+        this.mtfTimestamps = [];
+        
+        const sortedData = response.data.sort((a: any, b: any) => a.time - b.time);
+        
+        for (const bar of sortedData) {
+          this.mtfCloses.push(bar.close);
+          this.mtfHighs.push(bar.high);
+          this.mtfLows.push(bar.low);
+          this.mtfVolumes.push(bar.volume || 1);
+          this.mtfTimestamps.push(bar.time * 1000);
+        }
+        this.log("MTF data loaded into bot state.", "SUCCESS");
+      }
+    } catch (error: any) {
+      this.log(`MTF Bars Fetch Error: ${error.message}`, "ERROR");
     }
   }
 
@@ -1441,7 +1495,15 @@ ${analysisText}
       time: this.timestamps[i] || Date.now()
     }));
 
-    const result = this.strategy.analyze(history, this.openPositions.size, this.price);
+    const mtfHistory = this.mtfCloses.map((c, i) => ({
+      price: c,
+      high: this.mtfHighs[i],
+      low: this.mtfLows[i],
+      volume: this.mtfVolumes[i],
+      time: this.mtfTimestamps[i] || Date.now()
+    }));
+
+    const result = this.strategy.analyze(history, this.openPositions.size, this.price, false, mtfHistory);
     
     if (result.signal) {
       // Generate unique signal ID
@@ -2487,25 +2549,44 @@ ${analysisText}
     // Calculate HMA and SuperTrend for chart
     let hmaLine: any[] = [];
     let stLine: any[] = [];
+    let hmaFastLine: any[] = [];
+    let hmaSlowLine: any[] = [];
     
     if (this.closes.length > 0) {
       const hstCfg = this.settings.strategy?.hst || { hmaLength: 55, stPeriod: 10, stMultiplier: 3 };
       const hmaValues = this.strategy.calculateHMA(this.closes, hstCfg.hmaLength || 55);
       const stValues = this.strategy.calculateSuperTrend(this.highs, this.lows, this.closes, hstCfg.stPeriod || 10, hstCfg.stMultiplier || 3);
       
+      // HMAMACD Indicators
+      const hmamacdCfg = this.settings.strategy?.hmamacd || { hmaFast: 9, hmaSlow: 21 };
+      const hmaFastValues = this.strategy.calculateHMA(this.closes, hmamacdCfg.hmaFast || 9);
+      const hmaSlowValues = this.strategy.calculateHMA(this.closes, hmamacdCfg.hmaSlow || 21);
+
       // Map back to timestamps, matching the slice(-200)
       const startIndex = Math.max(0, this.closes.length - 200);
       
       for (let i = startIndex; i < this.closes.length; i++) {
         const time = this.timestamps[i] || (Date.now() - (this.closes.length - i) * 60000);
         
-        // HMA array might be shorter than closes array due to lookback period
+        // HST HMA
         const hmaIdx = hmaValues.length - (this.closes.length - i);
         if (hmaIdx >= 0 && hmaValues[hmaIdx]) {
           hmaLine.push({ x: time, y: hmaValues[hmaIdx] });
         }
         
-        // SuperTrend array might be shorter
+        // HMAMACD Fast HMA
+        const hmaFastIdx = hmaFastValues.length - (this.closes.length - i);
+        if (hmaFastIdx >= 0 && hmaFastValues[hmaFastIdx]) {
+          hmaFastLine.push({ x: time, y: hmaFastValues[hmaFastIdx] });
+        }
+
+        // HMAMACD Slow HMA
+        const hmaSlowIdx = hmaSlowValues.length - (this.closes.length - i);
+        if (hmaSlowIdx >= 0 && hmaSlowValues[hmaSlowIdx]) {
+          hmaSlowLine.push({ x: time, y: hmaSlowValues[hmaSlowIdx] });
+        }
+
+        // SuperTrend
         const stIdx = stValues.length - (this.closes.length - i);
         if (stIdx >= 0 && stValues[stIdx]) {
           stLine.push({ 
@@ -2534,6 +2615,9 @@ ${analysisText}
       candles: candles,
       hmaLine: hmaLine,
       stLine: stLine,
+      hmaFastLine: hmaFastLine,
+      hmaSlowLine: hmaSlowLine,
+      mtfStatus: this.strategy.getMTFStatus(this.closes.map((c, i) => ({ price: c, high: this.highs[i], low: this.lows[i], volume: this.volumes[i], time: this.timestamps[i] })), this.mtfCloses.map((c, i) => ({ price: c, high: this.mtfHighs[i], low: this.mtfLows[i], volume: this.mtfVolumes[i], time: this.mtfTimestamps[i] }))),
       logs: this.logs,
       marketAnalysis: this.getMarketAnalysis(),
       latency: this.latency

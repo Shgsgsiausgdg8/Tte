@@ -141,6 +141,15 @@
       "enabled": false,
       "higherTimeframe": "5m",
       "requireTrendAlignment": true
+    },
+    "hmamacd": {
+      "hmaFast": 9,
+      "hmaSlow": 21,
+      "macdFast": 12,
+      "macdSlow": 26,
+      "macdSignal": 9,
+      "distanceFilter": 0.005,
+      "minCandleStrength": 0.001
     }
   },
   "websocket": {

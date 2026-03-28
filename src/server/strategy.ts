@@ -18,9 +18,9 @@ export class Strategy {
     this.highQualityMode = config.strategy?.highQualityMode || false;
   }
 
-  getMTFStatus(priceHistory: any[]) {
+  getMTFStatus(priceHistory: any[], mtfHistory?: any[]) {
     if (!this.config.strategy?.mtf?.enabled) return null;
-    const history5 = this.aggregateTo5Min(priceHistory);
+    const history5 = mtfHistory && mtfHistory.length >= 20 ? mtfHistory : this.aggregateTo5Min(priceHistory);
     if (history5.length < 20) return { status: 'WAITING', trend: 'UNKNOWN' };
     
     const closes5 = history5.map(p => p.price);
@@ -35,7 +35,7 @@ export class Strategy {
     };
   }
 
-  analyze(priceHistory: any[], openPositionsCount: number, currentPrice: number, dryRun: boolean = false) {
+  analyze(priceHistory: any[], openPositionsCount: number, currentPrice: number, dryRun: boolean = false, mtfHistory?: any[]) {
     if (!Array.isArray(priceHistory) || priceHistory.length < 50) {
       return { signal: null, reason: `Waiting for data... (${priceHistory?.length || 0}/50)` };
     }
@@ -103,20 +103,22 @@ export class Strategy {
     } else if (activeStrategy === 'PINBAR') {
       result = this.analyzePinBar(priceHistory, currentPrice, effectiveMinScore);
     } else if (activeStrategy === 'MTF_PATTERN') {
-      const priceHistory5min = this.aggregateTo5Min(priceHistory);
+      const priceHistory5min = mtfHistory && mtfHistory.length >= 20 ? mtfHistory : this.aggregateTo5Min(priceHistory);
       result = this.analyzeMTFPatterns(priceHistory5min, priceHistory, currentPrice, effectiveMinScore);
     } else if (activeStrategy === 'ICHIMOKU_MTF') {
-      const priceHistory5min = this.aggregateTo5Min(priceHistory);
+      const priceHistory5min = mtfHistory && mtfHistory.length >= 20 ? mtfHistory : this.aggregateTo5Min(priceHistory);
       result = this.analyzeIchimokuMTF(priceHistory5min, priceHistory, currentPrice, effectiveMinScore);
     } else if (activeStrategy === 'ICHIMOKU_HARAMI') {
-      const priceHistory5min = this.aggregateTo5Min(priceHistory);
+      const priceHistory5min = mtfHistory && mtfHistory.length >= 20 ? mtfHistory : this.aggregateTo5Min(priceHistory);
       result = this.analyzeIchimokuHaramiMTF(priceHistory5min, priceHistory, currentPrice, effectiveMinScore);
+    } else if (activeStrategy === 'HMAMACD') {
+      result = this.analyzeHMAMACD(priceHistory, currentPrice, effectiveMinScore);
     }
 
     if (result?.signal && !dryRun) {
       // 1. Real Multi-Timeframe Confirmation
       if (this.config.strategy?.mtf?.enabled) {
-        const history5 = this.aggregateTo5Min(priceHistory);
+        const history5 = mtfHistory && mtfHistory.length >= 20 ? mtfHistory : this.aggregateTo5Min(priceHistory);
         if (history5.length >= 20) {
           const closes5 = history5.map(p => p.price);
           const emaFast5 = this.calculateEMA(closes5, 20);
@@ -880,6 +882,130 @@ export class Strategy {
     const signal = this.createSignal(type, price, score, reasons, atr, 'HST');
     
     return { signal, reason: 'HST signal OK' };
+  }
+
+  analyzeHMAMACD(priceHistory: any[], currentPrice: number, effectiveMinScore: number = this.minSignalScore) {
+    const closes = priceHistory.map(p => p.price);
+    const highs = priceHistory.map(p => p.high ?? p.price);
+    const lows = priceHistory.map(p => p.low ?? p.price);
+    const price = currentPrice || closes[closes.length - 1];
+
+    const cfg = this.config.strategy?.hmamacd || {
+      hmaFast: 9,
+      hmaSlow: 21,
+      macdFast: 12,
+      macdSlow: 26,
+      macdSignal: 9,
+      distanceFilter: 0.005, // 0.5% max distance from MA
+      minCandleStrength: 0.001 // 0.1% min candle body
+    };
+
+    if (closes.length < Math.max(cfg.hmaSlow, cfg.macdSlow + cfg.macdSignal) + 5) {
+      return { signal: null, reason: 'Not enough data for HMA-MACD' };
+    }
+
+    // 1. Calculate HMAs
+    const hmaFastValues = this.calculateHMA(closes, cfg.hmaFast);
+    const hmaSlowValues = this.calculateHMA(closes, cfg.hmaSlow);
+
+    if (hmaFastValues.length < 2 || hmaSlowValues.length < 2) {
+      return { signal: null, reason: 'HMAs not ready' };
+    }
+
+    const currentHmaFast = hmaFastValues[hmaFastValues.length - 1];
+    const prevHmaFast = hmaFastValues[hmaFastValues.length - 2];
+    const currentHmaSlow = hmaSlowValues[hmaSlowValues.length - 1];
+    const prevHmaSlow = hmaSlowValues[hmaSlowValues.length - 2];
+
+    // 2. Calculate MACD
+    // We need current and previous MACD to detect cross
+    const macdCurrent = this.calculateMACD(closes, cfg.macdFast, cfg.macdSlow, cfg.macdSignal);
+    const macdPrev = this.calculateMACD(closes.slice(0, -1), cfg.macdFast, cfg.macdSlow, cfg.macdSignal);
+
+    if (!macdCurrent || !macdPrev) {
+      return { signal: null, reason: 'MACD not ready' };
+    }
+
+    // 3. Local High/Low (Optional precision)
+    const lookback = 10;
+    const localHigh = Math.max(...highs.slice(-lookback));
+    const localLow = Math.min(...lows.slice(-lookback));
+    const isNearHigh = price >= localHigh * 0.9995;
+    const isNearLow = price <= localLow * 1.0005;
+
+    // 4. Candle Strength (Filter)
+    const currentOpen = priceHistory[priceHistory.length - 1].open;
+    const candleBody = Math.abs(price - currentOpen);
+    const candleStrength = candleBody / currentOpen;
+    const isStrongCandle = candleStrength >= (cfg.minCandleStrength || 0.0005);
+
+    // 5. Distance Filter
+    const distanceFromFastMA = Math.abs(price - currentHmaFast) / currentHmaFast;
+    const isTooFar = distanceFromFastMA > (cfg.distanceFilter || 0.01);
+
+    // Update indicators for dashboard
+    this.indicators.hmaFast = currentHmaFast;
+    this.indicators.hmaSlow = currentHmaSlow;
+    this.indicators.macd = macdCurrent;
+
+    let type: 'BUY' | 'SELL' | null = null;
+    let reasons: string[] = [];
+    let score = 0;
+
+    // BUY LOGIC
+    const hmaCrossUp = prevHmaFast <= prevHmaSlow && currentHmaFast > currentHmaSlow;
+    const macdCrossUp = macdPrev.macd <= macdPrev.signal && macdCurrent.macd > macdCurrent.signal;
+    const macdHistPositive = macdCurrent.histogram > 0;
+
+    if (hmaCrossUp && macdCrossUp && macdHistPositive) {
+      if (isTooFar) return { signal: null, reason: 'Price too far from HMA' };
+      if (!isStrongCandle) return { signal: null, reason: 'Candle too weak' };
+
+      type = 'BUY';
+      score = 2;
+      reasons.push('HMA Cross Up', 'MACD Cross Up', 'MACD Histogram Positive');
+      if (isNearLow) {
+        score += 1;
+        reasons.push('Near Local Low');
+      }
+    }
+
+    // SELL LOGIC
+    const hmaCrossDown = prevHmaFast >= prevHmaSlow && currentHmaFast < currentHmaSlow;
+    const macdCrossDown = macdPrev.macd >= macdPrev.signal && macdCurrent.macd < macdCurrent.signal;
+    const macdHistNegative = macdCurrent.histogram < 0;
+
+    if (hmaCrossDown && macdCrossDown && macdHistNegative) {
+      if (isTooFar) return { signal: null, reason: 'Price too far from HMA' };
+      if (!isStrongCandle) return { signal: null, reason: 'Candle too weak' };
+
+      type = 'SELL';
+      score = 2;
+      reasons.push('HMA Cross Down', 'MACD Cross Down', 'MACD Histogram Negative');
+      if (isNearHigh) {
+        score += 1;
+        reasons.push('Near Local High');
+      }
+    }
+
+    // EXIT LOGIC (For open positions)
+    // This is handled by the bot's checkExitConditions which calls analyze with dryRun=true usually,
+    // but we can also return an EXIT signal if needed.
+    // However, the bot usually handles SL/TP and strategy-based exit separately.
+
+    if (type && score >= effectiveMinScore) {
+      return {
+        signal: {
+          type,
+          price,
+          score,
+          reasons,
+          timestamp: Date.now()
+        }
+      };
+    }
+
+    return { signal: null, reason: 'No HMA-MACD criteria met' };
   }
 
   detectMarketRegime(highs: number[], lows: number[], closes: number[]) {

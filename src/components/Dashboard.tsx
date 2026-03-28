@@ -227,9 +227,26 @@ export default function Dashboard() {
         series.push({ name: 'ST Up', type: 'line', data: stUp });
         series.push({ name: 'ST Down', type: 'line', data: stDown });
       }
+    } else if (botState?.settings?.activeStrategy === 'HMAMACD') {
+      if (botState.hmaFastLine && botState.hmaFastLine.length > 0) {
+        series.push({
+          name: 'HMA Fast',
+          type: 'line',
+          data: botState.hmaFastLine,
+          color: '#3b82f6' // Blue
+        });
+      }
+      if (botState.hmaSlowLine && botState.hmaSlowLine.length > 0) {
+        series.push({
+          name: 'HMA Slow',
+          type: 'line',
+          data: botState.hmaSlowLine,
+          color: '#f59e0b' // Orange
+        });
+      }
     }
     return series;
-  }, [candles, botState?.hmaLine, botState?.stLine, botState?.settings?.activeStrategy]);
+  }, [candles, botState?.hmaLine, botState?.stLine, botState?.hmaFastLine, botState?.hmaSlowLine, botState?.settings?.activeStrategy]);
 
   const chartOptions = React.useMemo(() => ({
     chart: {
@@ -540,9 +557,19 @@ export default function Dashboard() {
               </h2>
               <div className="flex items-center gap-4">
                 {botState.marketAnalysis && (
-                  <div className="hidden sm:flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-xl border border-white/5">
-                    <span className="text-[9px] text-slate-500">وضعیت بازار:</span>
-                    <span className={`text-[10px] font-bold ${botState.marketAnalysis.color}`}>{botState.marketAnalysis.trend}</span>
+                  <div className="hidden sm:flex items-center gap-4">
+                    <div className="flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-xl border border-white/5">
+                      <span className="text-[9px] text-slate-500">وضعیت بازار:</span>
+                      <span className={`text-[10px] font-bold ${botState.marketAnalysis.color}`}>{botState.marketAnalysis.trend}</span>
+                    </div>
+                    {botState.mtfStatus && (
+                      <div className="flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-xl border border-white/5">
+                        <span className="text-[9px] text-slate-500">تاییدیه MTF:</span>
+                        <span className={`text-[10px] font-bold ${botState.mtfStatus.status === 'CONFIRMED' ? (botState.mtfStatus.trend === 'BUY' ? 'text-emerald-500' : 'text-rose-500') : 'text-slate-500'}`}>
+                          {botState.mtfStatus.status === 'CONFIRMED' ? (botState.mtfStatus.trend === 'BUY' ? 'صعودی (5m)' : 'نزولی (5m)') : 'در حال تحلیل...'}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )}
                 <div className="flex gap-2 w-full sm:w-auto justify-end" dir="ltr">
@@ -1691,6 +1718,7 @@ export default function Dashboard() {
                   </h3>
                   <div className="grid grid-cols-3 gap-4">
                     {[
+                      { id: 'HMAMACD', label: 'HMA + MACD', desc: 'کراس Hull و تایید MACD' },
                       { id: 'SCALP', label: 'اسکالپر پرو', desc: 'مبتنی بر RSI و EMA' },
                       { id: 'FAST', label: 'فوق سریع', desc: 'واکنش سریع به نوسان' },
                       { id: 'QUANT', label: 'کوانت', desc: 'پرایس اکشن و الگوها' },
@@ -1774,6 +1802,7 @@ export default function Dashboard() {
                   >
                     <h3 className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest mb-6 flex items-center gap-3">
                       <Activity className="w-4 h-4" /> تنظیمات حرفه‌ای: {
+                        settings.activeStrategy === 'HMAMACD' ? 'HMA + MACD' : 
                         settings.activeStrategy === 'SCALP' ? 'اسکالپر پرو' : 
                         settings.activeStrategy === 'FAST' ? 'فوق سریع' : 
                         settings.activeStrategy === 'QUANT' ? 'کوانت' : 
@@ -1787,6 +1816,96 @@ export default function Dashboard() {
                       }
                     </h3>
                     
+                    {settings.activeStrategy === 'HMAMACD' && (
+                      <motion.div 
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="space-y-6"
+                      >
+                        <div className="bg-emerald-500/5 p-4 rounded-2xl border border-emerald-500/10">
+                          <p className="text-[10px] text-emerald-500 font-bold mb-1">💡 راهنمای HMA + MACD</p>
+                          <p className="text-[9px] text-slate-400 leading-relaxed">
+                            این استراتژی از کراس دو میانگین متحرک Hull برای تشخیص روند و از MACD برای تایید نهایی استفاده می‌کند.
+                            ورود فقط زمانی انجام می‌شود که هر دو تاییدیه صادر شده باشند.
+                          </p>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">HMA Fast Length</label>
+                            <input 
+                              type="number" 
+                              value={settings.strategy?.hmamacd?.hmaFast || 9}
+                              onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, hmamacd: { ...settings.strategy.hmamacd, hmaFast: parseInt(e.target.value) } } })}
+                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm focus:border-emerald-500/50 outline-none transition-all"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">HMA Slow Length</label>
+                            <input 
+                              type="number" 
+                              value={settings.strategy?.hmamacd?.hmaSlow || 21}
+                              onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, hmamacd: { ...settings.strategy.hmamacd, hmaSlow: parseInt(e.target.value) } } })}
+                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm focus:border-emerald-500/50 outline-none transition-all"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-4">
+                          <div>
+                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">MACD Fast</label>
+                            <input 
+                              type="number" 
+                              value={settings.strategy?.hmamacd?.macdFast || 12}
+                              onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, hmamacd: { ...settings.strategy.hmamacd, macdFast: parseInt(e.target.value) } } })}
+                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm focus:border-emerald-500/50 outline-none transition-all"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">MACD Slow</label>
+                            <input 
+                              type="number" 
+                              value={settings.strategy?.hmamacd?.macdSlow || 26}
+                              onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, hmamacd: { ...settings.strategy.hmamacd, macdSlow: parseInt(e.target.value) } } })}
+                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm focus:border-emerald-500/50 outline-none transition-all"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">MACD Signal</label>
+                            <input 
+                              type="number" 
+                              value={settings.strategy?.hmamacd?.macdSignal || 9}
+                              onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, hmamacd: { ...settings.strategy.hmamacd, macdSignal: parseInt(e.target.value) } } })}
+                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm focus:border-emerald-500/50 outline-none transition-all"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">Distance Filter (%)</label>
+                            <input 
+                              type="number" 
+                              step="0.001"
+                              value={settings.strategy?.hmamacd?.distanceFilter || 0.005}
+                              onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, hmamacd: { ...settings.strategy.hmamacd, distanceFilter: parseFloat(e.target.value) } } })}
+                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm focus:border-emerald-500/50 outline-none transition-all"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">Min Candle Strength</label>
+                            <input 
+                              type="number" 
+                              step="0.0001"
+                              value={settings.strategy?.hmamacd?.minCandleStrength || 0.001}
+                              onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, hmamacd: { ...settings.strategy.hmamacd, minCandleStrength: parseFloat(e.target.value) } } })}
+                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm focus:border-emerald-500/50 outline-none transition-all"
+                            />
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+
                     {settings.activeStrategy === 'SCALP' && (
                       <div className="space-y-6">
                         <div className="bg-emerald-500/5 p-4 rounded-2xl border border-emerald-500/20 mb-6">
