@@ -83,6 +83,7 @@ export class FarazGoldBot {
   hasAttemptedAutoCreate: boolean = false;
   signalCounter: number = 1000;
   processedSignals: Set<string> = new Set();
+  private lastCandleLogTime: number = 0;
   private lastMarketClosedTime: number = 0;
   private isMarketClosed: boolean = false;
   private settingsWatcher: fs.FSWatcher | null = null;
@@ -1257,8 +1258,11 @@ ${analysisText}
                     
                     // Add a small delay to ensure the server has indexed the transaction before we try to edit it
                     setTimeout(() => {
-                      this.enforceStopLossTakeProfit(txId, pos.sl, pos.tp1, id).then(success => {
-                        pos.slEnforced = success;
+                      const p = this.openPositions.get(id);
+                      if (!p || (p.slEnforced && p.transactionId === txId)) return;
+                      
+                      this.enforceStopLossTakeProfit(txId, p.sl, p.tp1, id).then(success => {
+                        if (success) p.slEnforced = true;
                       }).catch(() => {});
                     }, 1500);
                     break;
@@ -1292,7 +1296,10 @@ ${analysisText}
           if (Array.isArray(msg)) {
             // It might be an array of candles directly
             if (msg.length > 0 && (msg[0].c !== undefined || msg[0].close !== undefined)) {
-              this.log(`Received array of ${msg.length} candles`, "WS");
+              if (now - this.lastCandleLogTime > 5 * 60 * 1000) {
+                this.log(`Received array of ${msg.length} candles`, "WS");
+                this.lastCandleLogTime = now;
+              }
               const sortedMsg = msg.sort((a: any, b: any) => (a.time || a.t) - (b.time || b.t));
               sortedMsg.forEach((bar: any) => this.processCandle(bar, true));
               this.checkForSignal();
@@ -1302,9 +1309,15 @@ ${analysisText}
 
           // Debug log for first few messages or specific keys
           if (msg.bars) {
-            this.log(`Received bars: ${Array.isArray(msg.bars['1']) ? msg.bars['1'].length : 1} candles`, "WS");
+            if (now - this.lastCandleLogTime > 5 * 60 * 1000) {
+              this.log(`Received bars: ${Array.isArray(msg.bars['1']) ? msg.bars['1'].length : 1} candles`, "WS");
+              this.lastCandleLogTime = now;
+            }
           } else if (msg.history) {
-            this.log(`Received history: ${Array.isArray(msg.history) ? msg.history.length : 'unknown'} candles`, "WS");
+            if (now - this.lastCandleLogTime > 5 * 60 * 1000) {
+              this.log(`Received history: ${Array.isArray(msg.history) ? msg.history.length : 'unknown'} candles`, "WS");
+              this.lastCandleLogTime = now;
+            }
             // Handle alternative history format
             if (Array.isArray(msg.history)) {
                const sortedHistory = msg.history.sort((a: any, b: any) => (a.time || a.t) - (b.time || b.t));
@@ -1354,8 +1367,11 @@ ${analysisText}
                     this.log(`[WS] Linked transaction ${txId} to local position ${id} (authoritative). Enforcing SL/TP in 1s...`, "SUCCESS");
                     
                     setTimeout(() => {
-                      this.enforceStopLossTakeProfit(txId, pos.sl, pos.tp1, id).then(success => {
-                        pos.slEnforced = success;
+                      const p = this.openPositions.get(id);
+                      if (!p || (p.slEnforced && p.transactionId === txId)) return;
+
+                      this.enforceStopLossTakeProfit(txId, p.sl, p.tp1, id).then(success => {
+                        if (success) p.slEnforced = true;
                       }).catch(() => {});
                     }, 1000);
                     break;
@@ -1877,9 +1893,11 @@ ${analysisText}
           if (transId) {
             // Immediate enforcement with a tiny delay to ensure server indexing
             setTimeout(() => {
+              const p = this.openPositions.get(id);
+              if (!p || (p.slEnforced && p.transactionId === transId)) return;
+
               this.enforceStopLossTakeProfit(transId, sl, tp, id).then(success => {
-                const p = this.openPositions.get(id);
-                if (p) p.slEnforced = success;
+                if (success) p.slEnforced = true;
               }).catch(() => {});
             }, 1000);
           }
@@ -1939,8 +1957,10 @@ ${analysisText}
           position.enforceAttempts = attemptCount + 1;
           this.log(`Retrying SL/TP Enforcement for ${position.transactionId} (Attempt ${position.enforceAttempts})...`, "INFO");
           this.enforceStopLossTakeProfit(position.transactionId, position.sl, position.tp1, id).then(success => {
-            position.slEnforced = success;
-            if (success) this.log(`SL/TP Enforced on retry for ${position.transactionId}`, "SUCCESS");
+            if (success) {
+              position.slEnforced = true;
+              this.log(`SL/TP Enforced on retry for ${position.transactionId}`, "SUCCESS");
+            }
           }).catch(() => {});
         }
       }
@@ -2486,15 +2506,14 @@ ${analysisText}
             this.log(`Edit TP API Error (${url}): Status ${status} | Data: ${JSON.stringify(data || e.message)}`, "ERROR");
             
             // If trade closed or TP already hit, consider it "done" for enforcement purposes
-            if (errorMsg.includes('بسته شده') || errorMsg.includes('نامعتبر')) {
-              this.log(`TP Edit skipped: Trade is closed or ID is invalid (${transactionId})`, "INFO");
+            if (errorMsg.includes('بسته شده')) {
+              this.log(`TP Edit skipped: Trade is closed (${transactionId})`, "INFO");
               return true; 
             }
 
-            // If "یافت نشد" (Not Found), it might be the wrong endpoint or ID type.
-            // We should NOT return true here, but continue the loop to try other endpoints.
-            if (errorMsg.includes('یافت نشد')) {
-              this.log(`TP Edit: Transaction ${transactionId} not found on ${url}. Trying next endpoint...`, "INFO");
+            // If "یافت نشد" (Not Found) or "نامعتبر" (Invalid), it might be the wrong endpoint or ID type.
+            if (errorMsg.includes('یافت نشد') || errorMsg.includes('نامعتبر')) {
+              this.log(`TP Edit: Transaction ${transactionId} not found or invalid on ${url}. Trying next endpoint...`, "INFO");
               continue;
             }
 
@@ -2576,15 +2595,14 @@ ${analysisText}
             this.log(`Edit SL API Error (${url}): Status ${status} | Data: ${JSON.stringify(data || e.message)}`, "ERROR");
             
             // If trade closed, consider it "done"
-            if (errorMsg.includes('بسته شده') || errorMsg.includes('نامعتبر')) {
-              this.log(`SL Edit skipped: Trade is closed or ID is invalid (${transactionId})`, "INFO");
+            if (errorMsg.includes('بسته شده')) {
+              this.log(`SL Edit skipped: Trade is closed (${transactionId})`, "INFO");
               return true; 
             }
 
-            // If "یافت نشد" (Not Found), it might be the wrong endpoint or ID type.
-            // We should NOT return true here, but continue the loop to try other endpoints.
-            if (errorMsg.includes('یافت نشد')) {
-              this.log(`SL Edit: Transaction ${transactionId} not found on ${url}. Trying next endpoint...`, "INFO");
+            // If "یافت نشد" (Not Found) or "نامعتبر" (Invalid), it might be the wrong endpoint or ID type.
+            if (errorMsg.includes('یافت نشد') || errorMsg.includes('نامعتبر')) {
+              this.log(`SL Edit: Transaction ${transactionId} not found or invalid on ${url}. Trying next endpoint...`, "INFO");
               continue;
             }
 
