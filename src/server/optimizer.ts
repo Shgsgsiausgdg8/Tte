@@ -54,10 +54,21 @@ function propose(base: any) {
     trend.macdFast = clamp(randInt(trend.macdFast - 3, trend.macdFast + 3), 5, 30);
     trend.macdSlow = clamp(randInt(trend.macdSlow - 5, trend.macdSlow + 5), 15, 60);
     cfg.strategy.trend = trend;
+  } else if (activeStrategy === 'HMAMACD') {
+    const hmamacd = cfg.strategy.hmamacd || { hmaFast: 9, hmaSlow: 21, macdFast: 12, macdSlow: 26, macdSignal: 9 };
+    hmamacd.hmaFast = clamp(randInt(hmamacd.hmaFast - 3, hmamacd.hmaFast + 3), 3, 30);
+    hmamacd.hmaSlow = clamp(randInt(hmamacd.hmaSlow - 6, hmamacd.hmaSlow + 8), 8, 80);
+    hmamacd.macdFast = clamp(randInt(hmamacd.macdFast - 3, hmamacd.macdFast + 3), 5, 30);
+    hmamacd.macdSlow = clamp(randInt(hmamacd.macdSlow - 5, hmamacd.macdSlow + 5), 15, 60);
+    cfg.strategy.hmamacd = hmamacd;
   } else {
-    const emaFast = cfg.strategy?.indicators?.ema?.fast ?? 8;
-    const emaSlow = cfg.strategy?.indicators?.ema?.slow ?? 21;
-    const rsiP = cfg.strategy?.indicators?.rsi?.period ?? 9;
+    if (!cfg.strategy.indicators) cfg.strategy.indicators = {};
+    if (!cfg.strategy.indicators.ema) cfg.strategy.indicators.ema = { fast: 8, slow: 21 };
+    if (!cfg.strategy.indicators.rsi) cfg.strategy.indicators.rsi = { period: 9, oversold: 35, overbought: 65 };
+
+    const emaFast = cfg.strategy.indicators.ema.fast;
+    const emaSlow = cfg.strategy.indicators.ema.slow;
+    const rsiP = cfg.strategy.indicators.rsi.period;
 
     cfg.strategy.indicators.ema.fast = clamp(randInt(emaFast-3, emaFast+3), 3, 30);
     cfg.strategy.indicators.ema.slow = clamp(randInt(emaSlow-6, emaSlow+8), 8, 80);
@@ -80,15 +91,41 @@ function propose(base: any) {
   return cfg;
 }
 
-function score(metrics: any) {
+function score(metrics: any, maximizeBigWins: boolean = false) {
   const t = metrics.trades;
-  if (t < 20) return -1e9;
+  if (t < 10) return -1e12; // Need at least some trades
+  
   const net = metrics.netTicks;
-  const dd = metrics.maxDrawdownTicks || 0;
+  const dd = metrics.maxDrawdownTicks || 1;
   const pf = metrics.profitFactor || 0;
   const wr = metrics.winRate || 0;
+  const maxWin = metrics.maxWinTicks || 0;
+  const avg = metrics.avgTicks || 0;
 
-  return net - 0.75 * dd + 50 * (pf - 1) + 10 * (wr - 0.5);
+  // Scoring formula:
+  // 1. Net profit is king
+  // 2. Penalize drawdown heavily
+  // 3. Reward high Profit Factor
+  // 4. Reward "Big Wins" (maxWin)
+  // 5. Reward high average profit per trade
+  // 6. Win rate is secondary but should be > 40%
+  
+  let s = net * 1.0;
+  s -= dd * 2.0; // Heavy drawdown penalty
+  s += pf * 100; // Reward efficiency
+  
+  if (maximizeBigWins) {
+    s += maxWin * 10.0; // Heavy reward for big wins (user request)
+    s += avg * 100; // Reward quality even more
+  } else {
+    s += maxWin * 2.0; // Standard reward for big wins
+    s += avg * 50; // Standard reward for quality
+  }
+  
+  if (wr < 0.4) s -= 500; // Penalty for low win rate
+  if (t > 50) s += 100; // Reward consistency
+  
+  return s;
 }
 
 function walkForward(cfg: any, bars: any[], splits: any[]) {
@@ -152,6 +189,8 @@ function toPatch(bestCfg: any) {
     patch.strategy.quant = bestCfg.strategy.quant;
   } else if (bestCfg.activeStrategy === 'TREND') {
     patch.strategy.trend = bestCfg.strategy.trend;
+  } else if (bestCfg.activeStrategy === 'HMAMACD') {
+    patch.strategy.hmamacd = bestCfg.strategy.hmamacd;
   } else {
     patch.strategy.indicators = {
       ema: { fast: bestCfg.strategy.indicators.ema.fast, slow: bestCfg.strategy.indicators.ema.slow },
@@ -172,41 +211,76 @@ export async function runOptimization(inFile: string, outFile: string, iters: nu
     throw new Error(`Not enough data in ${inFile}. Need at least ~300 bars. Have ${bars.length}.`);
   }
 
-  const base = deepClone(baseConfig);
+  const strategies = ['SCALP', 'HST', 'QUANT', 'TREND', 'HMAMACD'];
   const splits = pickSplits();
+  const maximizeBigWins = !!baseConfig.autoTune?.maximizeBigWins;
+  
+  let absoluteBestCfg = null;
+  let absoluteBestScore = -1e18;
+  let absoluteBestAgg = null;
+  let bestStrategyName = '';
 
-  let bestCfg = base;
-  let bestScore = -1e18;
-  let bestAgg = null;
+  for (const strat of strategies) {
+    const base = deepClone(baseConfig);
+    base.activeStrategy = strat;
+    
+    let currentBestCfg = base;
+    let currentBestScore = -1e18;
+    let currentBestAgg = null;
 
-  {
-    const wf = walkForward(base, bars, splits);
-    const sc = score(wf.agg);
-    bestScore = sc;
-    bestAgg = wf.agg;
-  }
+    // Initial evaluation
+    {
+      const wf = walkForward(base, bars, splits);
+      currentBestScore = score(wf.agg, maximizeBigWins);
+      currentBestAgg = wf.agg;
+    }
 
-  for (let n=0;n<iters;n++) {
-    const cand = propose(base);
-    const wf = walkForward(cand, bars, splits);
-    const sc = score(wf.agg);
-    if (sc > bestScore) {
-      bestScore = sc;
-      bestCfg = cand;
-      bestAgg = wf.agg;
+    // Optimize this strategy
+    const stratIters = Math.floor(iters / strategies.length);
+    for (let n=0; n < stratIters; n++) {
+      const cand = propose(currentBestCfg);
+      const wf = walkForward(cand, bars, splits);
+      const sc = score(wf.agg, maximizeBigWins);
+      if (sc > currentBestScore) {
+        currentBestScore = sc;
+        currentBestCfg = cand;
+        currentBestAgg = wf.agg;
+      }
+    }
+
+    if (currentBestScore > absoluteBestScore) {
+      absoluteBestScore = currentBestScore;
+      absoluteBestCfg = currentBestCfg;
+      absoluteBestAgg = currentBestAgg;
+      bestStrategyName = strat;
     }
   }
 
-  const patch = toPatch(bestCfg);
+  if (!absoluteBestCfg) throw new Error("Optimization failed to find a valid configuration.");
+
+  const patch = toPatch(absoluteBestCfg);
+  patch.activeStrategy = bestStrategyName;
+
+  // Hourly Analysis on the best config
+  const fullBacktest = runBacktest(absoluteBestCfg, bars);
+  const hourlyStats = fullBacktest.metrics.hourlyStats;
+  const bestHours = Object.entries(hourlyStats)
+    .map(([h, s]: [any, any]) => ({ hour: parseInt(h), ...s }))
+    .sort((a, b) => b.netTicks - a.netTicks)
+    .slice(0, 5);
+
   const payload = {
     generatedAt: new Date().toISOString(),
-    objectiveScore: bestScore,
-    metrics: bestAgg,
+    objectiveScore: absoluteBestScore,
+    bestStrategy: bestStrategyName,
+    bestHours,
+    metrics: absoluteBestAgg,
     patch,
     full: {
-      strategy: bestCfg.strategy,
-      targetsTicks: bestCfg.targetsTicks,
-      filters: bestCfg.filters
+      activeStrategy: bestStrategyName,
+      strategy: absoluteBestCfg.strategy,
+      targetsTicks: absoluteBestCfg.targetsTicks,
+      filters: absoluteBestCfg.filters
     }
   };
 

@@ -85,6 +85,7 @@ export class FarazGoldBot {
   private isMarketClosed: boolean = false;
   private settingsWatcher: fs.FSWatcher | null = null;
   private pendingPullback: any = null;
+  private BACKUP_SETTINGS_PATH = path.join(process.cwd(), 'src/server/settings_backup.json');
 
   orderBook = {
     bids: [] as any[],
@@ -336,6 +337,12 @@ export class FarazGoldBot {
         this.losingTrades = state.losingTrades || 0;
         this.closedPositions = state.closedPositions || [];
         this.signalCounter = state.signalCounter || 1000;
+        this.lastTradeTime = state.lastTradeTime || 0;
+        
+        if (state.openPositions && Array.isArray(state.openPositions)) {
+          this.openPositions = new Map(state.openPositions);
+          this.log(`Restored ${this.openPositions.size} open positions from state file.`, "SUCCESS");
+        }
       }
     } catch (e) {}
   }
@@ -349,7 +356,8 @@ export class FarazGoldBot {
         winningTrades: this.winningTrades,
         losingTrades: this.losingTrades,
         closedPositions: this.closedPositions.slice(-50), // Keep last 50
-        signalCounter: this.signalCounter
+        signalCounter: this.signalCounter,
+        openPositions: Array.from(this.openPositions.entries())
       };
       fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
     } catch (e) {}
@@ -416,6 +424,33 @@ export class FarazGoldBot {
     } else if (sourceChanged) {
       this.log(`Price source settings changed (${newApi.useRealAccount ? 'REAL' : 'DEMO'}). Restarting source...`, "INFO");
       this.connectToExternalWS();
+    }
+  }
+
+  backupSettings() {
+    try {
+      fs.writeFileSync(this.BACKUP_SETTINGS_PATH, JSON.stringify(this.settings, null, 2));
+      this.log(`Settings backup created.`, "INFO");
+    } catch (e: any) {
+      this.log(`Failed to backup settings: ${e.message}`, "ERROR");
+    }
+  }
+
+  restoreSettings() {
+    try {
+      if (fs.existsSync(this.BACKUP_SETTINGS_PATH)) {
+        const raw = fs.readFileSync(this.BACKUP_SETTINGS_PATH, 'utf8');
+        const backedUp = JSON.parse(raw);
+        this.saveSettings(backedUp);
+        this.log(`Settings restored from backup.`, "INFO");
+        return true;
+      } else {
+        this.log(`No settings backup found to restore.`, "INFO");
+        return false;
+      }
+    } catch (e: any) {
+      this.log(`Failed to restore settings: ${e.message}`, "ERROR");
+      return false;
     }
   }
 
@@ -705,13 +740,24 @@ ${analysisText}
         const sortedData = response.data.sort((a: any, b: any) => a.time - b.time);
         
         for (const bar of sortedData) {
-          this.opens.push(bar.open || bar.close);
-          this.closes.push(bar.close);
-          this.highs.push(bar.high);
-          this.lows.push(bar.low);
-          this.volumes.push(bar.volume || 1);
-          this.timestamps.push(bar.time * 1000); // API returns seconds, we need ms
+          const t = bar.time * 1000;
+          const o = bar.open || bar.close;
+          const h = bar.high;
+          const l = bar.low;
+          const c = bar.close;
+          const v = bar.volume || 1;
+
+          this.opens.push(o);
+          this.closes.push(c);
+          this.highs.push(h);
+          this.lows.push(l);
+          this.volumes.push(v);
+          this.timestamps.push(t);
+
+          // Record to market.jsonl for Auto-Tune
+          this.recorder.recordCandle({ t, o, h, l, c, v });
         }
+        this.recorder.flush();
         
         if (this.closes.length > 0) {
           this.price = this.closes[this.closes.length - 1];
@@ -723,9 +769,10 @@ ${analysisText}
     } catch (error: any) {
       const status = error.response ? error.response.status : 'Network Error';
       this.log(`Historical Bars Fetch Error: ${status} - ${error.message}`, "ERROR");
-      if (retryCount < 3) {
-        this.log(`Retrying historical bars fetch in 5 seconds (Attempt ${retryCount + 1}/3)...`, "INFO");
-        setTimeout(() => this.fetchHistoricalBars(retryCount + 1), 5000);
+      if (retryCount < 5) {
+        const delay = Math.min(30000, 5000 * Math.pow(1.5, retryCount));
+        this.log(`Retrying historical bars fetch in ${Math.round(delay/1000)}s (Attempt ${retryCount + 1}/5)...`, "INFO");
+        setTimeout(() => this.fetchHistoricalBars(retryCount + 1), delay);
       }
     }
   }
@@ -767,7 +814,13 @@ ${analysisText}
         this.log("MTF data loaded into bot state.", "SUCCESS");
       }
     } catch (error: any) {
-      this.log(`MTF Bars Fetch Error: ${error.message}`, "ERROR");
+      const status = error.response ? error.response.status : 'Network Error';
+      this.log(`MTF Bars Fetch Error: ${status} - ${error.message}`, "ERROR");
+      if (retryCount < 5) {
+        const delay = Math.min(30000, 5000 * Math.pow(1.5, retryCount));
+        this.log(`Retrying MTF bars fetch in ${Math.round(delay/1000)}s (Attempt ${retryCount + 1}/5)...`, "INFO");
+        setTimeout(() => this.fetchMTFBars(retryCount + 1), delay);
+      }
     }
   }
 
@@ -1783,27 +1836,40 @@ ${analysisText}
             telegramMessageId: tgMsgId,
             rubikaMessageId: rubikaMsgId
           });
+          this.saveState();
           this.log(`Trade Executed: ${signal.type} at ${this.price} (ID: ${transId})`, "SUCCESS");
           
           // CRITICAL: Explicitly enforce SL/TP after entry to ensure they are set on the server
           // Some API versions might ignore SL/TP in the initial submit-order call
           if (transId) {
-            // Wait 2s before enforcing to ensure order is fully registered on server
-            setTimeout(() => {
-              this.enforceStopLossTakeProfit(transId, sl, tp, id).then(success => {
-                const pos = this.openPositions.get(id);
-                if (pos) {
-                  pos.slEnforced = success;
-                  if (success) {
-                    this.log(`SL/TP Enforced successfully for ${transId}`, "SUCCESS");
-                  } else {
-                    this.log(`SL/TP Enforcement FAILED for ${transId}. Will retry in next loop.`, "ERROR");
-                  }
+            // Immediate attempt (some servers are fast)
+            this.enforceStopLossTakeProfit(transId, sl, tp, id).then(success => {
+              const pos = this.openPositions.get(id);
+              if (pos) {
+                pos.slEnforced = success;
+                if (success) {
+                  this.log(`SL/TP Enforced immediately for ${transId}`, "SUCCESS");
                 }
-              }).catch(err => {
-                this.log(`SL/TP Enforcement Error for ${transId}: ${err.message}`, "ERROR");
-              });
-            }, 2000);
+              }
+              
+              // If immediate failed, try again after a short delay
+              if (!success) {
+                setTimeout(() => {
+                  this.enforceStopLossTakeProfit(transId, sl, tp, id).then(s2 => {
+                    const p2 = this.openPositions.get(id);
+                    if (p2) {
+                      p2.slEnforced = s2;
+                      if (s2) this.log(`SL/TP Enforced after delay for ${transId}`, "SUCCESS");
+                      else this.log(`SL/TP Enforcement FAILED for ${transId} after retry. Will retry in next loop.`, "ERROR");
+                    }
+                  }).catch(err => {
+                    this.log(`SL/TP Enforcement Retry Error for ${transId}: ${err.message}`, "ERROR");
+                  });
+                }, 1500);
+              }
+            }).catch(err => {
+              this.log(`SL/TP Immediate Enforcement Error for ${transId}: ${err.message}`, "ERROR");
+            });
           }
         } else {
           const errorMsg = response?.data?.message || "";
@@ -2396,7 +2462,26 @@ ${analysisText}
             lastError = e;
             const status = e.response?.status;
             const data = e.response?.data;
+            const errorMsg = data?.message || e.message || "";
+
             this.log(`Edit TP API Error (${url}): Status ${status} | Data: ${JSON.stringify(data || e.message)}`, "ERROR");
+            
+            // If TP is already hit or trade closed, consider it "done" for enforcement purposes
+            if (errorMsg.includes('بسته شده') || errorMsg.includes('یافت نشد') || errorMsg.includes('نامعتبر')) {
+              this.log(`TP Edit skipped: Trade might be closed or invalid ID (${transactionId})`, "INFO");
+              return true; 
+            }
+
+            // Handle "TP too close" error by adjusting and retrying once
+            if (errorMsg.includes('باید بالاتر') || errorMsg.includes('باید پایینتر') || errorMsg.includes('فاصله')) {
+              const tickSize = this.settings.market?.tickSize || 1;
+              const safeDistance = tickSize * 20;
+              // We don't know the side here easily without looking up the position, 
+              // but we can infer it from the error message or just skip retry if unsure.
+              this.log(`TP too close to market. Skipping auto-adjust for TP to avoid unintended fills.`, "INFO");
+              return false;
+            }
+
             if (status === 500 || status === 404) {
               this.log(`Endpoint ${url} returned ${status} for TP edit. Trying next...`, "INFO");
             } else {
@@ -2460,7 +2545,47 @@ ${analysisText}
             lastError = e;
             const status = e.response?.status;
             const data = e.response?.data;
+            const errorMsg = data?.message || e.message || "";
+
             this.log(`Edit SL API Error (${url}): Status ${status} | Data: ${JSON.stringify(data || e.message)}`, "ERROR");
+            
+            // If trade closed, consider it "done"
+            if (errorMsg.includes('بسته شده') || errorMsg.includes('یافت نشد') || errorMsg.includes('نامعتبر')) {
+              this.log(`SL Edit skipped: Trade might be closed or invalid ID (${transactionId})`, "INFO");
+              return true; 
+            }
+
+            // Handle "SL too close" error by adjusting and retrying once with a safe distance
+            if (errorMsg.includes('باید بالاتر') || errorMsg.includes('باید پایینتر') || errorMsg.includes('فاصله')) {
+              const tickSize = this.settings.market?.tickSize || 1;
+              const safeDistance = tickSize * 20;
+              let adjustedSl = newSl;
+              
+              if (errorMsg.includes('بالاتر')) {
+                // Must be higher than current price (likely a SELL trade)
+                adjustedSl = Math.round(this.price + safeDistance);
+              } else if (errorMsg.includes('پایینتر')) {
+                // Must be lower than current price (likely a BUY trade)
+                adjustedSl = Math.round(this.price - safeDistance);
+              } else {
+                // Generic distance error, try both ways based on current price
+                adjustedSl = newSl > this.price ? Math.round(this.price + safeDistance) : Math.round(this.price - safeDistance);
+              }
+
+              this.log(`SL too close to market. Retrying with safe SL: ${adjustedSl} (Price: ${this.price})`, "INFO");
+              
+              // Recursive call with adjusted SL (only once because we check ok)
+              return await this.api.post(url, {
+                stop_loss: String(Math.round(adjustedSl))
+              }, {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                timeout: 5000
+              }).then(r => {
+                const s = r?.data?.status;
+                return s === true || s === 'true' || s === 1 || s === 'success';
+              }).catch(() => false);
+            }
+
             if (status === 500 || status === 404) {
               this.log(`Endpoint ${url} returned ${status} for SL edit. Trying next...`, "INFO");
             } else {

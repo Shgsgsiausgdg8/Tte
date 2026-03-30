@@ -345,7 +345,8 @@ export const config = {
     marketFile: './logs/market.jsonl',
     bestParamsFile: './logs/best_params.json',
     runOnStart: false,
-    autoApply: true
+    autoApply: true,
+    maximizeBigWins: false
   },
 
   // ==========================================

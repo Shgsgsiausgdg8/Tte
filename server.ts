@@ -72,7 +72,52 @@ async function startServer() {
     bot.connectToExternalWS();
     res.json({ success: true });
   });
+
+  app.post("/api/bot/autotune", async (req, res) => {
+    try {
+      // Backup current settings before optimization
+      bot.backupSettings();
+
+      // Trigger optimization manually
+      const at = bot.settings.autoTune || {};
+      const inFile = at.marketFile || path.join(process.cwd(), 'logs/market.jsonl');
+      const outFile = at.bestParamsFile || path.join(process.cwd(), 'logs/best_params.json');
+      const iters = Number(at.iterations || 80);
+
+      const { runOptimization } = await import('./src/server/optimizer');
+      const result = await runOptimization(inFile, outFile, iters);
+
+      if (at.autoApply) {
+        const { loadBestParams } = await import('./src/server/autotuneManager');
+        loadBestParams(bot.settings, outFile);
+      }
+
+      res.json({ success: true, result });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  app.get("/api/bot/autotune/results", (req, res) => {
+    try {
+      const at = bot.settings.autoTune || {};
+      const outFile = at.bestParamsFile || path.join(process.cwd(), 'logs/best_params.json');
+      if (fs.existsSync(outFile)) {
+        const data = JSON.parse(fs.readFileSync(outFile, 'utf8'));
+        res.json(data);
+      } else {
+        res.status(404).json({ error: 'No results found' });
+      }
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
   
+  app.post("/api/bot/restore-settings", (req, res) => {
+    const success = bot.restoreSettings();
+    res.json({ success });
+  });
+
   app.post("/api/bot/create-portfolio", async (req, res) => {
     const { units } = req.body;
     if (!units || units <= 0) {

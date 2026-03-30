@@ -22,6 +22,8 @@ export default function Dashboard() {
   const [showLogs, setShowLogs] = useState(true);
   const [settings, setSettings] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isAutoTuning, setIsAutoTuning] = useState(false);
+  const [autoTuneResults, setAutoTuneResults] = useState<any>(null);
 
   const showSettingsRef = React.useRef(showSettings);
   useEffect(() => {
@@ -78,6 +80,14 @@ export default function Dashboard() {
       }
     }, 10000);
 
+    // Fetch initial autotune results
+    fetch('/api/bot/autotune/results')
+      .then(res => res.json())
+      .then(data => {
+        if (!data.error) setAutoTuneResults(data);
+      })
+      .catch(() => {});
+
     return () => {
       ws.close();
       clearTimeout(timeout);
@@ -126,6 +136,25 @@ export default function Dashboard() {
       body: JSON.stringify(settings)
     });
     setShowSettings(false);
+  };
+
+  const runAutoTune = async () => {
+    if (isAutoTuning) return;
+    setIsAutoTuning(true);
+    try {
+      const res = await fetch('/api/bot/autotune', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        setAutoTuneResults(data.result);
+        alert('بهینه‌سازی با موفقیت انجام شد و پارامترهای جدید اعمال شدند.');
+      } else {
+        alert('خطا در بهینه‌سازی: ' + (data.error || 'خطای ناشناخته'));
+      }
+    } catch (e) {
+      alert('خطا در ارتباط با سرور');
+    } finally {
+      setIsAutoTuning(false);
+    }
   };
 
   const handleCreatePortfolio = async () => {
@@ -749,6 +778,120 @@ export default function Dashboard() {
                 <RefreshCw className="w-4 h-4" />
                 ریست معاملات
               </button>
+            </div>
+
+            {/* Auto-Tune & Backtest Results */}
+            <div className="mb-8 p-6 bg-emerald-500/5 border border-emerald-500/10 rounded-3xl">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <Zap className="w-5 h-5 text-emerald-500" />
+                  <h3 className="text-sm font-bold text-white">بهینه‌سازی هوشمند (Auto-Tune)</h3>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-xl border border-white/5">
+                    <span className="text-[9px] text-slate-500">تمرکز بر سود حداکثری:</span>
+                    <button 
+                      onClick={async () => {
+                        const newSettings = { 
+                          ...settings, 
+                          autoTune: { 
+                            ...settings.autoTune, 
+                            maximizeBigWins: !settings.autoTune?.maximizeBigWins 
+                          } 
+                        };
+                        setSettings(newSettings);
+                        await fetch('/api/bot/settings', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify(newSettings)
+                        });
+                      }}
+                      className={`w-8 h-4 rounded-full transition-colors relative ${settings?.autoTune?.maximizeBigWins ? 'bg-emerald-500' : 'bg-slate-700'}`}
+                    >
+                      <motion.div animate={{ x: settings?.autoTune?.maximizeBigWins ? 16 : 2 }} className="w-3 h-3 bg-white rounded-full absolute top-0.5" />
+                    </button>
+                  </div>
+                  <button 
+                    onClick={async () => {
+                      if (confirm('آیا مطمئن هستید که می‌خواهید تنظیمات را به حالت قبل از آخرین بهینه‌سازی برگردانید؟')) {
+                        const res = await fetch('/api/bot/restore-settings', { method: 'POST' });
+                        const data = await res.json();
+                        if (data.success) {
+                          alert('تنظیمات با موفقیت بازیابی شد.');
+                        } else {
+                          alert('خطا در بازیابی تنظیمات. شاید بک‌آپی وجود ندارد.');
+                        }
+                      }
+                    }}
+                    className="px-4 py-2 rounded-xl text-[10px] font-bold transition-all bg-slate-800 text-slate-300 hover:bg-slate-700 border border-white/5 flex items-center gap-2"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    بازگشت به تنظیمات قبلی
+                  </button>
+                  <button 
+                    onClick={runAutoTune}
+                    disabled={isAutoTuning}
+                    className={`px-4 py-2 rounded-xl text-[10px] font-bold transition-all flex items-center gap-2 ${isAutoTuning ? 'bg-slate-800 text-slate-500 cursor-not-allowed' : 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-lg shadow-emerald-500/20'}`}
+                  >
+                    {isAutoTuning ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
+                    {isAutoTuning ? 'در حال بهینه‌سازی...' : 'شروع بهینه‌سازی'}
+                  </button>
+                </div>
+              </div>
+              
+              {autoTuneResults ? (
+                <div className="space-y-4">
+                  <div className="bg-emerald-500/10 p-4 rounded-2xl border border-emerald-500/20 mb-2">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[10px] text-slate-400 uppercase font-mono">استراتژی پیشنهادی</span>
+                      <span className="text-xs font-black text-emerald-500 bg-emerald-500/20 px-2 py-0.5 rounded-lg">{autoTuneResults.bestStrategy || '---'}</span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 leading-relaxed">
+                      بر اساس تحلیل داده‌های اخیر، استراتژی <span className="text-white font-bold">{autoTuneResults.bestStrategy}</span> بیشترین بازدهی را با پارامترهای فعلی بازار داشته است.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="bg-black/20 p-3 rounded-2xl border border-white/5">
+                      <p className="text-[8px] text-slate-500 uppercase mb-1">سود خالص (تیک)</p>
+                      <p className="text-sm font-black text-emerald-500">{autoTuneResults.metrics?.netTicks || 0}</p>
+                    </div>
+                    <div className="bg-black/20 p-3 rounded-2xl border border-white/5">
+                      <p className="text-[8px] text-slate-500 uppercase mb-1">ضریب سود (PF)</p>
+                      <p className="text-sm font-black text-white">{autoTuneResults.metrics?.profitFactor?.toFixed(2) || 0}</p>
+                    </div>
+                    <div className="bg-black/20 p-3 rounded-2xl border border-white/5">
+                      <p className="text-[8px] text-slate-500 uppercase mb-1">وین ریت (WR)</p>
+                      <p className="text-sm font-black text-emerald-500">{Math.round((autoTuneResults.metrics?.winRate || 0) * 100)}%</p>
+                    </div>
+                  </div>
+
+                  {autoTuneResults.bestHours && (
+                    <div className="bg-black/20 p-4 rounded-2xl border border-white/5">
+                      <p className="text-[10px] text-slate-400 uppercase font-mono mb-3 flex items-center gap-2">
+                        <Clock className="w-3 h-3" /> بهترین ساعات ترید (بر اساس سود خالص)
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {autoTuneResults.bestHours.map((h: any, idx: number) => (
+                          <div key={idx} className="bg-white/5 px-3 py-1.5 rounded-xl border border-white/5 flex flex-col items-center">
+                            <span className="text-[10px] font-bold text-white">{h.hour}:00</span>
+                            <span className={`text-[8px] ${h.netTicks >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                              {h.netTicks > 0 ? '+' : ''}{h.netTicks} تیک
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between text-[9px] text-slate-500 font-mono">
+                    <span>آخرین اجرا: {new Date(autoTuneResults.generatedAt).toLocaleString('fa-IR')}</span>
+                    <span className="text-emerald-500">امتیاز استراتژی: {autoTuneResults.objectiveScore?.toFixed(1)}</span>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-[10px] text-slate-500 italic text-center py-4">هنوز بهینه‌سازی انجام نشده است. برای پیدا کردن بهترین تنظیمات، دکمه بالا را بزنید.</p>
+              )}
             </div>
 
             {/* Statistics */}
@@ -1730,13 +1873,21 @@ export default function Dashboard() {
                       { id: 'ICHIMOKU_MTF', label: 'ایچیموکو MTF', desc: 'ایچیموکو و سطوح کلاسیک' },
                       { id: 'ICHIMOKU_HARAMI', label: 'ایچیموکو هارامی', desc: 'ایچیموکو و الگوهای بازگشتی' }
                     ].map(type => (
-                      <button
+                      <div
+                        role="button"
+                        tabIndex={0}
                         key={type.id}
                         onClick={() => {
                           setSettings({ ...settings, activeStrategy: type.id });
                           setShowStrategySettings(false);
                         }}
-                        className={`p-4 rounded-2xl border transition-all text-right relative overflow-hidden group ${settings.activeStrategy === type.id ? 'bg-emerald-500/10 border-emerald-500 text-white' : 'bg-white/5 border-white/5 text-slate-500 hover:bg-white/10'}`}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            setSettings({ ...settings, activeStrategy: type.id });
+                            setShowStrategySettings(false);
+                          }
+                        }}
+                        className={`p-4 rounded-2xl border transition-all text-right relative overflow-hidden group cursor-pointer ${settings.activeStrategy === type.id ? 'bg-emerald-500/10 border-emerald-500 text-white' : 'bg-white/5 border-white/5 text-slate-500 hover:bg-white/10'}`}
                       >
                         <div className="relative z-10">
                           <p className="text-xs font-bold">{type.label}</p>
@@ -1761,7 +1912,7 @@ export default function Dashboard() {
                             className="absolute inset-0 bg-emerald-500/5"
                           />
                         )}
-                      </button>
+                      </div>
                     ))}
                   </div>
                 </section>

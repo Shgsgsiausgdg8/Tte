@@ -4,10 +4,38 @@ import { Strategy } from './strategy';
 export function readJsonl(file: string) {
   const out: any[] = [];
   if (!fs.existsSync(file)) return out;
-  const raw = fs.readFileSync(file, 'utf8');
-  const lines = raw.split(/\r?\n/).filter(Boolean);
-  for (const ln of lines) {
-    try { out.push(JSON.parse(ln)); } catch (_) {}
+  
+  // To prevent memory exhaustion, we read the file in chunks or limit the number of lines
+  // For simplicity and speed in this environment, we'll read the file and take the last 10,000 lines
+  // if it's too large.
+  try {
+    const stats = fs.statSync(file);
+    const maxSize = 50 * 1024 * 1024; // 50MB limit for readFileSync
+    
+    let raw = "";
+    if (stats.size > maxSize) {
+      // If file is too large, we read the last 50MB
+      const fd = fs.openSync(file, 'r');
+      const buffer = Buffer.alloc(maxSize);
+      fs.readSync(fd, buffer, 0, maxSize, stats.size - maxSize);
+      fs.closeSync(fd);
+      raw = buffer.toString('utf8');
+      // Skip the first partial line
+      const firstNewline = raw.indexOf('\n');
+      if (firstNewline !== -1) raw = raw.substring(firstNewline + 1);
+    } else {
+      raw = fs.readFileSync(file, 'utf8');
+    }
+
+    const lines = raw.split(/\r?\n/).filter(Boolean);
+    // Limit to last 10,000 bars for optimization to keep memory usage low
+    const targetLines = lines.slice(-10000);
+    
+    for (const ln of targetLines) {
+      try { out.push(JSON.parse(ln)); } catch (_) {}
+    }
+  } catch (e) {
+    console.error(`Error reading JSONL ${file}:`, e);
   }
   return out;
 }
@@ -154,10 +182,20 @@ export function runBacktest(cfg: any, bars: any[], opts: any = {}) {
       pnlTicks: sim.realizedTicks,
       maeTicks: sim.maeTicks, mfeTicks: sim.mfeTicks,
       reason: sim.reason,
-      score: s.score
+      score: s.score,
+      time: Number(b.t || Date.now())
     });
 
     i = sim.exitIndex;
+  }
+
+  const hourlyStats: Record<number, { netTicks: number, trades: number }> = {};
+  for (let h = 0; h < 24; h++) hourlyStats[h] = { netTicks: 0, trades: 0 };
+
+  for (const t of trades) {
+    const hour = new Date(t.time).getHours();
+    hourlyStats[hour].netTicks += t.pnlTicks;
+    hourlyStats[hour].trades += 1;
   }
 
   const grossWin = trades.filter(t => t.pnlTicks > 0).reduce((a,b)=>a+b.pnlTicks,0);
@@ -165,6 +203,7 @@ export function runBacktest(cfg: any, bars: any[], opts: any = {}) {
   const pf = grossLoss > 0 ? grossWin / grossLoss : (grossWin > 0 ? 99 : 0);
   const winRate = trades.length ? (trades.filter(t=>t.pnlTicks>0).length / trades.length) : 0;
   const avg = trades.length ? (trades.reduce((a,b)=>a+b.pnlTicks,0)/trades.length) : 0;
+  const maxWin = trades.length ? Math.max(...trades.map(t => t.pnlTicks)) : 0;
 
   return {
     trades,
@@ -174,7 +213,9 @@ export function runBacktest(cfg: any, bars: any[], opts: any = {}) {
       winRate,
       profitFactor: pf,
       avgTicks: avg,
-      maxDrawdownTicks: maxDrawdown(equityCurve)
+      maxWinTicks: maxWin,
+      maxDrawdownTicks: maxDrawdown(equityCurve),
+      hourlyStats
     }
   };
 }
