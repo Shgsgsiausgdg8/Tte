@@ -795,9 +795,12 @@ ${analysisText}
       }
     } catch (error: any) {
       const status = error.response ? error.response.status : 'Network Error';
+      const errorData = error.response?.data;
       this.log(`Historical Bars Fetch Error: ${status} - ${error.message}`, "ERROR");
-      if (retryCount < 5) {
-        const delay = Math.min(30000, 5000 * Math.pow(1.5, retryCount));
+      
+      // Retry on server errors or timeouts
+      if ((status === 504 || status === 502 || status === 500 || status === 'Network Error') && retryCount < 5) {
+        const delay = Math.min(30000, 5000 * Math.pow(2, retryCount));
         this.log(`Retrying historical bars fetch in ${Math.round(delay/1000)}s (Attempt ${retryCount + 1}/5)...`, "INFO");
         setTimeout(() => this.fetchHistoricalBars(retryCount + 1), delay);
       }
@@ -843,8 +846,10 @@ ${analysisText}
     } catch (error: any) {
       const status = error.response ? error.response.status : 'Network Error';
       this.log(`MTF Bars Fetch Error: ${status} - ${error.message}`, "ERROR");
-      if (retryCount < 5) {
-        const delay = Math.min(30000, 5000 * Math.pow(1.5, retryCount));
+      
+      // Retry on server errors or timeouts
+      if ((status === 504 || status === 502 || status === 500 || status === 'Network Error') && retryCount < 5) {
+        const delay = Math.min(30000, 5000 * Math.pow(2, retryCount));
         this.log(`Retrying MTF bars fetch in ${Math.round(delay/1000)}s (Attempt ${retryCount + 1}/5)...`, "INFO");
         setTimeout(() => this.fetchMTFBars(retryCount + 1), delay);
       }
@@ -1259,7 +1264,8 @@ ${analysisText}
                     // Add a small delay to ensure the server has indexed the transaction before we try to edit it
                     setTimeout(() => {
                       const p = this.openPositions.get(id);
-                      if (!p || (p.slEnforced && p.transactionId === txId)) return;
+                      // CRITICAL: If already enforced OR if this ID is no longer the active one, ABORT.
+                      if (!p || p.slEnforced || p.transactionId !== txId) return;
                       
                       this.enforceStopLossTakeProfit(txId, p.sl, p.tp1, id).then(success => {
                         if (success) p.slEnforced = true;
@@ -1368,7 +1374,8 @@ ${analysisText}
                     
                     setTimeout(() => {
                       const p = this.openPositions.get(id);
-                      if (!p || (p.slEnforced && p.transactionId === txId)) return;
+                      // CRITICAL: If already enforced OR if this ID is no longer the active one, ABORT.
+                      if (!p || p.slEnforced || p.transactionId !== txId) return;
 
                       this.enforceStopLossTakeProfit(txId, p.sl, p.tp1, id).then(success => {
                         if (success) p.slEnforced = true;
@@ -2474,6 +2481,7 @@ ${analysisText}
 
         let ok = false;
         let lastError = null;
+        let anyNotFound = false;
 
         for (const url of endpoints) {
           if (ok) break;
@@ -2501,9 +2509,9 @@ ${analysisText}
             lastError = e;
             const status = e.response?.status;
             const data = e.response?.data;
-            const errorMsg = data?.message || e.message || "";
+            const errorMsg = (typeof data === 'object' ? data?.message : null) || e.message || "";
 
-            this.log(`Edit TP API Error (${url}): Status ${status} | Data: ${JSON.stringify(data || e.message)}`, "ERROR");
+            this.log(`Edit TP API Error (${url}): Status ${status} | Data: ${typeof data === 'string' ? 'HTML Response' : JSON.stringify(data || e.message)}`, "ERROR");
             
             // If trade closed or TP already hit, consider it "done" for enforcement purposes
             if (errorMsg.includes('بسته شده')) {
@@ -2512,23 +2520,20 @@ ${analysisText}
             }
 
             // If "یافت نشد" (Not Found) or "نامعتبر" (Invalid), it might be the wrong endpoint or ID type.
-            if (errorMsg.includes('یافت نشد') || errorMsg.includes('نامعتبر')) {
-              this.log(`TP Edit: Transaction ${transactionId} not found or invalid on ${url}. Trying next endpoint...`, "INFO");
+            if (status === 404 || errorMsg.includes('یافت نشد') || errorMsg.includes('نامعتبر')) {
+              anyNotFound = true;
+              this.log(`Endpoint ${url} returned 404 for TP edit. Trying next...`, "INFO");
               continue;
             }
 
             // Handle "TP too close" error by adjusting and retrying once
             if (errorMsg.includes('باید بالاتر') || errorMsg.includes('باید پایینتر') || errorMsg.includes('فاصله')) {
-              const tickSize = this.settings.market?.tickSize || 1;
-              const safeDistance = tickSize * 20;
-              // We don't know the side here easily without looking up the position, 
-              // but we can infer it from the error message or just skip retry if unsure.
-              this.log(`TP too close to market. Skipping auto-adjust for TP to avoid unintended fills.`, "INFO");
-              return false;
+              this.log(`TP too close to market for ${transactionId}. Skipping TP for now.`, "INFO");
+              return true; // Stop retries for this ID
             }
 
-            if (status === 500 || status === 404) {
-              this.log(`Endpoint ${url} returned ${status} for TP edit. Trying next...`, "INFO");
+            if (status === 500) {
+              this.log(`Endpoint ${url} returned 500 for TP edit. Trying next...`, "INFO");
             } else {
               this.log(`Endpoint ${url} failed for TP edit: ${status}`, "INFO");
             }
@@ -2536,6 +2541,10 @@ ${analysisText}
         }
 
         if (!ok) {
+          if (anyNotFound) {
+            this.log(`Edit TP: Transaction ${transactionId} not found on any endpoint. Stopping enforcement for this ID.`, "INFO");
+            return true; // Return true to stop the retry loop for this specific ID
+          }
           this.log(`Edit TP Failed for ${transactionId} after trying all endpoints.`, "ERROR");
           return false;
         }
@@ -2561,6 +2570,7 @@ ${analysisText}
 
         let ok = false;
         let lastError = null;
+        let anyNotFound = false;
 
         for (const url of endpoints) {
           if (ok) break;
@@ -2590,9 +2600,9 @@ ${analysisText}
             lastError = e;
             const status = e.response?.status;
             const data = e.response?.data;
-            const errorMsg = data?.message || e.message || "";
+            const errorMsg = (typeof data === 'object' ? data?.message : null) || e.message || "";
 
-            this.log(`Edit SL API Error (${url}): Status ${status} | Data: ${JSON.stringify(data || e.message)}`, "ERROR");
+            this.log(`Edit SL API Error (${url}): Status ${status} | Data: ${typeof data === 'string' ? 'HTML Response' : JSON.stringify(data || e.message)}`, "ERROR");
             
             // If trade closed, consider it "done"
             if (errorMsg.includes('بسته شده')) {
@@ -2601,8 +2611,9 @@ ${analysisText}
             }
 
             // If "یافت نشد" (Not Found) or "نامعتبر" (Invalid), it might be the wrong endpoint or ID type.
-            if (errorMsg.includes('یافت نشد') || errorMsg.includes('نامعتبر')) {
-              this.log(`SL Edit: Transaction ${transactionId} not found or invalid on ${url}. Trying next endpoint...`, "INFO");
+            if (status === 404 || errorMsg.includes('یافت نشد') || errorMsg.includes('نامعتبر')) {
+              anyNotFound = true;
+              this.log(`Endpoint ${url} returned 404 for SL edit. Trying next...`, "INFO");
               continue;
             }
 
@@ -2637,8 +2648,8 @@ ${analysisText}
               }).catch(() => false);
             }
 
-            if (status === 500 || status === 404) {
-              this.log(`Endpoint ${url} returned ${status} for SL edit. Trying next...`, "INFO");
+            if (status === 500) {
+              this.log(`Endpoint ${url} returned 500 for SL edit. Trying next...`, "INFO");
             } else {
               this.log(`Endpoint ${url} failed for SL edit: ${status}`, "INFO");
             }
@@ -2646,6 +2657,10 @@ ${analysisText}
         }
 
         if (!ok) {
+          if (anyNotFound) {
+            this.log(`Edit SL: Transaction ${transactionId} not found on any endpoint. Stopping enforcement for this ID.`, "INFO");
+            return true; // Return true to stop the retry loop for this specific ID
+          }
           this.log(`Edit SL Failed for ${transactionId} after trying all endpoints.`, "ERROR");
           return false;
         }
