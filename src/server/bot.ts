@@ -1240,21 +1240,27 @@ ${analysisText}
 
           if (msg.new_user_orders) {
             const order = msg.new_user_orders;
-            const txId = Number(order.id || order.transaction_id || order.order_id);
+            const txId = Number(order.transaction_id || order.id || order.order_id);
             this.log(`[WS] Real-time Order Update: ${order.action} ${order.units} units at ${order.price} (Status: ${order.status}, ID: ${txId || 'N/A'})`, "WS");
             
             // Link transaction ID if it's missing or pending for an open position
             if (txId) {
               for (const [id, pos] of this.openPositions) {
-                if (!pos.transactionId || pos.transactionId === 'PENDING' || String(pos.transactionId).includes('PENDING')) {
+                // Link if pending OR if we have a new ID that might be the real transaction ID
+                const isPending = !pos.transactionId || pos.transactionId === 'PENDING' || String(pos.transactionId).includes('PENDING');
+                if (isPending) {
                   const isMatch = (pos.type === 'BUY' && order.action === 'buy') || (pos.type === 'SELL' && order.action === 'sell');
                   if (isMatch) {
                     pos.transactionId = txId;
                     pos.status = 'open';
-                    this.log(`[WS] Linked transaction ${txId} from order update to local position ${id}. Enforcing SL/TP...`, "SUCCESS");
-                    this.enforceStopLossTakeProfit(txId, pos.sl, pos.tp1, id).then(success => {
-                      pos.slEnforced = success;
-                    }).catch(() => {});
+                    this.log(`[WS] Linked transaction ${txId} from order update to local position ${id}. Enforcing SL/TP in 1.5s...`, "SUCCESS");
+                    
+                    // Add a small delay to ensure the server has indexed the transaction before we try to edit it
+                    setTimeout(() => {
+                      this.enforceStopLossTakeProfit(txId, pos.sl, pos.tp1, id).then(success => {
+                        pos.slEnforced = success;
+                      }).catch(() => {});
+                    }, 1500);
                     break;
                   }
                 }
@@ -1341,12 +1347,17 @@ ${analysisText}
               const txId = Number(tx.id);
               if (txId) {
                 for (const [id, pos] of this.openPositions) {
-                  if (!pos.transactionId) {
+                  // Always update if it's pending, or if the ID is different (new_transactions_open is more authoritative)
+                  const isPending = !pos.transactionId || pos.transactionId === 'PENDING' || String(pos.transactionId).includes('PENDING');
+                  if (isPending || pos.transactionId !== txId) {
                     pos.transactionId = txId;
-                    this.log(`[WS] Linked transaction ${txId} to local position ${id}. Enforcing SL/TP...`, "SUCCESS");
-                    this.enforceStopLossTakeProfit(txId, pos.sl, pos.tp1, id).then(success => {
-                      pos.slEnforced = success;
-                    }).catch(() => {});
+                    this.log(`[WS] Linked transaction ${txId} to local position ${id} (authoritative). Enforcing SL/TP in 1s...`, "SUCCESS");
+                    
+                    setTimeout(() => {
+                      this.enforceStopLossTakeProfit(txId, pos.sl, pos.tp1, id).then(success => {
+                        pos.slEnforced = success;
+                      }).catch(() => {});
+                    }, 1000);
                     break;
                   }
                 }
@@ -1864,11 +1875,13 @@ ${analysisText}
           this.log(`Trade Executed: ${signal.type} at ${this.price} (ID: ${transId || 'PENDING'})`, "SUCCESS");
           
           if (transId) {
-            // Immediate enforcement
-            this.enforceStopLossTakeProfit(transId, sl, tp, id).then(success => {
-              const p = this.openPositions.get(id);
-              if (p) p.slEnforced = success;
-            }).catch(() => {});
+            // Immediate enforcement with a tiny delay to ensure server indexing
+            setTimeout(() => {
+              this.enforceStopLossTakeProfit(transId, sl, tp, id).then(success => {
+                const p = this.openPositions.get(id);
+                if (p) p.slEnforced = success;
+              }).catch(() => {});
+            }, 1000);
           }
         } else {
           this.log(`Trade Entry Failed: ${JSON.stringify(response?.data || {})}`, "ERROR");
@@ -2401,14 +2414,27 @@ ${analysisText}
   async enforceStopLossTakeProfit(transactionId: number, sl: number, tp: number, localId: number): Promise<boolean> {
     this.log(`Enforcing SL/TP for transaction ${transactionId}: SL=${sl}, TP=${tp}`, "INFO");
     
-    let slSuccess = sl === 0 || isNaN(sl); // If 0 or NaN, we don't need to set it
+    let slSuccess = sl === 0 || isNaN(sl);
     let tpSuccess = tp === 0 || isNaN(tp);
 
-    if (sl > 0 && !isNaN(sl)) {
-      slSuccess = await this.editStopLoss(transactionId, sl);
-    }
-    if (tp > 0 && !isNaN(tp)) {
-      tpSuccess = await this.editTakeProfit(transactionId, tp);
+    const maxAttempts = 3;
+    let attempt = 0;
+
+    while (attempt < maxAttempts) {
+      if (!slSuccess && sl > 0 && !isNaN(sl)) {
+        slSuccess = await this.editStopLoss(transactionId, sl);
+      }
+      if (!tpSuccess && tp > 0 && !isNaN(tp)) {
+        tpSuccess = await this.editTakeProfit(transactionId, tp);
+      }
+
+      if (slSuccess && tpSuccess) break;
+
+      attempt++;
+      if (attempt < maxAttempts) {
+        this.log(`SL/TP Enforcement attempt ${attempt} failed for ${transactionId}. Retrying in 2s...`, "INFO");
+        await new Promise(r => setTimeout(r, 2000));
+      }
     }
 
     return slSuccess && tpSuccess;
@@ -2459,10 +2485,17 @@ ${analysisText}
 
             this.log(`Edit TP API Error (${url}): Status ${status} | Data: ${JSON.stringify(data || e.message)}`, "ERROR");
             
-            // If TP is already hit or trade closed, consider it "done" for enforcement purposes
-            if (errorMsg.includes('بسته شده') || errorMsg.includes('یافت نشد') || errorMsg.includes('نامعتبر')) {
-              this.log(`TP Edit skipped: Trade might be closed or invalid ID (${transactionId})`, "INFO");
+            // If trade closed or TP already hit, consider it "done" for enforcement purposes
+            if (errorMsg.includes('بسته شده') || errorMsg.includes('نامعتبر')) {
+              this.log(`TP Edit skipped: Trade is closed or ID is invalid (${transactionId})`, "INFO");
               return true; 
+            }
+
+            // If "یافت نشد" (Not Found), it might be the wrong endpoint or ID type.
+            // We should NOT return true here, but continue the loop to try other endpoints.
+            if (errorMsg.includes('یافت نشد')) {
+              this.log(`TP Edit: Transaction ${transactionId} not found on ${url}. Trying next endpoint...`, "INFO");
+              continue;
             }
 
             // Handle "TP too close" error by adjusting and retrying once
@@ -2543,9 +2576,16 @@ ${analysisText}
             this.log(`Edit SL API Error (${url}): Status ${status} | Data: ${JSON.stringify(data || e.message)}`, "ERROR");
             
             // If trade closed, consider it "done"
-            if (errorMsg.includes('بسته شده') || errorMsg.includes('یافت نشد') || errorMsg.includes('نامعتبر')) {
-              this.log(`SL Edit skipped: Trade might be closed or invalid ID (${transactionId})`, "INFO");
+            if (errorMsg.includes('بسته شده') || errorMsg.includes('نامعتبر')) {
+              this.log(`SL Edit skipped: Trade is closed or ID is invalid (${transactionId})`, "INFO");
               return true; 
+            }
+
+            // If "یافت نشد" (Not Found), it might be the wrong endpoint or ID type.
+            // We should NOT return true here, but continue the loop to try other endpoints.
+            if (errorMsg.includes('یافت نشد')) {
+              this.log(`SL Edit: Transaction ${transactionId} not found on ${url}. Trying next endpoint...`, "INFO");
+              continue;
             }
 
             // Handle "SL too close" error by adjusting and retrying once with a safe distance
