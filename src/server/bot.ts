@@ -42,6 +42,7 @@ export class FarazGoldBot {
   mtfTimestamps: number[] = [];
 
   isTrading: boolean = true;
+  isEnteringTrade: boolean = false;
   openPositions: Map<number, any> = new Map();
   strategy: Strategy;
   lastTradeTime: number = 0;
@@ -81,6 +82,7 @@ export class FarazGoldBot {
   highLatencyCount: number = 0;
   hasAttemptedAutoCreate: boolean = false;
   signalCounter: number = 1000;
+  processedSignals: Set<string> = new Set();
   private lastMarketClosedTime: number = 0;
   private isMarketClosed: boolean = false;
   private settingsWatcher: fs.FSWatcher | null = null;
@@ -163,6 +165,30 @@ export class FarazGoldBot {
 
     const color = colors[type.toLowerCase() as keyof typeof colors] || colors.reset;
     console.log(`${colors.reset}[${logEntry.time}] ${color}[${type}] ${message}${colors.reset}`);
+
+    // Persist to logs/terminallog.json
+    try {
+      const logDir = path.join(process.cwd(), 'logs');
+      if (!fs.existsSync(logDir)) {
+        fs.mkdirSync(logDir, { recursive: true });
+      }
+      const logPath = path.join(logDir, 'terminallog.json');
+      
+      // Check file size and clear if > 5MB
+      if (fs.existsSync(logPath)) {
+        const stats = fs.statSync(logPath);
+        if (stats.size > 5 * 1024 * 1024) {
+          fs.writeFileSync(logPath, '');
+        }
+      }
+
+      fs.appendFileSync(logPath, JSON.stringify({
+        ...logEntry,
+        timestamp: new Date().toISOString()
+      }) + '\n');
+    } catch (e) {
+      // Silent fail for logging to file to avoid infinite recursion or crashing
+    }
 
     // Send to Rubika/Telegram if logEnabled
     if (this.settings.rubika?.enabled && this.settings.rubika?.logEnabled) {
@@ -1217,13 +1243,14 @@ ${analysisText}
             const txId = Number(order.id || order.transaction_id || order.order_id);
             this.log(`[WS] Real-time Order Update: ${order.action} ${order.units} units at ${order.price} (Status: ${order.status}, ID: ${txId || 'N/A'})`, "WS");
             
-            // Link transaction ID if it's missing for an open position
+            // Link transaction ID if it's missing or pending for an open position
             if (txId) {
               for (const [id, pos] of this.openPositions) {
-                if (!pos.transactionId) {
+                if (!pos.transactionId || pos.transactionId === 'PENDING' || String(pos.transactionId).includes('PENDING')) {
                   const isMatch = (pos.type === 'BUY' && order.action === 'buy') || (pos.type === 'SELL' && order.action === 'sell');
                   if (isMatch) {
                     pos.transactionId = txId;
+                    pos.status = 'open';
                     this.log(`[WS] Linked transaction ${txId} from order update to local position ${id}. Enforcing SL/TP...`, "SUCCESS");
                     this.enforceStopLossTakeProfit(txId, pos.sl, pos.tp1, id).then(success => {
                       pos.slEnforced = success;
@@ -1659,282 +1686,218 @@ ${analysisText}
   }
 
   async enterTrade(signal: any) {
+    if (this.isEnteringTrade) return;
+    
+    const signalId = signal.signalId || `SIG${Date.now()}`;
+    if (this.processedSignals.has(signalId)) {
+      this.log(`Signal ${signalId} already processed. Skipping.`, "INFO");
+      return;
+    }
+
     const now = Date.now();
     if (now - this.lastTradeTime < (this.settings.strategy?.tradeCooldown * 1000 || 8000)) return;
     if (this.openPositions.size >= (this.settings.risk?.maxOpenPositions || 2)) return;
 
-    // Max Spread Check
-    const maxSpread = this.settings.strategy?.numerical?.spreadThreshold || 18;
-    const tickSize = this.settings.market?.tickSize || 1;
-    // Use real spread from orderbook if available, otherwise fallback to currentSpread
-    const effectiveSpread = this.orderBook.realSpread > 0 ? this.orderBook.realSpread : this.currentSpread;
-    const spreadTicks = effectiveSpread / tickSize;
+    this.isEnteringTrade = true;
+    this.processedSignals.add(signalId);
     
-    if (effectiveSpread > 0 && spreadTicks > maxSpread) {
-      this.log(`Trade Skipped: Spread too high (${spreadTicks.toFixed(1)} > ${maxSpread})`, "INFO");
-      return;
-    }
-
-    // Liquidity Check (Slippage Protection)
-    const minLiquidity = 10; // Minimum units in top 5 levels
-    if (this.orderBook.liquidity > 0 && this.orderBook.liquidity < minLiquidity) {
-      this.log(`Trade Skipped: Low Liquidity (${this.orderBook.liquidity} units in top 5 levels)`, "INFO");
-      return;
-    }
-
-    // Order Book Imbalance (OBI) Filter
-    // Imbalance ranges from -1 (all sellers) to 1 (all buyers)
-    if (signal.type === 'BUY' && this.orderBook.imbalance < -0.4) {
-      this.log(`Trade Skipped: Order Book Imbalance is strongly Bearish (${this.orderBook.imbalance.toFixed(2)})`, "INFO");
-      return;
-    }
-    if (signal.type === 'SELL' && this.orderBook.imbalance > 0.4) {
-      this.log(`Trade Skipped: Order Book Imbalance is strongly Bullish (${this.orderBook.imbalance.toFixed(2)})`, "INFO");
-      return;
-    }
-
-    if (!this.isConnected || this.price <= 0) {
-      this.log(`Trade Skipped: Bot not connected to price source or invalid price.`, "INFO");
-      return;
-    }
-
-    this.lastTradeTime = now;
-    
-    // Volume Calculation
-    let units = Number(this.settings.trade?.minUnits || 1);
-    const isHQ = this.strategy.highQualityMode;
-
-    // Only scale volume if explicitly enabled or in HQ mode with a reasonable multiplier
-    if (isHQ && this.settings.strategy?.highQuality?.autoScaleVolume) {
-      const multiplier = Number(this.settings.strategy?.highQuality?.volumeMultiplier || 1.5);
-      units = Math.round(units * multiplier);
-      this.log(`HQ Mode (Auto-Scale): Adjusting volume to ${units} units`, "SUCCESS");
-    }
-
-    // Signal Strength Volume Scaling (Optional/Conservative)
-    if (this.settings.strategy?.enableStrengthScaling) {
-      if (signal.strength === 'STRONG') {
-        units = Math.round(units * 1.5);
-        this.log(`Strong Signal Scaling: ${units} units`, "SUCCESS");
-      } else if (signal.strength === 'WEAK') {
-        units = Math.max(1, Math.round(units * 0.5));
-        this.log(`Weak Signal Scaling: ${units} units`, "INFO");
-      }
-    }
-
-    // Ensure units is at least 1
-    units = Math.max(1, units);
-
-    // Pre-check balance if portfolio is available
-    if (this.portfolio && typeof this.portfolio.balance === 'number') {
-      const minRequiredBalance = this.settings.risk?.minBalanceToTrade || 250000; 
-      if (this.portfolio.balance < minRequiredBalance) {
-        const signalId = signal.signalId || '---';
-        const msg = `❌ *موجودی ناکافی برای معامله*
-#${signalId}
-موجودی فعلی: ${this.portfolio.balance.toLocaleString('fa-IR')} تومان
-حداقل مورد نیاز: ${minRequiredBalance.toLocaleString('fa-IR')} تومان
-لطفاً حساب خود را شارژ کنید.`;
-        this.log(`Trade Skipped: Insufficient balance (${this.portfolio.balance.toLocaleString('fa-IR')} < ${minRequiredBalance.toLocaleString('fa-IR')})`, "ERROR");
-        this.sendTelegramMessage(msg);
-        this.sendRubikaMessage(msg);
+    try {
+      // Max Spread Check
+      const maxSpread = this.settings.strategy?.numerical?.spreadThreshold || 18;
+      const tickSize = this.settings.market?.tickSize || 1;
+      const effectiveSpread = this.orderBook.realSpread > 0 ? this.orderBook.realSpread : this.currentSpread;
+      const spreadTicks = effectiveSpread / tickSize;
+      
+      if (effectiveSpread > 0 && spreadTicks > maxSpread) {
+        this.log(`Trade Skipped: Spread too high (${spreadTicks.toFixed(1)} > ${maxSpread})`, "INFO");
+        this.processedSignals.delete(signalId);
         return;
       }
-    }
-    
-    if (this.settings.source === 'API' && this.api) {
-      if (this.isMarketClosed) {
-        this.log(`Trade Entry Skipped: Market is currently CLOSED (detected via 403).`, "INFO");
+
+      // Liquidity Check
+      const minLiquidity = 10;
+      if (this.orderBook.liquidity > 0 && this.orderBook.liquidity < minLiquidity) {
+        this.log(`Trade Skipped: Low Liquidity (${this.orderBook.liquidity} units)`, "INFO");
+        this.processedSignals.delete(signalId);
         return;
       }
-      try {
-        this.log(`Attempting API Trade: ${signal.type} TP:${signal.tp1} SL:${signal.sl}`, "INFO");
-        
-        // Safety check for SL/TP
-        let tp = Math.round(signal.tp1 || 0);
-        let sl = Math.round(signal.sl || 0);
-        
-        if (tp === 0 || sl === 0 || isNaN(tp) || isNaN(sl)) {
-          this.log(`Trade Entry Aborted: Invalid SL/TP values (TP:${tp}, SL:${sl})`, "ERROR");
+
+      if (!this.isConnected || this.price <= 0) {
+        this.log(`Trade Skipped: Bot not connected or invalid price.`, "INFO");
+        this.processedSignals.delete(signalId);
+        return;
+      }
+
+      this.lastTradeTime = now;
+      
+      // Volume Calculation
+      let units = Number(this.settings.trade?.minUnits || 1);
+      const isHQ = this.strategy.highQualityMode;
+
+      if (isHQ && this.settings.strategy?.highQuality?.autoScaleVolume) {
+        const multiplier = Number(this.settings.strategy?.highQuality?.volumeMultiplier || 1.5);
+        units = Math.round(units * multiplier);
+      }
+
+      if (this.settings.strategy?.enableStrengthScaling) {
+        if (signal.strength === 'STRONG') units = Math.round(units * 1.5);
+        else if (signal.strength === 'WEAK') units = Math.max(1, Math.round(units * 0.5));
+      }
+
+      units = Math.max(1, units);
+
+      // Pre-check balance
+      if (this.portfolio && typeof this.portfolio.balance === 'number') {
+        const minRequiredBalance = this.settings.risk?.minBalanceToTrade || 250000; 
+        if (this.portfolio.balance < minRequiredBalance) {
+          this.log(`Trade Skipped: Insufficient balance.`, "ERROR");
+          this.processedSignals.delete(signalId);
+          return;
+        }
+      }
+      
+      let sl = Math.round(signal.sl);
+      let tp = Math.round(signal.tp1 || signal.tp);
+      const id = Date.now();
+
+      // SL/TP Safety Check (Ensure not too close to market)
+      const minDistance = tickSize * 15;
+      if (signal.type === 'BUY') {
+        if (sl > this.price - minDistance) sl = Math.round(this.price - minDistance);
+        if (tp < this.price + minDistance) tp = Math.round(this.price + minDistance);
+      } else {
+        if (sl < this.price + minDistance) sl = Math.round(this.price + minDistance);
+        if (tp > this.price - minDistance) tp = Math.round(this.price - minDistance);
+      }
+
+      if (this.settings.source === 'API' && this.api) {
+        if (this.isMarketClosed) {
+          this.log(`Trade Skipped: Market is closed.`, "INFO");
+          this.processedSignals.delete(signalId);
           return;
         }
 
-        // Additional safety: Ensure SL/TP are not too close to current price to avoid server rejection
-        // We use a larger buffer (15 ticks) because of potential price lag
-        const minDistance = (this.settings.market?.tickSize || 1) * 15; 
-        if (signal.type === 'BUY') {
-          if (sl >= this.price - minDistance) {
-            sl = Math.round(this.price - minDistance);
-            this.log(`Adjusting BUY SL to ${sl} for safety (Price: ${this.price})`, "INFO");
-          }
-          if (tp <= this.price + minDistance) {
-            tp = Math.round(this.price + minDistance);
-            this.log(`Adjusting BUY TP to ${tp} for safety (Price: ${this.price})`, "INFO");
-          }
-        } else {
-          if (sl <= this.price + minDistance) {
-            sl = Math.round(this.price + minDistance);
-            this.log(`Adjusting SELL SL to ${sl} for safety (Price: ${this.price})`, "INFO");
-          }
-          if (tp >= this.price - minDistance) {
-            tp = Math.round(this.price - minDistance);
-            this.log(`Adjusting SELL TP to ${tp} for safety (Price: ${this.price})`, "INFO");
-          }
-        }
+        // Register position as PENDING before API call to handle race conditions with WebSocket
+        this.openPositions.set(id, {
+          id,
+          type: signal.type,
+          price: this.price,
+          signalId: signalId,
+          transactionId: `PENDING_${id}`,
+          entryTime: new Date(),
+          status: 'entering',
+          units: units,
+          sl: sl,
+          tp1: tp,
+          tp2: Math.round(signal.tp2 || tp + (tp - this.price)),
+          tp3: Math.round(signal.tp3 || tp + 2 * (tp - this.price)),
+          slEnforced: false,
+          lastEnforceAttempt: Date.now()
+        });
+        this.saveState();
 
-        const orderData: any = {
+        this.log(`Attempting API Trade: ${signal.type} TP:${tp} SL:${sl}`, "INFO");
+        
+        const orderData = {
           action: signal.type.toLowerCase(),
-          order_type: 'verbal',
+          order_type: "verbal",
           units: String(units),
           price: -1,
-          take_profit: String(Math.round(tp)),
-          stop_loss: String(Math.round(sl)),
+          take_profit: String(tp),
+          stop_loss: String(sl),
           signal_token: ""
         };
-        
-        this.log(`Order Data Prepared: ${JSON.stringify(orderData)}`, "INFO");
-        
-        let response;
+
+        // Simulated human reaction time
+        await new Promise(r => setTimeout(r, 200 + Math.random() * 300));
+
         let attempts = 0;
         const maxAttempts = 2;
-        
-        // Humanized delay: Simulate human reaction time before clicking "Buy/Sell"
-        // Reduced delay to improve accuracy while remaining "human-like"
-        this.log(`Simulating human reaction time before entry...`, "INFO");
-        await this.sleepWithJitter(50, 150);
-        
+        let response = null;
+
         while (attempts < maxAttempts) {
           try {
-            this.log(`Submitting order to API (Attempt ${attempts + 1})...`, "INFO");
-            response = await this.api.post('/api/room/api/submit-order/', orderData);
-            this.log(`Order Submission Response: ${JSON.stringify(response?.data || {})}`, "INFO");
-            break;
-          } catch (e: any) {
-            const status = e.response?.status;
-            const data = e.response?.data;
-            
-            if (status === 403) {
-              this.isMarketClosed = true;
-              this.lastMarketClosedTime = Date.now();
-              this.log(`Trade Entry Failed: Market is CLOSED (403). Bot will pause API calls for 5 minutes.`, "ERROR");
+            // Check if WebSocket already linked this position while we were waiting
+            const currentPos = this.openPositions.get(id);
+            if (currentPos && currentPos.transactionId && !String(currentPos.transactionId).includes('PENDING')) {
+              this.log(`Order already confirmed via WebSocket during API attempt ${attempts + 1}. Skipping redundant call.`, "SUCCESS");
               return;
             }
 
-            this.log(`Trade Entry API Error: Status ${status} | Data: ${JSON.stringify(data || e.message)}`, "ERROR");
-            attempts++;
-            if (attempts >= maxAttempts || !e.message?.includes('timeout')) {
+            this.log(`Submitting order to API (Attempt ${attempts + 1})...`, "INFO");
+            response = await this.api.post('/api/room/api/submit-order/', orderData);
+            break;
+          } catch (e: any) {
+            const status = e.response?.status;
+            if (status === 403) {
+              this.log(`Market closed or access forbidden (403).`, "ERROR");
+              this.isMarketClosed = true;
+              this.openPositions.delete(id);
+              this.processedSignals.delete(signalId);
+              return;
+            }
+            if (attempts >= maxAttempts - 1 || !e.message?.includes('timeout')) {
+              this.openPositions.delete(id);
+              this.processedSignals.delete(signalId);
               throw e;
             }
-            this.log(`Trade Entry Timeout (Attempt ${attempts}). Retrying...`, "INFO");
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            attempts++;
+            await new Promise(r => setTimeout(r, 1000));
           }
         }
 
-        const rawStatus = response?.data?.status;
-        const ok = rawStatus === true || rawStatus === 'true' || rawStatus === 1 || rawStatus === '1' || rawStatus === 'success' || Boolean(response?.data?.order_id) || Boolean(response?.data?.id) || (typeof response?.data?.message === 'string' && response.data.message.includes('ثبت'));
+        const ok = response?.data?.status === true || 
+                   response?.data?.status === 'true' || 
+                   response?.data?.status === 1 || 
+                   response?.data?.status === 'success' ||
+                   (response?.status === 200 && (response?.data?.message?.includes('ثبت شد') || response?.data?.message?.includes('موفقیت')));
 
         if (ok) {
           const transId = response?.data?.order_id || response?.data?.id || response?.data?.transaction_id;
-          const id = Date.now();
+          const pos = this.openPositions.get(id);
+          if (pos) {
+            pos.status = 'open';
+            if (transId) pos.transactionId = transId;
+            this.saveState();
+          }
           
-          const tgMsgId = await this.sendTelegramMessage(this.formatSignalMessage(signal));
-          const rubikaMsgId = await this.sendRubikaMessage(this.formatSignalMessage(signal));
-
-          this.openPositions.set(id, { 
-            ...signal, 
-            id, 
-            signalId: signal.signalId,
-            transactionId: transId,
-            entryTime: new Date(), 
-            status: 'open', 
-            units: units,
-            isHQ: isHQ,
-            sl: sl, // Use adjusted SL
-            tp1: tp, // Use adjusted TP
-            originalSl: sl,
-            currentStep: 0,
-            slEnforced: false,
-            lastEnforceAttempt: Date.now(),
-            telegramMessageId: tgMsgId,
-            rubikaMessageId: rubikaMsgId
-          });
-          this.saveState();
           this.log(`Trade Executed: ${signal.type} at ${this.price} (ID: ${transId || 'PENDING'})`, "SUCCESS");
           
-          if (!transId) {
-            this.log(`Warning: Transaction ID not returned by API. Waiting for WebSocket update to enforce SL/TP...`, "INFO");
-          }
-          
-          // CRITICAL: Explicitly enforce SL/TP after entry to ensure they are set on the server
-          // Some API versions might ignore SL/TP in the initial submit-order call
           if (transId) {
-            // Immediate attempt (some servers are fast)
+            // Immediate enforcement
             this.enforceStopLossTakeProfit(transId, sl, tp, id).then(success => {
-              const pos = this.openPositions.get(id);
-              if (pos) {
-                pos.slEnforced = success;
-                if (success) {
-                  this.log(`SL/TP Enforced immediately for ${transId}`, "SUCCESS");
-                }
-              }
-              
-              // If immediate failed, try again after a short delay
-              if (!success) {
-                setTimeout(() => {
-                  this.enforceStopLossTakeProfit(transId, sl, tp, id).then(s2 => {
-                    const p2 = this.openPositions.get(id);
-                    if (p2) {
-                      p2.slEnforced = s2;
-                      if (s2) this.log(`SL/TP Enforced after delay for ${transId}`, "SUCCESS");
-                      else this.log(`SL/TP Enforcement FAILED for ${transId} after retry. Will retry in next loop.`, "ERROR");
-                    }
-                  }).catch(err => {
-                    this.log(`SL/TP Enforcement Retry Error for ${transId}: ${err.message}`, "ERROR");
-                  });
-                }, 1500);
-              }
-            }).catch(err => {
-              this.log(`SL/TP Immediate Enforcement Error for ${transId}: ${err.message}`, "ERROR");
-            });
+              const p = this.openPositions.get(id);
+              if (p) p.slEnforced = success;
+            }).catch(() => {});
           }
         } else {
-          const errorMsg = response?.data?.message || "";
-          this.log(`Trade Entry Failed. Full Response: ${JSON.stringify(response?.data || {})}`, "ERROR");
-          
-          if (errorMsg.includes('حد ضرر باید پایینتر') || errorMsg.includes('حد ضرر باید بالاتر')) {
-            this.log(`Trade Rejected: SL too close to market price. Market is moving fast.`, "ERROR");
-          } else if (errorMsg.includes('موجودی ناکافی')) {
-            const signalId = signal.signalId || '---';
-            const msg = `❌ *خطای صرافی: موجودی ناکافی*
-#${signalId}
-موجودی حساب شما برای باز کردن این پوزیشن کافی نیست.`;
-            this.log(`Trade Entry Failed: Insufficient balance in account.`, "ERROR");
-            this.sendTelegramMessage(msg);
-            this.sendRubikaMessage(msg);
-          }
+          this.log(`Trade Entry Failed: ${JSON.stringify(response?.data || {})}`, "ERROR");
+          this.openPositions.delete(id);
+          this.processedSignals.delete(signalId);
         }
-      } catch (e) {
-        this.log(`Trade Entry Error: ${e}`, "ERROR");
+      } else {
+        // SIM Mode
+        this.openPositions.set(id, { 
+          ...signal, 
+          id, 
+          signalId: signalId,
+          entryTime: new Date(), 
+          status: 'open', 
+          units: units, 
+          currentStep: 0, 
+          originalSl: sl,
+          sl: sl,
+          tp1: tp,
+          tp2: Math.round(signal.tp2 || tp + (tp - this.price)),
+          tp3: Math.round(signal.tp3 || tp + 2 * (tp - this.price)),
+          slEnforced: true
+        });
+        this.log(`Trade Executed (SIM): ${signal.type} at ${this.price}`, "SUCCESS");
       }
-    } else {
-      const id = Date.now();
-      
-      const tgMsgId = await this.sendTelegramMessage(this.formatSignalMessage(signal));
-      const rubikaMsgId = await this.sendRubikaMessage(this.formatSignalMessage(signal));
-
-      this.openPositions.set(id, { 
-        ...signal, 
-        id, 
-        signalId: signal.signalId,
-        entryTime: new Date(), 
-        status: 'open', 
-        units: 1, 
-        currentStep: 0, 
-        originalSl: signal.sl,
-        telegramMessageId: tgMsgId,
-        rubikaMessageId: rubikaMsgId
-      });
-      this.log(`Trade Executed (SIM/OFFLINE): ${signal.type} at ${this.price}`, "SUCCESS");
+    } catch (e: any) {
+      this.log(`Trade Entry Error: ${e.message}`, "ERROR");
+    } finally {
+      this.isEnteringTrade = false;
     }
   }
 
