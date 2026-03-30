@@ -1214,8 +1214,26 @@ ${analysisText}
 
           if (msg.new_user_orders) {
             const order = msg.new_user_orders;
-            this.log(`[WS] Real-time Order Update: ${order.action} ${order.units} units at ${order.price} (Status: ${order.status})`, "WS");
+            const txId = Number(order.id || order.transaction_id || order.order_id);
+            this.log(`[WS] Real-time Order Update: ${order.action} ${order.units} units at ${order.price} (Status: ${order.status}, ID: ${txId || 'N/A'})`, "WS");
             
+            // Link transaction ID if it's missing for an open position
+            if (txId) {
+              for (const [id, pos] of this.openPositions) {
+                if (!pos.transactionId) {
+                  const isMatch = (pos.type === 'BUY' && order.action === 'buy') || (pos.type === 'SELL' && order.action === 'sell');
+                  if (isMatch) {
+                    pos.transactionId = txId;
+                    this.log(`[WS] Linked transaction ${txId} from order update to local position ${id}. Enforcing SL/TP...`, "SUCCESS");
+                    this.enforceStopLossTakeProfit(txId, pos.sl, pos.tp1, id).then(success => {
+                      pos.slEnforced = success;
+                    }).catch(() => {});
+                    break;
+                  }
+                }
+              }
+            }
+
             if (order.status === 'completed' || order.status === 'filled') {
               for (const [id, pos] of this.openPositions.entries()) {
                  const isOpposite = (pos.type === 'BUY' && order.action === 'sell') || (pos.type === 'SELL' && order.action === 'buy');
@@ -1298,6 +1316,10 @@ ${analysisText}
                 for (const [id, pos] of this.openPositions) {
                   if (!pos.transactionId) {
                     pos.transactionId = txId;
+                    this.log(`[WS] Linked transaction ${txId} to local position ${id}. Enforcing SL/TP...`, "SUCCESS");
+                    this.enforceStopLossTakeProfit(txId, pos.sl, pos.tp1, id).then(success => {
+                      pos.slEnforced = success;
+                    }).catch(() => {});
                     break;
                   }
                 }
@@ -1837,7 +1859,11 @@ ${analysisText}
             rubikaMessageId: rubikaMsgId
           });
           this.saveState();
-          this.log(`Trade Executed: ${signal.type} at ${this.price} (ID: ${transId})`, "SUCCESS");
+          this.log(`Trade Executed: ${signal.type} at ${this.price} (ID: ${transId || 'PENDING'})`, "SUCCESS");
+          
+          if (!transId) {
+            this.log(`Warning: Transaction ID not returned by API. Waiting for WebSocket update to enforce SL/TP...`, "INFO");
+          }
           
           // CRITICAL: Explicitly enforce SL/TP after entry to ensure they are set on the server
           // Some API versions might ignore SL/TP in the initial submit-order call
@@ -1929,9 +1955,13 @@ ${analysisText}
       // Periodic SL/TP Enforcement Retry
       if (this.settings.source === 'API' && position.transactionId && position.slEnforced === false) {
         const lastAttempt = position.lastEnforceAttempt || 0;
-        if (now - lastAttempt > 15000) { // Retry every 15 seconds
+        const attemptCount = position.enforceAttempts || 0;
+        const retryInterval = attemptCount < 5 ? 3000 : 15000; // Fast retry for first 5 attempts
+        
+        if (now - lastAttempt > retryInterval) {
           position.lastEnforceAttempt = now;
-          this.log(`Retrying SL/TP Enforcement for ${position.transactionId}...`, "INFO");
+          position.enforceAttempts = attemptCount + 1;
+          this.log(`Retrying SL/TP Enforcement for ${position.transactionId} (Attempt ${position.enforceAttempts})...`, "INFO");
           this.enforceStopLossTakeProfit(position.transactionId, position.sl, position.tp1, id).then(success => {
             position.slEnforced = success;
             if (success) this.log(`SL/TP Enforced on retry for ${position.transactionId}`, "SUCCESS");
