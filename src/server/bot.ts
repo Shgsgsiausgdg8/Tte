@@ -1368,7 +1368,9 @@ ${analysisText}
                 for (const [id, pos] of this.openPositions) {
                   // Always update if it's pending, or if the ID is different (new_transactions_open is more authoritative)
                   const isPending = !pos.transactionId || pos.transactionId === 'PENDING' || String(pos.transactionId).includes('PENDING');
-                  if (isPending || pos.transactionId !== txId) {
+                  // Check if this txId is already assigned to another position to avoid double-linking
+                  const alreadyLinked = Array.from(this.openPositions.values()).some(p => p.transactionId === txId);
+                  if ((isPending || pos.transactionId !== txId) && !alreadyLinked) {
                     pos.transactionId = txId;
                     this.log(`[WS] Linked transaction ${txId} to local position ${id} (authoritative). Enforcing SL/TP in 1s...`, "SUCCESS");
                     
@@ -2481,9 +2483,10 @@ ${analysisText}
 
         let ok = false;
         let lastError = null;
-        let anyNotFound = false;
+        let primaryNotFound = false;
 
-        for (const url of endpoints) {
+        for (let i = 0; i < endpoints.length; i++) {
+          const url = endpoints[i];
           if (ok) break;
           try {
             const res = await this.api.post(url, {
@@ -2521,13 +2524,13 @@ ${analysisText}
 
             // If "یافت نشد" (Not Found) or "نامعتبر" (Invalid), it might be the wrong endpoint or ID type.
             if (status === 404 || errorMsg.includes('یافت نشد') || errorMsg.includes('نامعتبر')) {
-              anyNotFound = true;
+              if (i === 0) primaryNotFound = true;
               this.log(`Endpoint ${url} returned 404 for TP edit. Trying next...`, "INFO");
               continue;
             }
 
             // Handle "TP too close" error by adjusting and retrying once
-            if (errorMsg.includes('باید بالاتر') || errorMsg.includes('باید پایینتر') || errorMsg.includes('فاصله')) {
+            if (errorMsg.includes('بالا') || errorMsg.includes('پایین') || errorMsg.includes('فاصله')) {
               this.log(`TP too close to market for ${transactionId}. Skipping TP for now.`, "INFO");
               return true; // Stop retries for this ID
             }
@@ -2541,8 +2544,8 @@ ${analysisText}
         }
 
         if (!ok) {
-          if (anyNotFound) {
-            this.log(`Edit TP: Transaction ${transactionId} not found on any endpoint. Stopping enforcement for this ID.`, "INFO");
+          if (primaryNotFound) {
+            this.log(`Edit TP: Transaction ${transactionId} not found on primary endpoint. Stopping enforcement for this ID.`, "INFO");
             return true; // Return true to stop the retry loop for this specific ID
           }
           this.log(`Edit TP Failed for ${transactionId} after trying all endpoints.`, "ERROR");
@@ -2570,9 +2573,10 @@ ${analysisText}
 
         let ok = false;
         let lastError = null;
-        let anyNotFound = false;
+        let primaryNotFound = false;
 
-        for (const url of endpoints) {
+        for (let i = 0; i < endpoints.length; i++) {
+          const url = endpoints[i];
           if (ok) break;
           try {
             const res = await this.api.post(url, {
@@ -2612,21 +2616,21 @@ ${analysisText}
 
             // If "یافت نشد" (Not Found) or "نامعتبر" (Invalid), it might be the wrong endpoint or ID type.
             if (status === 404 || errorMsg.includes('یافت نشد') || errorMsg.includes('نامعتبر')) {
-              anyNotFound = true;
+              if (i === 0) primaryNotFound = true;
               this.log(`Endpoint ${url} returned 404 for SL edit. Trying next...`, "INFO");
               continue;
             }
 
             // Handle "SL too close" error by adjusting and retrying once with a safe distance
-            if (errorMsg.includes('باید بالاتر') || errorMsg.includes('باید پایینتر') || errorMsg.includes('فاصله')) {
+            if (errorMsg.includes('بالا') || errorMsg.includes('پایین') || errorMsg.includes('فاصله')) {
               const tickSize = this.settings.market?.tickSize || 1;
               const safeDistance = tickSize * 20;
               let adjustedSl = newSl;
               
-              if (errorMsg.includes('بالاتر')) {
+              if (errorMsg.includes('بالا')) {
                 // Must be higher than current price (likely a SELL trade)
                 adjustedSl = Math.round(this.price + safeDistance);
-              } else if (errorMsg.includes('پایینتر')) {
+              } else if (errorMsg.includes('پایین')) {
                 // Must be lower than current price (likely a BUY trade)
                 adjustedSl = Math.round(this.price - safeDistance);
               } else {
@@ -2657,8 +2661,8 @@ ${analysisText}
         }
 
         if (!ok) {
-          if (anyNotFound) {
-            this.log(`Edit SL: Transaction ${transactionId} not found on any endpoint. Stopping enforcement for this ID.`, "INFO");
+          if (primaryNotFound) {
+            this.log(`Edit SL: Transaction ${transactionId} not found on primary endpoint. Stopping enforcement for this ID.`, "INFO");
             return true; // Return true to stop the retry loop for this specific ID
           }
           this.log(`Edit SL Failed for ${transactionId} after trying all endpoints.`, "ERROR");
