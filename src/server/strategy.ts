@@ -3,7 +3,45 @@ export class Strategy {
   lastSignalTime: number = 0;
   lastSignalType: string | null = null;
   lastSameSideSignalTime: number = 0;
-  indicators: any = {};
+  indicators: {
+    rsi: number | null;
+    atr: number | null;
+    emaFast: number | null;
+    emaSlow: number | null;
+    adx: number | null;
+    stochK: number | null;
+    stochD: number | null;
+    volSMA: number | null;
+    macd: { macd: number, signal: number, histogram: number } | null;
+    bb: { upper: number, lower: number, mid: number } | null;
+    hma: number | null;
+    st: number | null;
+    stDir: number | null;
+    hmaFast: number | null;
+    hmaSlow: number | null;
+    tenkan: number | null;
+    kijun: number | null;
+    regime: string;
+  } = {
+    rsi: null,
+    atr: null,
+    emaFast: null,
+    emaSlow: null,
+    adx: null,
+    stochK: null,
+    stochD: null,
+    volSMA: null,
+    macd: null,
+    bb: null,
+    hma: null,
+    st: null,
+    stDir: null,
+    hmaFast: null,
+    hmaSlow: null,
+    tenkan: null,
+    kijun: null,
+    regime: 'RANGE',
+  };
   signals: any[] = [];
   minSignalScore: number;
   cooldown: number;
@@ -214,50 +252,125 @@ export class Strategy {
     const rsiOversold = cfg.rsi.oversold;
     const rsiOverbought = cfg.rsi.overbought;
 
+    // Additional filters to reduce fake signals
+    const adx = this.indicators.adx || 0;
+    const volSMA = this.indicators.volSMA || 0;
+    const currentVol = volumes[volumes.length - 1] || 0;
+    const stochK = this.indicators.stochK || 50;
+    const stochD = this.indicators.stochD || 50;
+    const macd = this.indicators.macd;
+    const bb = this.indicators.bb;
+    
+    // 1. Volume Confirmation (Volume should be higher than average)
+    const volumeConfirmed = currentVol > volSMA * (scalpCfg.volMultiplier || 1.1);
+    
+    // 2. Trend Strength (ADX > 20)
+    const trendStrong = adx > (scalpCfg.adxThreshold || 20);
+    
+    // 3. Stochastic Confirmation
+    const stochBuy = stochK < (scalpCfg.stochOversold || 30) && stochK > stochD;
+    const stochSell = stochK > (scalpCfg.stochOverbought || 70) && stochK < stochD;
+
+    // 4. MACD Confirmation
+    const macdBuy = macd && macd.histogram > 0 && macd.macd > macd.signal;
+    const macdSell = macd && macd.histogram < 0 && macd.macd < macd.signal;
+
+    // 5. Bollinger Bands Confirmation
+    const bbBuy = bb && price < bb.mid; // Buy in lower half
+    const bbSell = bb && price > bb.mid; // Sell in upper half
+
+    // 6. Candlestick Patterns
+    const patterns = this.detectPatterns(priceHistory.slice(-5));
+    const bullishPattern = patterns.some(p => p.type === 'BULLISH');
+    const bearishPattern = patterns.some(p => p.type === 'BEARISH');
+
+    // 7. MTF Trend Check (5m trend)
+    const mtf = this.getMTFStatus(priceHistory);
+    const mtfConfirmed = !mtf || mtf.status !== 'CONFIRMED' || mtf.trend === (trendUp ? 'BUY' : 'SELL');
+
     if (trendUp && nearSlowForBuy) {
+      // Base signal: RSI Pullback
       if (rsi <= rsiOversold) {
         type = 'BUY';
         score += 2;
         reasons.push(`RSI Pullback (${rsi.toFixed(1)})`);
       }
-      // Require strong momentum and RSI not overbought
+      
+      // Momentum Reversal
       if (!type && rsi < 55 && momentumUp && price >= emaFast && closes[closes.length - 2] < emaFast) {
         type = 'BUY';
         score += 1;
         reasons.push('Momentum Reversal (Crossed Fast EMA)');
       }
-      // Strong EMA cross confirmation
+      
+      // EMA Cross Up
       if (!type && emaFast > emaSlow && closes[closes.length - 2] <= emaSlow && rsi > 40 && rsi < 60) {
         type = 'BUY';
         score += 1;
         reasons.push('EMA Cross Up Confirmation');
       }
+
       if (type) {
         reasons.push('Trend Up (EMA Fast > Slow)');
         if (momentumUp) { score += 1; reasons.push('Green Candle'); }
+        
+        // Add scores for new filters if enabled
+        if (scalpCfg.useVolumeFilter && volumeConfirmed) { score += 1; reasons.push('Volume Confirmation'); }
+        if (scalpCfg.useAdxFilter && trendStrong) { score += 1; reasons.push(`Trend Strength (ADX: ${adx.toFixed(0)})`); }
+        if (scalpCfg.useStochFilter && stochBuy) { score += 1; reasons.push('Stochastic Oversold Cross'); }
+        if (scalpCfg.useMacdFilter && macdBuy) { score += 1; reasons.push('MACD Momentum Up'); }
+        if (scalpCfg.useBbFilter && bbBuy) { score += 1; reasons.push('BB Lower Half'); }
+        if (scalpCfg.useCandleFilter && bullishPattern) { score += 1; reasons.push('Bullish Candle Pattern'); }
+        
+        if (scalpCfg.useMtfFilter) {
+          if (mtfConfirmed) { score += 1; reasons.push('MTF Trend Alignment (5m)'); }
+          else { score -= 2; reasons.push('MTF Trend Conflict (5m)'); }
+        }
       }
     } else if (trendDown && nearSlowForSell) {
+      // Base signal: RSI Pullback
       if (rsi >= rsiOverbought) {
         type = 'SELL';
         score += 2;
         reasons.push(`RSI Pullback (${rsi.toFixed(1)})`);
       }
-      // Require strong momentum and RSI not oversold
+      
+      // Momentum Reversal
       if (!type && rsi > 45 && momentumDown && price <= emaFast && closes[closes.length - 2] > emaFast) {
         type = 'SELL';
         score += 1;
         reasons.push('Momentum Reversal (Crossed Fast EMA)');
       }
-      // Strong EMA cross confirmation
+      
+      // EMA Cross Down
       if (!type && emaFast < emaSlow && closes[closes.length - 2] >= emaSlow && rsi > 40 && rsi < 60) {
         type = 'SELL';
         score += 1;
         reasons.push('EMA Cross Down Confirmation');
       }
+
       if (type) {
         reasons.push('Trend Down (EMA Fast < Slow)');
         if (momentumDown) { score += 1; reasons.push('Red Candle'); }
+        
+        // Add scores for new filters if enabled
+        if (scalpCfg.useVolumeFilter && volumeConfirmed) { score += 1; reasons.push('Volume Confirmation'); }
+        if (scalpCfg.useAdxFilter && trendStrong) { score += 1; reasons.push(`Trend Strength (ADX: ${adx.toFixed(0)})`); }
+        if (scalpCfg.useStochFilter && stochSell) { score += 1; reasons.push('Stochastic Overbought Cross'); }
+        if (scalpCfg.useMacdFilter && macdSell) { score += 1; reasons.push('MACD Momentum Down'); }
+        if (scalpCfg.useBbFilter && bbSell) { score += 1; reasons.push('BB Upper Half'); }
+        if (scalpCfg.useCandleFilter && bearishPattern) { score += 1; reasons.push('Bearish Candle Pattern'); }
+
+        if (scalpCfg.useMtfFilter) {
+          if (mtfConfirmed) { score += 1; reasons.push('MTF Trend Alignment (5m)'); }
+          else { score -= 2; reasons.push('MTF Trend Conflict (5m)'); }
+        }
       }
+    }
+
+    // Stricter filtering: If volume is very low and trend is weak, reject
+    if (type && !volumeConfirmed && !trendStrong && score < effectiveMinScore + 2) {
+      return { signal: null, reason: 'Low volume and weak trend' };
     }
 
     if (!type || score < effectiveMinScore) return { signal: null, reason: `Score too low (${score}/${effectiveMinScore})` };
@@ -1030,6 +1143,63 @@ export class Strategy {
     return 'NORMAL';
   }
 
+  calculateBollingerBands(prices: number[], period: number = 20, multiplier: number = 2) {
+    if (prices.length < period) return null;
+    const mid = this.calculateSMA(prices, period);
+    const slice = prices.slice(-period);
+    const variance = slice.reduce((a, b) => a + Math.pow(b - mid, 2), 0) / period;
+    const stdDev = Math.sqrt(variance);
+    return {
+      upper: mid + multiplier * stdDev,
+      lower: mid - multiplier * stdDev,
+      mid
+    };
+  }
+
+  detectPatterns(bars: any[]) {
+    if (bars.length < 2) return [];
+    const patterns = [];
+    const last = bars[bars.length - 1];
+    const prev = bars[bars.length - 2];
+
+    const lastOpen = last.open ?? last.price;
+    const lastClose = last.price;
+    const lastHigh = last.high ?? last.price;
+    const lastLow = last.low ?? last.price;
+
+    const prevOpen = prev.open ?? prev.price;
+    const prevClose = prev.price;
+
+    const lastBody = Math.abs(lastClose - lastOpen);
+    const prevBody = Math.abs(prevClose - prevOpen);
+
+    // Bullish Engulfing
+    if (prevClose < prevOpen && lastClose > lastOpen && lastClose > prevOpen && lastOpen < prevClose) {
+      patterns.push({ name: 'Bullish Engulfing', type: 'BULLISH' });
+    }
+
+    // Bearish Engulfing
+    if (prevClose > prevOpen && lastClose < lastOpen && lastClose < prevOpen && lastOpen > prevClose) {
+      patterns.push({ name: 'Bearish Engulfing', type: 'BEARISH' });
+    }
+
+    // Pin Bar
+    const totalRange = lastHigh - lastLow;
+    const upperWick = lastHigh - Math.max(lastOpen, lastClose);
+    const lowerWick = Math.min(lastOpen, lastClose) - lastLow;
+
+    if (totalRange > 0) {
+      if (lowerWick > totalRange * 0.6 && lastBody < totalRange * 0.3) {
+        patterns.push({ name: 'Bullish Pin Bar', type: 'BULLISH' });
+      }
+      if (upperWick > totalRange * 0.6 && lastBody < totalRange * 0.3) {
+        patterns.push({ name: 'Bearish Pin Bar', type: 'BEARISH' });
+      }
+    }
+
+    return patterns;
+  }
+
   calculateADX(highs: number[], lows: number[], closes: number[], period: number = 14) {
     if (closes.length < period * 2) return 20;
 
@@ -1195,11 +1365,57 @@ export class Strategy {
     // Always calculate RSI and ATR for the dashboard
     this.indicators.rsi = this.calculateRSI(closes, cfg.rsi?.period || 14);
     this.indicators.atr = this.calculateATR(highs, lows, closes, cfg.atr?.period || 14);
+    this.indicators.adx = this.calculateADX(highs, lows, closes, 14);
+    this.indicators.macd = this.calculateMACD(closes, 12, 26, 9);
+    this.indicators.bb = this.calculateBollingerBands(closes, 20, 2);
+    
+    const stoch = this.calculateStochastic(highs, lows, closes, 14, 3, 3);
+    this.indicators.stochK = stoch.k;
+    this.indicators.stochD = stoch.d;
+    
+    this.indicators.volSMA = this.calculateSMA(volumes, 20);
     
     if (cfg.ema?.enabled !== false) {
       this.indicators.emaFast = this.calculateEMA(closes, cfg.ema?.fast || 9);
       this.indicators.emaSlow = this.calculateEMA(closes, cfg.ema?.slow || 21);
     }
+  }
+
+  calculateStochastic(highs: number[], lows: number[], closes: number[], kPeriod: number = 14, dPeriod: number = 3, slowing: number = 3) {
+    if (closes.length < kPeriod + slowing + dPeriod) return { k: 50, d: 50 };
+    
+    const kValues: number[] = [];
+    
+    for (let i = closes.length - (dPeriod + slowing); i < closes.length; i++) {
+      const sliceHighs = highs.slice(i - kPeriod + 1, i + 1);
+      const sliceLows = lows.slice(i - kPeriod + 1, i + 1);
+      
+      const highestHigh = Math.max(...sliceHighs);
+      const lowestLow = Math.min(...sliceLows);
+      
+      if (highestHigh === lowestLow) {
+        kValues.push(50);
+      } else {
+        const k = ((closes[i] - lowestLow) / (highestHigh - lowestLow)) * 100;
+        kValues.push(k);
+      }
+    }
+    
+    // Smooth K
+    const smoothedK = this.calculateSMA(kValues, slowing);
+    
+    // Calculate D (SMA of smoothed K)
+    // For simplicity in this implementation, we'll just return the last smoothed K and its SMA
+    const dValues: number[] = [];
+    for (let i = kValues.length - dPeriod; i <= kValues.length; i++) {
+        if (i < slowing) continue;
+        dValues.push(this.calculateSMA(kValues.slice(0, i), slowing));
+    }
+    
+    const k = smoothedK;
+    const d = this.calculateSMA(dValues, dPeriod);
+    
+    return { k, d };
   }
 
   calculateRSI(prices: number[], period: number = 14) {

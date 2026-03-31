@@ -218,7 +218,7 @@ export class FarazGoldBot {
     
     this.api = axios.create({
       baseURL: auth.baseUrl,
-      timeout: 30000,
+      timeout: 60000, // Increased to 60s for slow server responses
       withCredentials: true,
       headers: {
         ...authHeader,
@@ -243,12 +243,25 @@ export class FarazGoldBot {
       })
     });
 
-    // Add interceptor for token refresh
+    // Add interceptor for token refresh and automatic retries for 504/502
     this.api.interceptors.response.use(
       response => response,
       async error => {
         const originalRequest = error.config;
-        if (error.response?.status === 401 && !originalRequest._retry && this.refreshToken) {
+        const status = error.response?.status;
+
+        // Auto-retry for Gateway Timeout (504) or Bad Gateway (502)
+        if ((status === 504 || status === 502) && !originalRequest._retryCount) {
+          originalRequest._retryCount = (originalRequest._retryCount || 0) + 1;
+          if (originalRequest._retryCount <= 3) {
+            const delay = 5000 * originalRequest._retryCount;
+            this.log(`Server Busy (${status}). Retrying request in ${delay/1000}s...`, "INFO");
+            await new Promise(resolve => setTimeout(resolve, delay));
+            return this.api!(originalRequest);
+          }
+        }
+
+        if (status === 401 && !originalRequest._retry && this.refreshToken) {
           originalRequest._retry = true;
           const refreshed = await this.refreshAuthToken();
           if (refreshed) {
@@ -741,8 +754,13 @@ ${analysisText}
     try {
       const to = Math.floor(Date.now() / 1000);
       const resolution = Math.floor((this.settings.timeframe?.value || 60) / 60);
-      const from = to - (24 * 60 * 60 * (resolution > 1 ? 5 : 1)); // Fetch more history for higher timeframes
-      this.log(`Fetching historical bars (${resolution}m) from ${from} to ${to}...`, "INFO");
+      
+      // If we keep getting 504, reduce the 'from' range to ask for less data
+      // Start with 6 hours for 1m, 2 days for higher resolutions
+      const hoursToFetch = retryCount > 1 ? 3 : (resolution > 1 ? 48 : 6);
+      const from = to - (60 * 60 * hoursToFetch);
+      
+      this.log(`Fetching historical bars (${resolution}m) from ${from} to ${to} (Attempt ${retryCount + 1})...`, "INFO");
       
       const response = await this.api.get('/api/room/api/get-bars/', {
         params: {
@@ -812,8 +830,9 @@ ${analysisText}
     try {
       const to = Math.floor(Date.now() / 1000);
       const resolution = 5; // 5 minutes
-      const from = to - (24 * 60 * 60 * 3); // 3 days of 5m history
-      this.log(`Fetching MTF bars (${resolution}m) from ${from} to ${to}...`, "INFO");
+      // Reduce from 2 days to 12 hours if we get 504
+      const from = to - (60 * 60 * (retryCount > 0 ? 12 : 24));
+      this.log(`Fetching MTF bars (${resolution}m) from ${from} to ${to} (Attempt ${retryCount + 1})...`, "INFO");
       
       const response = await this.api.get('/api/room/api/get-bars/', {
         params: {
@@ -1158,11 +1177,12 @@ ${analysisText}
       });
       
       this.ws.on('unexpected-response', (req, res) => {
-        this.log(`WS unexpected-response: ${res.statusCode}`, "ERROR");
+        const isGatewayError = res.statusCode === 504 || res.statusCode === 502;
+        this.log(`WS unexpected-response: ${res.statusCode}${isGatewayError ? ' (Server Busy)' : ''}`, "ERROR");
         if (this.ws) {
           this.ws.terminate(); // This should trigger the 'close' event
         }
-        this.scheduleReconnect(); // Call it directly just in case 'close' isn't emitted
+        this.scheduleReconnect(isGatewayError); // Call it directly just in case 'close' isn't emitted
       });
 
       this.ws.on('open', () => {
@@ -1214,10 +1234,10 @@ ${analysisText}
           }
 
           if (msg.type === 'ping') {
-            if (this.ws?.readyState === WebSocket.OPEN) {
+            if (this.ws && this.ws.readyState === WebSocket.OPEN) {
               // Add a tiny random delay before responding to ping to simulate human network latency
               setTimeout(() => {
-                if (this.ws?.readyState === WebSocket.OPEN) {
+                if (this.ws && this.ws.readyState === WebSocket.OPEN) {
                   this.ws.send(JSON.stringify({ type: 'pong' }));
                 }
               }, Math.floor(Math.random() * 100) + 50); // 50-150ms delay
@@ -1461,6 +1481,7 @@ ${analysisText}
         }
         
         this.stopPingLoop();
+        this.ws = null; // Important: nullify the socket
         this.scheduleReconnect();
       });
 
@@ -1521,11 +1542,15 @@ ${analysisText}
     }
   }
 
-  scheduleReconnect() {
+  scheduleReconnect(isGatewayError = false) {
     if (this.wsReconnectTimer) return;
     this.reconnectAttempts++;
-    // Exponential backoff with max 5 minutes to prevent spamming
-    const delay = Math.min(300000, 10000 * Math.pow(1.5, this.reconnectAttempts - 1));
+    
+    // If we got a 504, it means the server is overloaded. We should wait longer.
+    // Exponential backoff with max 10 minutes to prevent spamming
+    const baseDelay = (isGatewayError || this.reconnectAttempts > 3) ? 30000 : 15000;
+    const delay = Math.min(600000, baseDelay * Math.pow(1.5, this.reconnectAttempts - 1));
+    
     this.log(`Scheduling WS reconnect in ${Math.round(delay/1000)}s (Attempt ${this.reconnectAttempts})`, "WS");
     this.wsReconnectTimer = setTimeout(() => {
       this.wsReconnectTimer = null;
@@ -1801,13 +1826,26 @@ ${analysisText}
       const id = Date.now();
 
       // SL/TP Safety Check (Ensure not too close to market)
-      const minDistance = tickSize * 15;
+      // Increased buffer to 35 ticks for high volatility and latency
+      const safetyBuffer = tickSize * 35;
+      const currentPrice = this.price;
+      
       if (signal.type === 'BUY') {
-        if (sl > this.price - minDistance) sl = Math.round(this.price - minDistance);
-        if (tp < this.price + minDistance) tp = Math.round(this.price + minDistance);
+        // For BUY: SL must be < Price, TP must be > Price
+        if (sl >= currentPrice - safetyBuffer) {
+          sl = Math.round(currentPrice - safetyBuffer);
+        }
+        if (tp <= currentPrice + safetyBuffer) {
+          tp = Math.round(currentPrice + safetyBuffer);
+        }
       } else {
-        if (sl < this.price + minDistance) sl = Math.round(this.price + minDistance);
-        if (tp > this.price - minDistance) tp = Math.round(this.price - minDistance);
+        // For SELL: SL must be > Price, TP must be < Price
+        if (sl <= currentPrice + safetyBuffer) {
+          sl = Math.round(currentPrice + safetyBuffer);
+        }
+        if (tp >= currentPrice - safetyBuffer) {
+          tp = Math.round(currentPrice - safetyBuffer);
+        }
       }
 
       if (this.settings.source === 'API' && this.api) {
@@ -2293,11 +2331,20 @@ ${analysisText}
             } catch (e: any) {
               const status = e.response?.status;
               const data = e.response?.data;
+              
+              // Per user feedback, 500 on close often means success
+              if (status === 500) {
+                this.log(`Close Trade: Received 500 on ${url}. Treating as SUCCESS per user experience.`, "SUCCESS");
+                ok = true;
+                break;
+              }
+
               this.log(`Close Trade API Error (${url}): Status ${status} | Data: ${typeof data === 'string' ? 'HTML Response' : JSON.stringify(data || e.message)}`, "ERROR");
-              // If 404, the trade might be already closed on server
+              
               if (status === 404) {
                 this.log(`Trade ${pos.transactionId} not found on ${url}. It might be already closed.`, "INFO");
-                if (url.includes('close-futures-transaction')) ok = true; // Consider it done if primary fails with 404
+                ok = true; // Consider it done if 404
+                break;
               }
               
               if (status === 500 || status === 404) {
@@ -2481,7 +2528,7 @@ ${analysisText}
         this.log(`Updating TP for transaction ${transactionId} to ${newTp}...`, "INFO");
         
         const endpoints = [
-          `/api/room/api/edit-futures-transaction/${transactionId}/`
+          `/api/room/api/edit-take-profit/${transactionId}/`
         ];
 
         let ok = false;

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Chart from 'react-apexcharts';
-import { Activity, TrendingUp, TrendingDown, AlertCircle, Clock, Power, ShieldCheck, Settings, Send, Save, X, ChevronRight, Terminal, RefreshCw, Lock, ShieldAlert, Zap } from 'lucide-react';
+import { Activity, TrendingUp, TrendingDown, AlertCircle, Clock, Power, ShieldCheck, Settings, Send, Save, X, ChevronRight, Terminal, RefreshCw, Lock, ShieldAlert, Zap, BarChart3, CircleDot, Layout, Layers, History, Target, Cpu, Waves } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const formatPrice = (price: number) => {
@@ -1264,7 +1264,421 @@ export default function Dashboard() {
 
 
 
-                {/* Numerical Strategy Settings removed - moved to dynamic section below */}
+                {/* SCALP Strategy Advanced Filters */}
+                {settings.activeStrategy === 'SCALP' && (
+                  <section className="border-t border-white/5 pt-8">
+                    <div className="flex items-center justify-between mb-6">
+                      <div className="flex flex-col">
+                        <h3 className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest flex items-center gap-3">
+                          <ShieldCheck className="w-4 h-4" /> فیلترهای تاییدیه پیشرفته (SCALP)
+                        </h3>
+                        <p className="text-[9px] text-slate-500 mt-1">تاییدیه چندگانه برای ورود دقیق‌تر</p>
+                      </div>
+                      <span className="text-[8px] bg-emerald-500/10 text-emerald-500 px-2 py-1 rounded-md font-bold border border-emerald-500/20">PRO VERSION</span>
+                    </div>
+
+                    <div className="mb-6 bg-white/5 p-4 sm:p-5 rounded-2xl border border-white/5">
+                      <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">حالت معامله (Trading Mode)</label>
+                      <select 
+                        value={settings.strategy?.scalp?.mode || 'NORMAL'}
+                        onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, scalp: { ...settings.strategy?.scalp, mode: e.target.value } } })}
+                        className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-emerald-500/50 transition-colors"
+                      >
+                        <option value="PRECISION" className="bg-[#0f0f0f]">دقت بسیار بالا (بدون اشتباه، معاملات کم) 💎</option>
+                        <option value="NORMAL" className="bg-[#0f0f0f]">دقت بالا (استاندارد) ⚖️</option>
+                        <option value="AGGRESSIVE" className="bg-[#0f0f0f]">تهاجمی (معاملات بیشتر) 🔥</option>
+                      </select>
+                      <p className="text-[9px] text-slate-400 mt-2 leading-relaxed">
+                        با انتخاب حالت <span className="text-emerald-500 font-bold">دقت بسیار بالا</span>، ربات تنها در شرایطی وارد معامله می‌شود که تمامی فیلترها و تاییدیه‌ها هم‌جهت باشند (مشابه استراتژی HST).
+                      </p>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* RSI Filter */}
+                      <div className={`p-4 rounded-2xl border transition-all duration-300 ${settings.strategy?.scalp?.useRsiFilter ? 'bg-emerald-500/5 border-emerald-500/30' : 'bg-white/5 border-white/5'}`}>
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center gap-3">
+                            <div className={`p-2 rounded-xl transition-colors ${settings.strategy?.scalp?.useRsiFilter ? 'bg-emerald-500/20 text-emerald-500' : 'bg-blue-500/10 text-blue-500'}`}>
+                              <Target className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <span className="text-sm font-bold text-white block">تاییدیه RSI</span>
+                              <span className="text-[9px] text-slate-500">اشباع خرید/فروش</span>
+                            </div>
+                          </div>
+                          <button 
+                            onClick={() => setSettings({ 
+                              ...settings, 
+                              strategy: { 
+                                ...settings.strategy, 
+                                scalp: { ...settings.strategy?.scalp, useRsiFilter: !settings.strategy?.scalp?.useRsiFilter } 
+                              } 
+                            })}
+                            className={`w-12 h-6 rounded-full transition-all relative ${settings.strategy?.scalp?.useRsiFilter ? 'bg-emerald-500' : 'bg-slate-700'}`}
+                          >
+                            <motion.div 
+                              animate={{ x: settings.strategy?.scalp?.useRsiFilter ? 26 : 4 }}
+                              className="absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm"
+                            />
+                          </button>
+                        </div>
+                        <AnimatePresence>
+                          {settings.strategy?.scalp?.useRsiFilter && (
+                            <motion.div 
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              className="overflow-hidden"
+                            >
+                              <div className="grid grid-cols-2 gap-3 pt-2 border-t border-white/5">
+                                <div>
+                                  <label className="text-[8px] text-slate-500 uppercase block mb-1">دوره RSI</label>
+                                  <input 
+                                    type="number" 
+                                    value={settings.strategy?.scalp?.rsiPeriod || 14}
+                                    onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, scalp: { ...settings.strategy.scalp, rsiPeriod: parseInt(e.target.value) } } })}
+                                    className="w-full bg-black/20 border border-white/5 rounded-lg px-2 py-1 text-[10px] outline-none focus:border-emerald-500/50"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[8px] text-slate-500 uppercase block mb-1">محدوده (OB/OS)</label>
+                                  <div className="flex items-center gap-1">
+                                    <input 
+                                      type="number" 
+                                      value={settings.strategy?.scalp?.rsiLow || 30}
+                                      onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, scalp: { ...settings.strategy.scalp, rsiLow: parseInt(e.target.value) } } })}
+                                      className="w-full bg-black/20 border border-white/5 rounded-lg px-2 py-1 text-[10px] outline-none"
+                                    />
+                                    <span className="text-[8px] text-slate-600">/</span>
+                                    <input 
+                                      type="number" 
+                                      value={settings.strategy?.scalp?.rsiHigh || 70}
+                                      onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, scalp: { ...settings.strategy.scalp, rsiHigh: parseInt(e.target.value) } } })}
+                                      className="w-full bg-black/20 border border-white/5 rounded-lg px-2 py-1 text-[10px] outline-none"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+
+                      {/* EMA Trend Filter */}
+                      <div className={`p-4 rounded-2xl border transition-all duration-300 ${settings.strategy?.scalp?.useEmaFilter ? 'bg-emerald-500/5 border-emerald-500/30' : 'bg-white/5 border-white/5'}`}>
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center gap-3">
+                            <div className={`p-2 rounded-xl transition-colors ${settings.strategy?.scalp?.useEmaFilter ? 'bg-emerald-500/20 text-emerald-500' : 'bg-amber-500/10 text-amber-500'}`}>
+                              <TrendingUp className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <span className="text-sm font-bold text-white block">فیلتر روند EMA</span>
+                              <span className="text-[9px] text-slate-500">معامله در جهت روند</span>
+                            </div>
+                          </div>
+                          <button 
+                            onClick={() => setSettings({ 
+                              ...settings, 
+                              strategy: { 
+                                ...settings.strategy, 
+                                scalp: { ...settings.strategy?.scalp, useEmaFilter: !settings.strategy?.scalp?.useEmaFilter } 
+                              } 
+                            })}
+                            className={`w-12 h-6 rounded-full transition-all relative ${settings.strategy?.scalp?.useEmaFilter ? 'bg-emerald-500' : 'bg-slate-700'}`}
+                          >
+                            <motion.div 
+                              animate={{ x: settings.strategy?.scalp?.useEmaFilter ? 26 : 4 }}
+                              className="absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm"
+                            />
+                          </button>
+                        </div>
+                        <AnimatePresence>
+                          {settings.strategy?.scalp?.useEmaFilter && (
+                            <motion.div 
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              className="overflow-hidden"
+                            >
+                              <div className="pt-2 border-t border-white/5">
+                                <label className="text-[8px] text-slate-500 uppercase block mb-1">دوره میانگین متحرک (EMA)</label>
+                                <input 
+                                  type="number" 
+                                  value={settings.strategy?.scalp?.emaPeriod || 200}
+                                  onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, scalp: { ...settings.strategy.scalp, emaPeriod: parseInt(e.target.value) } } })}
+                                  className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-1.5 text-[10px] outline-none focus:border-emerald-500/50"
+                                />
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+
+                      {/* Volume Filter */}
+                      <div className={`p-4 rounded-2xl border transition-all duration-300 ${settings.strategy?.scalp?.useVolumeFilter ? 'bg-emerald-500/5 border-emerald-500/30' : 'bg-white/5 border-white/5'}`}>
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center gap-3">
+                            <div className={`p-2 rounded-xl transition-colors ${settings.strategy?.scalp?.useVolumeFilter ? 'bg-emerald-500/20 text-emerald-500' : 'bg-emerald-500/10 text-emerald-500'}`}>
+                              <BarChart3 className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <span className="text-sm font-bold text-white block">فیلتر حجم</span>
+                              <span className="text-[9px] text-slate-500">تاییدیه نقدینگی</span>
+                            </div>
+                          </div>
+                          <button 
+                            onClick={() => setSettings({ 
+                              ...settings, 
+                              strategy: { 
+                                ...settings.strategy, 
+                                scalp: { ...settings.strategy?.scalp, useVolumeFilter: !settings.strategy?.scalp?.useVolumeFilter } 
+                              } 
+                            })}
+                            className={`w-12 h-6 rounded-full transition-all relative ${settings.strategy?.scalp?.useVolumeFilter ? 'bg-emerald-500' : 'bg-slate-700'}`}
+                          >
+                            <motion.div 
+                              animate={{ x: settings.strategy?.scalp?.useVolumeFilter ? 26 : 4 }}
+                              className="absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm"
+                            />
+                          </button>
+                        </div>
+                        <AnimatePresence>
+                          {settings.strategy?.scalp?.useVolumeFilter && (
+                            <motion.div 
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              className="overflow-hidden"
+                            >
+                              <div className="pt-2 border-t border-white/5">
+                                <label className="text-[8px] text-slate-500 uppercase block mb-1">ضریب حجم (Multiplier)</label>
+                                <input 
+                                  type="number" 
+                                  step="0.1"
+                                  value={settings.strategy?.scalp?.volMultiplier || 1.5}
+                                  onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, scalp: { ...settings.strategy.scalp, volMultiplier: parseFloat(e.target.value) } } })}
+                                  className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-1.5 text-[10px] outline-none focus:border-emerald-500/50"
+                                />
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+
+                      {/* ATR Volatility Filter */}
+                      <div className={`p-4 rounded-2xl border transition-all duration-300 ${settings.strategy?.scalp?.useAtrFilter ? 'bg-emerald-500/5 border-emerald-500/30' : 'bg-white/5 border-white/5'}`}>
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center gap-3">
+                            <div className={`p-2 rounded-xl transition-colors ${settings.strategy?.scalp?.useAtrFilter ? 'bg-emerald-500/20 text-emerald-500' : 'bg-purple-500/10 text-purple-500'}`}>
+                              <Waves className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <span className="text-sm font-bold text-white block">فیلتر نوسان (ATR)</span>
+                              <span className="text-[9px] text-slate-500">جلوگیری از بازار مرده</span>
+                            </div>
+                          </div>
+                          <button 
+                            onClick={() => setSettings({ 
+                              ...settings, 
+                              strategy: { 
+                                ...settings.strategy, 
+                                scalp: { ...settings.strategy?.scalp, useAtrFilter: !settings.strategy?.scalp?.useAtrFilter } 
+                              } 
+                            })}
+                            className={`w-12 h-6 rounded-full transition-all relative ${settings.strategy?.scalp?.useAtrFilter ? 'bg-emerald-500' : 'bg-slate-700'}`}
+                          >
+                            <motion.div 
+                              animate={{ x: settings.strategy?.scalp?.useAtrFilter ? 26 : 4 }}
+                              className="absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm"
+                            />
+                          </button>
+                        </div>
+                        <AnimatePresence>
+                          {settings.strategy?.scalp?.useAtrFilter && (
+                            <motion.div 
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              className="overflow-hidden"
+                            >
+                              <div className="pt-2 border-t border-white/5">
+                                <label className="text-[8px] text-slate-500 uppercase block mb-1">حداقل نوسان (تیک)</label>
+                                <input 
+                                  type="number" 
+                                  value={settings.strategy?.scalp?.minAtrTicks || 5}
+                                  onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, scalp: { ...settings.strategy.scalp, minAtrTicks: parseInt(e.target.value) } } })}
+                                  className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-1.5 text-[10px] outline-none focus:border-emerald-500/50"
+                                />
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+
+                      {/* Spread Guard */}
+                      <div className={`p-4 rounded-2xl border transition-all duration-300 ${settings.strategy?.scalp?.useSpreadFilter ? 'bg-emerald-500/5 border-emerald-500/30' : 'bg-white/5 border-white/5'}`}>
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center gap-3">
+                            <div className={`p-2 rounded-xl transition-colors ${settings.strategy?.scalp?.useSpreadFilter ? 'bg-emerald-500/20 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
+                              <ShieldAlert className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <span className="text-sm font-bold text-white block">محافظ اسپرد</span>
+                              <span className="text-[9px] text-slate-500">کنترل فاصله قیمت</span>
+                            </div>
+                          </div>
+                          <button 
+                            onClick={() => setSettings({ 
+                              ...settings, 
+                              strategy: { 
+                                ...settings.strategy, 
+                                scalp: { ...settings.strategy?.scalp, useSpreadFilter: !settings.strategy?.scalp?.useSpreadFilter } 
+                              } 
+                            })}
+                            className={`w-12 h-6 rounded-full transition-all relative ${settings.strategy?.scalp?.useSpreadFilter ? 'bg-emerald-500' : 'bg-slate-700'}`}
+                          >
+                            <motion.div 
+                              animate={{ x: settings.strategy?.scalp?.useSpreadFilter ? 26 : 4 }}
+                              className="absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm"
+                            />
+                          </button>
+                        </div>
+                        <AnimatePresence>
+                          {settings.strategy?.scalp?.useSpreadFilter && (
+                            <motion.div 
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              className="overflow-hidden"
+                            >
+                              <div className="pt-2 border-t border-white/5">
+                                <label className="text-[8px] text-slate-500 uppercase block mb-1">حداکثر اسپرد مجاز (تیک)</label>
+                                <input 
+                                  type="number" 
+                                  value={settings.strategy?.scalp?.maxSpreadTicks || 3}
+                                  onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, scalp: { ...settings.strategy.scalp, maxSpreadTicks: parseInt(e.target.value) } } })}
+                                  className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-1.5 text-[10px] outline-none focus:border-emerald-500/50"
+                                />
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+
+                      {/* Momentum Scalp */}
+                      <div className={`p-4 rounded-2xl border transition-all duration-300 ${settings.strategy?.scalp?.useMomentumFilter ? 'bg-emerald-500/5 border-emerald-500/30' : 'bg-white/5 border-white/5'}`}>
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center gap-3">
+                            <div className={`p-2 rounded-xl transition-colors ${settings.strategy?.scalp?.useMomentumFilter ? 'bg-emerald-500/20 text-emerald-500' : 'bg-cyan-500/10 text-cyan-500'}`}>
+                              <Zap className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <span className="text-sm font-bold text-white block">مومنتوم آنی</span>
+                              <span className="text-[9px] text-slate-500">تشخیص حرکت انفجاری</span>
+                            </div>
+                          </div>
+                          <button 
+                            onClick={() => setSettings({ 
+                              ...settings, 
+                              strategy: { 
+                                ...settings.strategy, 
+                                scalp: { ...settings.strategy?.scalp, useMomentumFilter: !settings.strategy?.scalp?.useMomentumFilter } 
+                              } 
+                            })}
+                            className={`w-12 h-6 rounded-full transition-all relative ${settings.strategy?.scalp?.useMomentumFilter ? 'bg-emerald-500' : 'bg-slate-700'}`}
+                          >
+                            <motion.div 
+                              animate={{ x: settings.strategy?.scalp?.useMomentumFilter ? 26 : 4 }}
+                              className="absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm"
+                            />
+                          </button>
+                        </div>
+                        <AnimatePresence>
+                          {settings.strategy?.scalp?.useMomentumFilter && (
+                            <motion.div 
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              className="overflow-hidden"
+                            >
+                              <div className="pt-2 border-t border-white/5">
+                                <label className="text-[8px] text-slate-500 uppercase block mb-1">حساسیت مومنتوم (1-100)</label>
+                                <input 
+                                  type="range" 
+                                  min="1"
+                                  max="100"
+                                  value={settings.strategy?.scalp?.momentumSensitivity || 50}
+                                  onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, scalp: { ...settings.strategy.scalp, momentumSensitivity: parseInt(e.target.value) } } })}
+                                  className="w-full accent-emerald-500 h-1 bg-white/10 rounded-lg appearance-none cursor-pointer"
+                                />
+                                <div className="flex justify-between mt-1">
+                                  <span className="text-[7px] text-slate-600">کم</span>
+                                  <span className="text-[8px] text-emerald-500 font-bold">{settings.strategy?.scalp?.momentumSensitivity || 50}%</span>
+                                  <span className="text-[7px] text-slate-600">زیاد</span>
+                                </div>
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+
+                      {/* MTF Filter */}
+                      <div className={`p-4 rounded-2xl border transition-all duration-300 sm:col-span-2 ${settings.strategy?.scalp?.useMtfFilter ? 'bg-emerald-500/5 border-emerald-500/30' : 'bg-white/5 border-white/5'}`}>
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center gap-3">
+                            <div className={`p-2 rounded-xl transition-colors ${settings.strategy?.scalp?.useMtfFilter ? 'bg-emerald-500/20 text-emerald-500' : 'bg-indigo-500/10 text-indigo-500'}`}>
+                              <Layers className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <span className="text-sm font-bold text-white block">تاییدیه ۵ دقیقه (MTF)</span>
+                              <span className="text-[9px] text-slate-500">هماهنگی روند در تایم‌فریم بالاتر</span>
+                            </div>
+                          </div>
+                          <button 
+                            onClick={() => setSettings({ 
+                              ...settings, 
+                              strategy: { 
+                                ...settings.strategy, 
+                                scalp: { ...settings.strategy?.scalp, useMtfFilter: !settings.strategy?.scalp?.useMtfFilter } 
+                              } 
+                            })}
+                            className={`w-12 h-6 rounded-full transition-all relative ${settings.strategy?.scalp?.useMtfFilter ? 'bg-emerald-500' : 'bg-slate-700'}`}
+                          >
+                            <motion.div 
+                              animate={{ x: settings.strategy?.scalp?.useMtfFilter ? 26 : 4 }}
+                              className="absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm"
+                            />
+                          </button>
+                        </div>
+                        <AnimatePresence>
+                          {settings.strategy?.scalp?.useMtfFilter && (
+                            <motion.div 
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              className="overflow-hidden"
+                            >
+                              <div className="pt-2 border-t border-white/5 flex items-center justify-between">
+                                <span className="text-[10px] text-slate-300">تایم‌فریم مرجع:</span>
+                                <div className="flex gap-2">
+                                  {['5M', '15M', '1H'].map(tf => (
+                                    <button 
+                                      key={tf}
+                                      onClick={() => setSettings({ ...settings, strategy: { ...settings.strategy, scalp: { ...settings.strategy.scalp, mtfTimeframe: tf } } })}
+                                      className={`px-3 py-1 rounded-lg text-[9px] font-bold transition-all ${settings.strategy?.scalp?.mtfTimeframe === tf ? 'bg-emerald-500 text-white' : 'bg-white/5 text-slate-500'}`}
+                                    >
+                                      {tf}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    </div>
+                  </section>
+                )}
 
                 {/* Risk Management */}
                 <section>
@@ -1307,6 +1721,37 @@ export default function Dashboard() {
                         onChange={(e) => setSettings({ ...settings, targetsTicks: { ...settings.targetsTicks, tpTicks: parseInt(e.target.value) } })}
                         className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none"
                       />
+                    </div>
+                  </div>
+                </section>
+
+                {/* Backtest Settings */}
+                <section className="mt-10">
+                  <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-3">
+                    <History className="w-4 h-4" /> تنظیمات بک‌تست و شبیه‌سازی
+                  </h3>
+                  <div className="grid grid-cols-2 gap-6">
+                    <div>
+                      <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">لغزش قیمت (Slippage - تیک)</label>
+                      <input 
+                        type="number" 
+                        step="0.1"
+                        value={settings.backtest?.slippageTicks || 1}
+                        onChange={(e) => setSettings({ ...settings, backtest: { ...settings.backtest, slippageTicks: parseFloat(e.target.value) } })}
+                        className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-emerald-500/50"
+                      />
+                      <p className="text-[9px] text-slate-500 mt-1">اختلاف قیمت ورود/خروج واقعی با قیمت مارکت.</p>
+                    </div>
+                    <div>
+                      <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">کارمزد (Commission - تیک)</label>
+                      <input 
+                        type="number" 
+                        step="0.1"
+                        value={settings.backtest?.commissionTicks || 0.5}
+                        onChange={(e) => setSettings({ ...settings, backtest: { ...settings.backtest, commissionTicks: parseFloat(e.target.value) } })}
+                        className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-emerald-500/50"
+                      />
+                      <p className="text-[9px] text-slate-500 mt-1">هزینه هر معامله که از سود کسر می‌شود.</p>
                     </div>
                   </div>
                 </section>

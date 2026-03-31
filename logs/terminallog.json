@@ -1,0 +1,207 @@
+{"id":1774989787297.9822,"time":"۲۰:۴۳:۰۷","message":"Bot engine v4.3 PRO starting...","type":"INFO","timestamp":"2026-03-31T20:43:07.319Z"}
+{"id":1774989888448.73,"time":"۲۰:۴۴:۴۸","message":"Portfolio Update: Server busy or network issue after 5 retries (timeout of 10000ms exceeded).","type":"INFO","timestamp":"2026-03-31T20:44:48.448Z"}
+{"id":1774989888449.5686,"time":"۲۰:۴۴:۴۸","message":"Fetching historical bars (1m) from 1774903488 to 1774989888...","type":"INFO","timestamp":"2026-03-31T20:44:48.449Z"}
+{"id":1774989903501.0063,"time":"۲۰:۴۵:۰۳","message":"Historical Bars Fetch Error: 504 - Request failed with status code 504","type":"ERROR","timestamp":"2026-03-31T20:45:03.502Z"}
+{"id":1774989903502.2808,"time":"۲۰:۴۵:۰۳","message":"Retrying historical bars fetch in 5s (Attempt 1/5)...","type":"INFO","timestamp":"2026-03-31T20:45:03.502Z"}
+{"id":1774989903502.95,"time":"۲۰:۴۵:۰۳","message":"Connecting to FarazGold WS (DEMO): wss://demo.farazgold.com/ws/","type":"WS","timestamp":"2026-03-31T20:45:03.503Z"}
+{"id":1774989908503.1199,"time":"۲۰:۴۵:۰۸","message":"Fetching historical bars (1m) from 1774903508 to 1774989908...","type":"INFO","timestamp":"2026-03-31T20:45:08.503Z"}
+{"id":1774989918552.0925,"time":"۲۰:۴۵:۱۸","message":"WS unexpected-response: 504","type":"ERROR","timestamp":"2026-03-31T20:45:18.552Z"}
+{"id":1774989918554.928,"time":"۲۰:۴۵:۱۸","message":"Scheduling WS reconnect in 10s (Attempt 1)","type":"WS","timestamp":"2026-03-31T20:45:18.554Z"}
+{"id":1774989918554.463,"time":"۲۰:۴۵:۱۸","message":"WS Error: WebSocket was closed before the connection was established","type":"ERROR","timestamp":"2026-03-31T20:45:18.554Z"}
+{"id":1774989918554.1848,"time":"۲۰:۴۵:۱۸","message":"WS Connection Closed. Code: 1006, Reason: ","type":"WS","timestamp":"2026-03-31T20:45:18.555Z"}
+{"id":1774989923532.669,"time":"۲۰:۴۵:۲۳","message":"Historical Bars Fetch Error: 504 - Request failed with status code 504","type":"ERROR","timestamp":"2026-03-31T20:45:23.532Z"}
+{"id":1774989923532.0425,"time":"۲۰:۴۵:۲۳","message":"Retrying historical bars fetch in 10s (Attempt 2/5)...","type":"INFO","timestamp":"2026-03-31T20:45:23.532Z"}
+{"id":1774989928555.2583,"time":"۲۰:۴۵:۲۸","message":"Connecting to FarazGold WS (DEMO): wss://demo.farazgold.com/ws/","type":"WS","timestamp":"2026-03-31T20:45:28.555Z"}
+{"id":1774989933532.2356,"time":"۲۰:۴۵:۳۳","message":"Fetching historical bars (1m) from 1774903533 to 1774989933...","type":"INFO","timestamp":"2026-03-31T20:45:33.532Z"}
+{"id":1774989943606.5588,"time":"۲۰:۴۵:۴۳","message":"WS unexpected-response: 504","type":"ERROR","timestamp":"2026-03-31T20:45:43.606Z"}
+{"id":1774989943607.602,"time":"۲۰:۴۵:۴۳","message":"Scheduling WS reconnect in 15s (Attempt 2)","type":"WS","timestamp":"2026-03-31T20:45:43.607Z"}
+{"id":1774989943607.5261,"time":"۲۰:۴۵:۴۳","message":"WS Error: WebSocket was closed before the connection was established","type":"ERROR","timestamp":"2026-03-31T20:45:43.607Z"}
+{"id":1774989943607.4114,"time":"۲۰:۴۵:۴۳","message":"WS Connection Closed. Code: 1006, Reason: ","type":"WS","timestamp":"2026-03-31T20:45:43.607Z"}
+{"id":1774989948587.5125,"time":"۲۰:۴۵:۴۸","message":"Historical Bars Fetch Error: 504 - Request failed with status code 504","type":"ERROR","timestamp":"2026-03-31T20:45:48.587Z"}
+{"id":1774989948587.3806,"time":"۲۰:۴۵:۴۸","message":"Retrying historical bars fetch in 20s (Attempt 3/5)...","type":"INFO","timestamp":"2026-03-31T20:45:48.587Z"}
+{"id":1774989958608.1003,"time":"۲۰:۴۵:۵۸","message":"Connecting to FarazGold WS (DEMO): wss://demo.farazgold.com/ws/","type":"WS","timestamp":"2026-03-31T20:45:58.608Z"}
+{"id":1774989968587.0452,"time":"۲۰:۴۶:۰۸","message":"Fetching historical bars (1m) from 1774903568 to 1774989968...","type":"INFO","timestamp":"2026-03-31T20:46:08.588Z"}
+{"id":1774989973656.3994,"time":"۲۰:۴۶:۱۳","message":"WS unexpected-response: 504","type":"ERROR","timestamp":"2026-03-31T20:46:13.656Z"}
+{"id":1774989973656.8962,"time":"۲۰:۴۶:۱۳","message":"Scheduling WS reconnect in 23s (Attempt 3)","type":"WS","timestamp":"2026-03-31T20:46:13.656Z"}
+{"id":1774989973656.0967,"time":"۲۰:۴۶:۱۳","message":"WS Error: WebSocket was closed before the connection was established","type":"ERROR","timestamp":"2026-03-31T20:46:13.656Z"}
+{"id":1774989973657.363,"time":"۲۰:۴۶:۱۳","message":"WS Connection Closed. Code: 1006, Reason: ","type":"WS","timestamp":"2026-03-31T20:46:13.657Z"}
+{"id":1774989983778.3074,"time":"۲۰:۴۶:۲۳","message":"Historical Bars Fetch Error: 504 - Request failed with status code 504","type":"ERROR","timestamp":"2026-03-31T20:46:23.778Z"}
+{"id":1774989983778.0488,"time":"۲۰:۴۶:۲۳","message":"Retrying historical bars fetch in 30s (Attempt 4/5)...","type":"INFO","timestamp":"2026-03-31T20:46:23.778Z"}
+{"id":1774989996157.8455,"time":"۲۰:۴۶:۳۶","message":"Connecting to FarazGold WS (DEMO): wss://demo.farazgold.com/ws/","type":"WS","timestamp":"2026-03-31T20:46:36.157Z"}
+{"id":1774990011202.5144,"time":"۲۰:۴۶:۵۱","message":"WS unexpected-response: 504","type":"ERROR","timestamp":"2026-03-31T20:46:51.203Z"}
+{"id":1774990011203.1409,"time":"۲۰:۴۶:۵۱","message":"Scheduling WS reconnect in 34s (Attempt 4)","type":"WS","timestamp":"2026-03-31T20:46:51.203Z"}
+{"id":1774990011203.093,"time":"۲۰:۴۶:۵۱","message":"WS Error: WebSocket was closed before the connection was established","type":"ERROR","timestamp":"2026-03-31T20:46:51.203Z"}
+{"id":1774990011203.7263,"time":"۲۰:۴۶:۵۱","message":"WS Connection Closed. Code: 1006, Reason: ","type":"WS","timestamp":"2026-03-31T20:46:51.203Z"}
+{"id":1774990013778.527,"time":"۲۰:۴۶:۵۳","message":"Fetching historical bars (1m) from 1774903613 to 1774990013...","type":"INFO","timestamp":"2026-03-31T20:46:53.778Z"}
+{"id":1774990015789.3784,"time":"۲۰:۴۶:۵۵","message":"Portfolio Update: Server busy or network issue after 5 retries (timeout of 10000ms exceeded).","type":"INFO","timestamp":"2026-03-31T20:46:55.789Z"}
+{"id":1774990028829.1313,"time":"۲۰:۴۷:۰۸","message":"Historical Bars Fetch Error: 504 - Request failed with status code 504","type":"ERROR","timestamp":"2026-03-31T20:47:08.829Z"}
+{"id":1774990028829.3857,"time":"۲۰:۴۷:۰۸","message":"Retrying historical bars fetch in 30s (Attempt 5/5)...","type":"INFO","timestamp":"2026-03-31T20:47:08.830Z"}
+{"id":1774990044953.1345,"time":"۲۰:۴۷:۲۴","message":"Connecting to FarazGold WS (DEMO): wss://demo.farazgold.com/ws/","type":"WS","timestamp":"2026-03-31T20:47:24.954Z"}
+{"id":1774990058829.7686,"time":"۲۰:۴۷:۳۸","message":"Fetching historical bars (1m) from 1774903658 to 1774990058...","type":"INFO","timestamp":"2026-03-31T20:47:38.830Z"}
+{"id":1774990060002.0044,"time":"۲۰:۴۷:۴۰","message":"WS unexpected-response: 504","type":"ERROR","timestamp":"2026-03-31T20:47:40.002Z"}
+{"id":1774990060003.0698,"time":"۲۰:۴۷:۴۰","message":"Scheduling WS reconnect in 51s (Attempt 5)","type":"WS","timestamp":"2026-03-31T20:47:40.003Z"}
+{"id":1774990060003.1504,"time":"۲۰:۴۷:۴۰","message":"WS Error: WebSocket was closed before the connection was established","type":"ERROR","timestamp":"2026-03-31T20:47:40.003Z"}
+{"id":1774990060003.3096,"time":"۲۰:۴۷:۴۰","message":"WS Connection Closed. Code: 1006, Reason: ","type":"WS","timestamp":"2026-03-31T20:47:40.003Z"}
+{"id":1774990073880.5933,"time":"۲۰:۴۷:۵۳","message":"Historical Bars Fetch Error: 504 - Request failed with status code 504","type":"ERROR","timestamp":"2026-03-31T20:47:53.880Z"}
+{"id":1774990110629.284,"time":"۲۰:۴۸:۳۰","message":"Connecting to FarazGold WS (DEMO): wss://demo.farazgold.com/ws/","type":"WS","timestamp":"2026-03-31T20:48:30.629Z"}
+{"id":1774990121761.5623,"time":"۲۰:۴۸:۴۱","message":"Portfolio Update: Server busy or network issue after 5 retries (timeout of 10000ms exceeded).","type":"INFO","timestamp":"2026-03-31T20:48:41.762Z"}
+{"id":1774990125818.9585,"time":"۲۰:۴۸:۴۵","message":"WS unexpected-response: 504","type":"ERROR","timestamp":"2026-03-31T20:48:45.819Z"}
+{"id":1774990125819.8608,"time":"۲۰:۴۸:۴۵","message":"Scheduling WS reconnect in 76s (Attempt 6)","type":"WS","timestamp":"2026-03-31T20:48:45.819Z"}
+{"id":1774990125819.8396,"time":"۲۰:۴۸:۴۵","message":"WS Error: WebSocket was closed before the connection was established","type":"ERROR","timestamp":"2026-03-31T20:48:45.819Z"}
+{"id":1774990125819.1743,"time":"۲۰:۴۸:۴۵","message":"WS Connection Closed. Code: 1006, Reason: ","type":"WS","timestamp":"2026-03-31T20:48:45.819Z"}
+{"id":1774990200716.36,"time":"۲۰:۵۰:۰۰","message":"Fetching MTF bars (5m) from 1774731000 to 1774990200...","type":"INFO","timestamp":"2026-03-31T20:50:00.717Z"}
+{"id":1774990201756.901,"time":"۲۰:۵۰:۰۱","message":"Connecting to FarazGold WS (DEMO): wss://demo.farazgold.com/ws/","type":"WS","timestamp":"2026-03-31T20:50:01.757Z"}
+{"id":1774990215790.9827,"time":"۲۰:۵۰:۱۵","message":"MTF Bars Fetch: 504 Gateway Timeout (Attempt 1/5). Retrying...","type":"INFO","timestamp":"2026-03-31T20:50:15.790Z"}
+{"id":1774990216807.1367,"time":"۲۰:۵۰:۱۶","message":"WS unexpected-response: 504","type":"ERROR","timestamp":"2026-03-31T20:50:16.807Z"}
+{"id":1774990216808.4087,"time":"۲۰:۵۰:۱۶","message":"Scheduling WS reconnect in 114s (Attempt 7)","type":"WS","timestamp":"2026-03-31T20:50:16.808Z"}
+{"id":1774990216808.0413,"time":"۲۰:۵۰:۱۶","message":"WS Error: WebSocket was closed before the connection was established","type":"ERROR","timestamp":"2026-03-31T20:50:16.808Z"}
+{"id":1774990216808.158,"time":"۲۰:۵۰:۱۶","message":"WS Connection Closed. Code: 1006, Reason: ","type":"WS","timestamp":"2026-03-31T20:50:16.808Z"}
+{"id":1774990217791.6245,"time":"۲۰:۵۰:۱۷","message":"Fetching MTF bars (5m) from 1774731017 to 1774990217...","type":"INFO","timestamp":"2026-03-31T20:50:17.791Z"}
+{"id":1774990226517.0598,"time":"۲۰:۵۰:۲۶","message":"Portfolio Update: Server busy or network issue after 5 retries (timeout of 10000ms exceeded).","type":"INFO","timestamp":"2026-03-31T20:50:26.517Z"}
+{"id":1774990232842.7654,"time":"۲۰:۵۰:۳۲","message":"MTF Bars Fetch: 504 Gateway Timeout (Attempt 2/5). Retrying...","type":"INFO","timestamp":"2026-03-31T20:50:32.843Z"}
+{"id":1774990236844.042,"time":"۲۰:۵۰:۳۶","message":"Fetching MTF bars (5m) from 1774731036 to 1774990236...","type":"INFO","timestamp":"2026-03-31T20:50:36.844Z"}
+{"id":1774990251866.5022,"time":"۲۰:۵۰:۵۱","message":"MTF Bars Fetch: 504 Gateway Timeout (Attempt 3/5). Retrying...","type":"INFO","timestamp":"2026-03-31T20:50:51.866Z"}
+{"id":1774990259866.2107,"time":"۲۰:۵۰:۵۹","message":"Fetching MTF bars (5m) from 1774731059 to 1774990259...","type":"INFO","timestamp":"2026-03-31T20:50:59.867Z"}
+{"id":1774990274916.91,"time":"۲۰:۵۱:۱۴","message":"MTF Bars Fetch: 504 Gateway Timeout (Attempt 4/5). Retrying...","type":"INFO","timestamp":"2026-03-31T20:51:14.916Z"}
+{"id":1774990289917.269,"time":"۲۰:۵۱:۲۹","message":"Fetching MTF bars (5m) from 1774731089 to 1774990289...","type":"INFO","timestamp":"2026-03-31T20:51:29.917Z"}
+{"id":1774990304938.718,"time":"۲۰:۵۱:۴۴","message":"MTF Bars Fetch: 504 Gateway Timeout (Attempt 5/5). Retrying...","type":"INFO","timestamp":"2026-03-31T20:51:44.938Z"}
+{"id":1774990319938.9763,"time":"۲۰:۵۱:۵۹","message":"Fetching MTF bars (5m) from 1774731119 to 1774990319...","type":"INFO","timestamp":"2026-03-31T20:51:59.939Z"}
+{"id":1774990330714.2683,"time":"۲۰:۵۲:۱۰","message":"Connecting to FarazGold WS (DEMO): wss://demo.farazgold.com/ws/","type":"WS","timestamp":"2026-03-31T20:52:10.715Z"}
+{"id":1774990331952.6824,"time":"۲۰:۵۲:۱۱","message":"Portfolio Update: Server busy or network issue after 5 retries (timeout of 10000ms exceeded).","type":"INFO","timestamp":"2026-03-31T20:52:11.952Z"}
+{"id":1774990334960.8826,"time":"۲۰:۵۲:۱۴","message":"MTF Bars Fetch: 504 Gateway Timeout (Attempt 6/5). Retrying...","type":"INFO","timestamp":"2026-03-31T20:52:14.960Z"}
+{"id":1774990345764.0107,"time":"۲۰:۵۲:۲۵","message":"WS unexpected-response: 504","type":"ERROR","timestamp":"2026-03-31T20:52:25.764Z"}
+{"id":1774990345765.7683,"time":"۲۰:۵۲:۲۵","message":"Scheduling WS reconnect in 171s (Attempt 8)","type":"WS","timestamp":"2026-03-31T20:52:25.765Z"}
+{"id":1774990345765.9133,"time":"۲۰:۵۲:۲۵","message":"WS Error: WebSocket was closed before the connection was established","type":"ERROR","timestamp":"2026-03-31T20:52:25.765Z"}
+{"id":1774990345766.8691,"time":"۲۰:۵۲:۲۵","message":"WS Connection Closed. Code: 1006, Reason: ","type":"WS","timestamp":"2026-03-31T20:52:25.766Z"}
+{"id":1774990437215.4678,"time":"۲۰:۵۳:۵۷","message":"Portfolio Update: Server busy or network issue after 5 retries (timeout of 10000ms exceeded).","type":"INFO","timestamp":"2026-03-31T20:53:57.215Z"}
+{"id":1774990500901.8018,"time":"۲۰:۵۵:۰۰","message":"Fetching MTF bars (5m) from 1774731300 to 1774990500...","type":"INFO","timestamp":"2026-03-31T20:55:00.901Z"}
+{"id":1774990515954.025,"time":"۲۰:۵۵:۱۵","message":"MTF Bars Fetch: 504 Gateway Timeout (Attempt 1/5). Retrying...","type":"INFO","timestamp":"2026-03-31T20:55:15.954Z"}
+{"id":1774990516625.3496,"time":"۲۰:۵۵:۱۶","message":"Connecting to FarazGold WS (DEMO): wss://demo.farazgold.com/ws/","type":"WS","timestamp":"2026-03-31T20:55:16.625Z"}
+{"id":1774990517955.9338,"time":"۲۰:۵۵:۱۷","message":"Fetching MTF bars (5m) from 1774731317 to 1774990517...","type":"INFO","timestamp":"2026-03-31T20:55:17.955Z"}
+{"id":1774990531677.0024,"time":"۲۰:۵۵:۳۱","message":"WS unexpected-response: 504","type":"ERROR","timestamp":"2026-03-31T20:55:31.677Z"}
+{"id":1774990531677.1309,"time":"۲۰:۵۵:۳۱","message":"Scheduling WS reconnect in 256s (Attempt 9)","type":"WS","timestamp":"2026-03-31T20:55:31.677Z"}
+{"id":1774990531678.9226,"time":"۲۰:۵۵:۳۱","message":"WS Error: WebSocket was closed before the connection was established","type":"ERROR","timestamp":"2026-03-31T20:55:31.678Z"}
+{"id":1774990531678.9363,"time":"۲۰:۵۵:۳۱","message":"WS Connection Closed. Code: 1006, Reason: ","type":"WS","timestamp":"2026-03-31T20:55:31.678Z"}
+{"id":1774990532976.1057,"time":"۲۰:۵۵:۳۲","message":"MTF Bars Fetch: 504 Gateway Timeout (Attempt 2/5). Retrying...","type":"INFO","timestamp":"2026-03-31T20:55:32.976Z"}
+{"id":1774990536977.4404,"time":"۲۰:۵۵:۳۶","message":"Fetching MTF bars (5m) from 1774731336 to 1774990536...","type":"INFO","timestamp":"2026-03-31T20:55:36.977Z"}
+{"id":1774990541892.7964,"time":"۲۰:۵۵:۴۱","message":"Portfolio Update: Server busy or network issue after 5 retries (timeout of 10000ms exceeded).","type":"INFO","timestamp":"2026-03-31T20:55:41.893Z"}
+{"id":1774990552000.746,"time":"۲۰:۵۵:۵۲","message":"MTF Bars Fetch: 504 Gateway Timeout (Attempt 3/5). Retrying...","type":"INFO","timestamp":"2026-03-31T20:55:52.000Z"}
+{"id":1774990560001.9478,"time":"۲۰:۵۶:۰۰","message":"Fetching MTF bars (5m) from 1774731360 to 1774990560...","type":"INFO","timestamp":"2026-03-31T20:56:00.001Z"}
+{"id":1774990575052.7236,"time":"۲۰:۵۶:۱۵","message":"MTF Bars Fetch: 504 Gateway Timeout (Attempt 4/5). Retrying...","type":"INFO","timestamp":"2026-03-31T20:56:15.053Z"}
+{"id":1774990590053.2751,"time":"۲۰:۵۶:۳۰","message":"Fetching MTF bars (5m) from 1774731390 to 1774990590...","type":"INFO","timestamp":"2026-03-31T20:56:30.053Z"}
+{"id":1774990605075.6116,"time":"۲۰:۵۶:۴۵","message":"MTF Bars Fetch: 504 Gateway Timeout (Attempt 5/5). Retrying...","type":"INFO","timestamp":"2026-03-31T20:56:45.076Z"}
+{"id":1774990620077.474,"time":"۲۰:۵۷:۰۰","message":"Fetching MTF bars (5m) from 1774731420 to 1774990620...","type":"INFO","timestamp":"2026-03-31T20:57:00.077Z"}
+{"id":1774990635126.9995,"time":"۲۰:۵۷:۱۵","message":"MTF Bars Fetch: 504 Gateway Timeout (Attempt 6/5). Retrying...","type":"INFO","timestamp":"2026-03-31T20:57:15.127Z"}
+{"id":1774990647629.1887,"time":"۲۰:۵۷:۲۷","message":"Portfolio Update: Server busy or network issue after 5 retries (timeout of 10000ms exceeded).","type":"INFO","timestamp":"2026-03-31T20:57:27.629Z"}
+{"id":1774990751043.8691,"time":"۲۰:۵۹:۱۱","message":"Portfolio Update: Server busy or network issue after 5 retries (timeout of 10000ms exceeded).","type":"INFO","timestamp":"2026-03-31T20:59:11.044Z"}
+{"id":1774990787967.7144,"time":"۲۰:۵۹:۴۷","message":"Connecting to FarazGold WS (DEMO): wss://demo.farazgold.com/ws/","type":"WS","timestamp":"2026-03-31T20:59:47.967Z"}
+{"id":1774990800116.1482,"time":"۲۱:۰۰:۰۰","message":"Fetching MTF bars (5m) from 1774731600 to 1774990800...","type":"INFO","timestamp":"2026-03-31T21:00:00.116Z"}
+{"id":1774990803015.273,"time":"۲۱:۰۰:۰۳","message":"WS unexpected-response: 504","type":"ERROR","timestamp":"2026-03-31T21:00:03.016Z"}
+{"id":1774990803016.2756,"time":"۲۱:۰۰:۰۳","message":"Scheduling WS reconnect in 300s (Attempt 10)","type":"WS","timestamp":"2026-03-31T21:00:03.017Z"}
+{"id":1774990803017.1877,"time":"۲۱:۰۰:۰۳","message":"WS Error: WebSocket was closed before the connection was established","type":"ERROR","timestamp":"2026-03-31T21:00:03.017Z"}
+{"id":1774990803017.4355,"time":"۲۱:۰۰:۰۳","message":"WS Connection Closed. Code: 1006, Reason: ","type":"WS","timestamp":"2026-03-31T21:00:03.017Z"}
+{"id":1774990815173.2578,"time":"۲۱:۰۰:۱۵","message":"MTF Bars Fetch: 504 Gateway Timeout (Attempt 1/5). Retrying...","type":"INFO","timestamp":"2026-03-31T21:00:15.173Z"}
+{"id":1774990817173.6565,"time":"۲۱:۰۰:۱۷","message":"Fetching MTF bars (5m) from 1774731617 to 1774990817...","type":"INFO","timestamp":"2026-03-31T21:00:17.173Z"}
+{"id":1774990832190.3928,"time":"۲۱:۰۰:۳۲","message":"MTF Bars Fetch: 504 Gateway Timeout (Attempt 2/5). Retrying...","type":"INFO","timestamp":"2026-03-31T21:00:32.191Z"}
+{"id":1774990836191.4456,"time":"۲۱:۰۰:۳۶","message":"Fetching MTF bars (5m) from 1774731636 to 1774990836...","type":"INFO","timestamp":"2026-03-31T21:00:36.191Z"}
+{"id":1774990851215.1943,"time":"۲۱:۰۰:۵۱","message":"MTF Bars Fetch: 504 Gateway Timeout (Attempt 3/5). Retrying...","type":"INFO","timestamp":"2026-03-31T21:00:51.215Z"}
+{"id":1774990856038.8232,"time":"۲۱:۰۰:۵۶","message":"Portfolio Update: Server busy or network issue after 5 retries (timeout of 10000ms exceeded).","type":"INFO","timestamp":"2026-03-31T21:00:56.039Z"}
+{"id":1774990859216.4517,"time":"۲۱:۰۰:۵۹","message":"Fetching MTF bars (5m) from 1774731659 to 1774990859...","type":"INFO","timestamp":"2026-03-31T21:00:59.216Z"}
+{"id":1774990874237.2288,"time":"۲۱:۰۱:۱۴","message":"MTF Bars Fetch: 504 Gateway Timeout (Attempt 4/5). Retrying...","type":"INFO","timestamp":"2026-03-31T21:01:14.237Z"}
+{"id":1774990889238.5237,"time":"۲۱:۰۱:۲۹","message":"Fetching MTF bars (5m) from 1774731689 to 1774990889...","type":"INFO","timestamp":"2026-03-31T21:01:29.238Z"}
+{"id":1774990904290.3462,"time":"۲۱:۰۱:۴۴","message":"MTF Bars Fetch: 504 Gateway Timeout (Attempt 5/5). Retrying...","type":"INFO","timestamp":"2026-03-31T21:01:44.290Z"}
+{"id":1774990908990.198,"time":"۲۱:۰۱:۴۸","message":"Bot engine v4.3 PRO starting...","type":"INFO","timestamp":"2026-03-31T21:01:49.009Z"}
+{"id":1774991010154.879,"time":"۲۱:۰۳:۳۰","message":"Portfolio Update: Server busy or network issue after 5 retries (timeout of 10000ms exceeded).","type":"INFO","timestamp":"2026-03-31T21:03:30.154Z"}
+{"id":1774991010155.2783,"time":"۲۱:۰۳:۳۰","message":"Fetching historical bars (1m) from 1774904610 to 1774991010...","type":"INFO","timestamp":"2026-03-31T21:03:30.155Z"}
+{"id":1774991025214.7327,"time":"۲۱:۰۳:۴۵","message":"Historical Bars Fetch Error: 504 - Request failed with status code 504","type":"ERROR","timestamp":"2026-03-31T21:03:45.214Z"}
+{"id":1774991025214.8596,"time":"۲۱:۰۳:۴۵","message":"Retrying historical bars fetch in 5s (Attempt 1/5)...","type":"INFO","timestamp":"2026-03-31T21:03:45.214Z"}
+{"id":1774991025215.2515,"time":"۲۱:۰۳:۴۵","message":"Connecting to FarazGold WS (DEMO): wss://demo.farazgold.com/ws/","type":"WS","timestamp":"2026-03-31T21:03:45.215Z"}
+{"id":1774991030215.7974,"time":"۲۱:۰۳:۵۰","message":"Fetching historical bars (1m) from 1774904630 to 1774991030...","type":"INFO","timestamp":"2026-03-31T21:03:50.216Z"}
+{"id":1774991040264.9648,"time":"۲۱:۰۴:۰۰","message":"WS unexpected-response: 504","type":"ERROR","timestamp":"2026-03-31T21:04:00.265Z"}
+{"id":1774991040265.3477,"time":"۲۱:۰۴:۰۰","message":"Scheduling WS reconnect in 10s (Attempt 1)","type":"WS","timestamp":"2026-03-31T21:04:00.266Z"}
+{"id":1774991040266.4983,"time":"۲۱:۰۴:۰۰","message":"WS Error: WebSocket was closed before the connection was established","type":"ERROR","timestamp":"2026-03-31T21:04:00.266Z"}
+{"id":1774991040266.05,"time":"۲۱:۰۴:۰۰","message":"WS Connection Closed. Code: 1006, Reason: ","type":"WS","timestamp":"2026-03-31T21:04:00.267Z"}
+{"id":1774991045238.4758,"time":"۲۱:۰۴:۰۵","message":"Historical Bars Fetch Error: 504 - Request failed with status code 504","type":"ERROR","timestamp":"2026-03-31T21:04:05.239Z"}
+{"id":1774991045239.8022,"time":"۲۱:۰۴:۰۵","message":"Retrying historical bars fetch in 10s (Attempt 2/5)...","type":"INFO","timestamp":"2026-03-31T21:04:05.239Z"}
+{"id":1774991050267.5278,"time":"۲۱:۰۴:۱۰","message":"Connecting to FarazGold WS (DEMO): wss://demo.farazgold.com/ws/","type":"WS","timestamp":"2026-03-31T21:04:10.267Z"}
+{"id":1774991055239.1494,"time":"۲۱:۰۴:۱۵","message":"Fetching historical bars (1m) from 1774904655 to 1774991055...","type":"INFO","timestamp":"2026-03-31T21:04:15.239Z"}
+{"id":1774991065455.9583,"time":"۲۱:۰۴:۲۵","message":"WS unexpected-response: 504","type":"ERROR","timestamp":"2026-03-31T21:04:25.456Z"}
+{"id":1774991065456.5288,"time":"۲۱:۰۴:۲۵","message":"Scheduling WS reconnect in 15s (Attempt 2)","type":"WS","timestamp":"2026-03-31T21:04:25.456Z"}
+{"id":1774991065456.6755,"time":"۲۱:۰۴:۲۵","message":"WS Error: WebSocket was closed before the connection was established","type":"ERROR","timestamp":"2026-03-31T21:04:25.456Z"}
+{"id":1774991065456.4902,"time":"۲۱:۰۴:۲۵","message":"WS Connection Closed. Code: 1006, Reason: ","type":"WS","timestamp":"2026-03-31T21:04:25.456Z"}
+{"id":1774991072939.5183,"time":"۲۱:۰۴:۳۲","message":"Bot engine v4.3 PRO starting...","type":"INFO","timestamp":"2026-03-31T21:04:32.956Z"}
+{"id":1774991174187.764,"time":"۲۱:۰۶:۱۴","message":"Portfolio Update: Server busy or network issue after 5 retries (timeout of 10000ms exceeded).","type":"INFO","timestamp":"2026-03-31T21:06:14.187Z"}
+{"id":1774991174187.8599,"time":"۲۱:۰۶:۱۴","message":"Fetching historical bars (1m) from 1774904774 to 1774991174...","type":"INFO","timestamp":"2026-03-31T21:06:14.187Z"}
+{"id":1774991189241.67,"time":"۲۱:۰۶:۲۹","message":"Historical Bars Fetch Error: 504 - Request failed with status code 504","type":"ERROR","timestamp":"2026-03-31T21:06:29.241Z"}
+{"id":1774991189241.9302,"time":"۲۱:۰۶:۲۹","message":"Retrying historical bars fetch in 5s (Attempt 1/5)...","type":"INFO","timestamp":"2026-03-31T21:06:29.241Z"}
+{"id":1774991189242.5464,"time":"۲۱:۰۶:۲۹","message":"Connecting to FarazGold WS (DEMO): wss://demo.farazgold.com/ws/","type":"WS","timestamp":"2026-03-31T21:06:29.242Z"}
+{"id":1774991194242.0593,"time":"۲۱:۰۶:۳۴","message":"Fetching historical bars (1m) from 1774904794 to 1774991194...","type":"INFO","timestamp":"2026-03-31T21:06:34.242Z"}
+{"id":1774991204292.5176,"time":"۲۱:۰۶:۴۴","message":"WS unexpected-response: 504","type":"ERROR","timestamp":"2026-03-31T21:06:44.292Z"}
+{"id":1774991204293.7131,"time":"۲۱:۰۶:۴۴","message":"Scheduling WS reconnect in 10s (Attempt 1)","type":"WS","timestamp":"2026-03-31T21:06:44.293Z"}
+{"id":1774991204294.6982,"time":"۲۱:۰۶:۴۴","message":"WS Error: WebSocket was closed before the connection was established","type":"ERROR","timestamp":"2026-03-31T21:06:44.294Z"}
+{"id":1774991204294.7544,"time":"۲۱:۰۶:۴۴","message":"WS Connection Closed. Code: 1006, Reason: ","type":"WS","timestamp":"2026-03-31T21:06:44.294Z"}
+{"id":1774991209292.946,"time":"۲۱:۰۶:۴۹","message":"Historical Bars Fetch Error: 504 - Request failed with status code 504","type":"ERROR","timestamp":"2026-03-31T21:06:49.292Z"}
+{"id":1774991209293.973,"time":"۲۱:۰۶:۴۹","message":"Retrying historical bars fetch in 10s (Attempt 2/5)...","type":"INFO","timestamp":"2026-03-31T21:06:49.293Z"}
+{"id":1774991214294.7407,"time":"۲۱:۰۶:۵۴","message":"Connecting to FarazGold WS (DEMO): wss://demo.farazgold.com/ws/","type":"WS","timestamp":"2026-03-31T21:06:54.294Z"}
+{"id":1774991219293.887,"time":"۲۱:۰۶:۵۹","message":"Fetching historical bars (1m) from 1774904819 to 1774991219...","type":"INFO","timestamp":"2026-03-31T21:06:59.294Z"}
+{"id":1774991229347.3198,"time":"۲۱:۰۷:۰۹","message":"WS unexpected-response: 504","type":"ERROR","timestamp":"2026-03-31T21:07:09.347Z"}
+{"id":1774991229347.9998,"time":"۲۱:۰۷:۰۹","message":"Scheduling WS reconnect in 15s (Attempt 2)","type":"WS","timestamp":"2026-03-31T21:07:09.347Z"}
+{"id":1774991229348.4282,"time":"۲۱:۰۷:۰۹","message":"WS Error: WebSocket was closed before the connection was established","type":"ERROR","timestamp":"2026-03-31T21:07:09.348Z"}
+{"id":1774991229348.7385,"time":"۲۱:۰۷:۰۹","message":"WS Connection Closed. Code: 1006, Reason: ","type":"WS","timestamp":"2026-03-31T21:07:09.348Z"}
+{"id":1774991234346.6353,"time":"۲۱:۰۷:۱۴","message":"Historical Bars Fetch Error: 504 - Request failed with status code 504","type":"ERROR","timestamp":"2026-03-31T21:07:14.346Z"}
+{"id":1774991234346.8408,"time":"۲۱:۰۷:۱۴","message":"Retrying historical bars fetch in 20s (Attempt 3/5)...","type":"INFO","timestamp":"2026-03-31T21:07:14.347Z"}
+{"id":1774991244347.7263,"time":"۲۱:۰۷:۲۴","message":"Connecting to FarazGold WS (DEMO): wss://demo.farazgold.com/ws/","type":"WS","timestamp":"2026-03-31T21:07:24.347Z"}
+{"id":1774991254348.9875,"time":"۲۱:۰۷:۳۴","message":"Fetching historical bars (1m) from 1774904854 to 1774991254...","type":"INFO","timestamp":"2026-03-31T21:07:34.348Z"}
+{"id":1774991259399.7288,"time":"۲۱:۰۷:۳۹","message":"WS unexpected-response: 504","type":"ERROR","timestamp":"2026-03-31T21:07:39.399Z"}
+{"id":1774991259400.8235,"time":"۲۱:۰۷:۳۹","message":"Scheduling WS reconnect in 23s (Attempt 3)","type":"WS","timestamp":"2026-03-31T21:07:39.400Z"}
+{"id":1774991259400.1501,"time":"۲۱:۰۷:۳۹","message":"WS Error: WebSocket was closed before the connection was established","type":"ERROR","timestamp":"2026-03-31T21:07:39.400Z"}
+{"id":1774991259400.9617,"time":"۲۱:۰۷:۳۹","message":"WS Connection Closed. Code: 1006, Reason: ","type":"WS","timestamp":"2026-03-31T21:07:39.400Z"}
+{"id":1774991269396.241,"time":"۲۱:۰۷:۴۹","message":"Historical Bars Fetch Error: 504 - Request failed with status code 504","type":"ERROR","timestamp":"2026-03-31T21:07:49.397Z"}
+{"id":1774991269397.0571,"time":"۲۱:۰۷:۴۹","message":"Retrying historical bars fetch in 30s (Attempt 4/5)...","type":"INFO","timestamp":"2026-03-31T21:07:49.397Z"}
+{"id":1774991281900.944,"time":"۲۱:۰۸:۰۱","message":"Connecting to FarazGold WS (DEMO): wss://demo.farazgold.com/ws/","type":"WS","timestamp":"2026-03-31T21:08:01.901Z"}
+{"id":1774991292563.2747,"time":"۲۱:۰۸:۱۲","message":"Portfolio Update: Server busy or network issue after 5 retries (timeout of 10000ms exceeded).","type":"INFO","timestamp":"2026-03-31T21:08:12.563Z"}
+{"id":1774991297088.1475,"time":"۲۱:۰۸:۱۷","message":"WS unexpected-response: 504","type":"ERROR","timestamp":"2026-03-31T21:08:17.089Z"}
+{"id":1774991297089.0105,"time":"۲۱:۰۸:۱۷","message":"Scheduling WS reconnect in 34s (Attempt 4)","type":"WS","timestamp":"2026-03-31T21:08:17.089Z"}
+{"id":1774991297090.9429,"time":"۲۱:۰۸:۱۷","message":"WS Error: WebSocket was closed before the connection was established","type":"ERROR","timestamp":"2026-03-31T21:08:17.090Z"}
+{"id":1774991297090.1985,"time":"۲۱:۰۸:۱۷","message":"WS Connection Closed. Code: 1006, Reason: ","type":"WS","timestamp":"2026-03-31T21:08:17.090Z"}
+{"id":1774991299398.877,"time":"۲۱:۰۸:۱۹","message":"Fetching historical bars (1m) from 1774904899 to 1774991299...","type":"INFO","timestamp":"2026-03-31T21:08:19.398Z"}
+{"id":1774991314449.158,"time":"۲۱:۰۸:۳۴","message":"Historical Bars Fetch Error: 504 - Request failed with status code 504","type":"ERROR","timestamp":"2026-03-31T21:08:34.449Z"}
+{"id":1774991314449.182,"time":"۲۱:۰۸:۳۴","message":"Retrying historical bars fetch in 30s (Attempt 5/5)...","type":"INFO","timestamp":"2026-03-31T21:08:34.449Z"}
+{"id":1774991329589.606,"time":"۲۱:۰۸:۴۹","message":"Bot engine v4.3 PRO starting...","type":"INFO","timestamp":"2026-03-31T21:08:49.606Z"}
+{"id":1774991430429.1067,"time":"۲۱:۱۰:۳۰","message":"Portfolio Update: Server busy or network issue after 5 retries (timeout of 10000ms exceeded).","type":"INFO","timestamp":"2026-03-31T21:10:30.429Z"}
+{"id":1774991430430.612,"time":"۲۱:۱۰:۳۰","message":"Fetching historical bars (1m) from 1774905030 to 1774991430...","type":"INFO","timestamp":"2026-03-31T21:10:30.430Z"}
+{"id":1774991445483.7063,"time":"۲۱:۱۰:۴۵","message":"Historical Bars Fetch Error: 504 - Request failed with status code 504","type":"ERROR","timestamp":"2026-03-31T21:10:45.484Z"}
+{"id":1774991445484.8938,"time":"۲۱:۱۰:۴۵","message":"Retrying historical bars fetch in 5s (Attempt 1/5)...","type":"INFO","timestamp":"2026-03-31T21:10:45.484Z"}
+{"id":1774991445485.1555,"time":"۲۱:۱۰:۴۵","message":"Connecting to FarazGold WS (DEMO): wss://demo.farazgold.com/ws/","type":"WS","timestamp":"2026-03-31T21:10:45.485Z"}
+{"id":1774991450485.7292,"time":"۲۱:۱۰:۵۰","message":"Fetching historical bars (1m) from 1774905050 to 1774991450...","type":"INFO","timestamp":"2026-03-31T21:10:50.486Z"}
+{"id":1774991460542.8123,"time":"۲۱:۱۱:۰۰","message":"WS unexpected-response: 504","type":"ERROR","timestamp":"2026-03-31T21:11:00.542Z"}
+{"id":1774991460543.9277,"time":"۲۱:۱۱:۰۰","message":"Scheduling WS reconnect in 10s (Attempt 1)","type":"WS","timestamp":"2026-03-31T21:11:00.543Z"}
+{"id":1774991460544.4492,"time":"۲۱:۱۱:۰۰","message":"WS Error: WebSocket was closed before the connection was established","type":"ERROR","timestamp":"2026-03-31T21:11:00.544Z"}
+{"id":1774991460544.692,"time":"۲۱:۱۱:۰۰","message":"WS Connection Closed. Code: 1006, Reason: ","type":"WS","timestamp":"2026-03-31T21:11:00.544Z"}
+{"id":1774991465506.0193,"time":"۲۱:۱۱:۰۵","message":"Historical Bars Fetch Error: 504 - Request failed with status code 504","type":"ERROR","timestamp":"2026-03-31T21:11:05.507Z"}
+{"id":1774991465507.0566,"time":"۲۱:۱۱:۰۵","message":"Retrying historical bars fetch in 10s (Attempt 2/5)...","type":"INFO","timestamp":"2026-03-31T21:11:05.507Z"}
+{"id":1774991470544.3542,"time":"۲۱:۱۱:۱۰","message":"Connecting to FarazGold WS (DEMO): wss://demo.farazgold.com/ws/","type":"WS","timestamp":"2026-03-31T21:11:10.544Z"}
+{"id":1774991475508.141,"time":"۲۱:۱۱:۱۵","message":"Fetching historical bars (1m) from 1774905075 to 1774991475...","type":"INFO","timestamp":"2026-03-31T21:11:15.508Z"}
+{"id":1774991485733.4512,"time":"۲۱:۱۱:۲۵","message":"WS unexpected-response: 504","type":"ERROR","timestamp":"2026-03-31T21:11:25.734Z"}
+{"id":1774991485734.7812,"time":"۲۱:۱۱:۲۵","message":"Scheduling WS reconnect in 15s (Attempt 2)","type":"WS","timestamp":"2026-03-31T21:11:25.734Z"}
+{"id":1774991485734.5586,"time":"۲۱:۱۱:۲۵","message":"WS Error: WebSocket was closed before the connection was established","type":"ERROR","timestamp":"2026-03-31T21:11:25.735Z"}
+{"id":1774991485735.896,"time":"۲۱:۱۱:۲۵","message":"WS Connection Closed. Code: 1006, Reason: ","type":"WS","timestamp":"2026-03-31T21:11:25.735Z"}
+{"id":1774991490558.623,"time":"۲۱:۱۱:۳۰","message":"Historical Bars Fetch Error: 504 - Request failed with status code 504","type":"ERROR","timestamp":"2026-03-31T21:11:30.559Z"}
+{"id":1774991490559.4307,"time":"۲۱:۱۱:۳۰","message":"Retrying historical bars fetch in 20s (Attempt 3/5)...","type":"INFO","timestamp":"2026-03-31T21:11:30.559Z"}
+{"id":1774991500735.861,"time":"۲۱:۱۱:۴۰","message":"Connecting to FarazGold WS (DEMO): wss://demo.farazgold.com/ws/","type":"WS","timestamp":"2026-03-31T21:11:40.736Z"}
+{"id":1774991510560.5005,"time":"۲۱:۱۱:۵۰","message":"Fetching historical bars (1m) from 1774905110 to 1774991510...","type":"INFO","timestamp":"2026-03-31T21:11:50.560Z"}
+{"id":1774991515783.0454,"time":"۲۱:۱۱:۵۵","message":"WS unexpected-response: 504","type":"ERROR","timestamp":"2026-03-31T21:11:55.783Z"}
+{"id":1774991515784.7114,"time":"۲۱:۱۱:۵۵","message":"Scheduling WS reconnect in 23s (Attempt 3)","type":"WS","timestamp":"2026-03-31T21:11:55.784Z"}
+{"id":1774991515784.442,"time":"۲۱:۱۱:۵۵","message":"WS Error: WebSocket was closed before the connection was established","type":"ERROR","timestamp":"2026-03-31T21:11:55.784Z"}
+{"id":1774991515784.9294,"time":"۲۱:۱۱:۵۵","message":"WS Connection Closed. Code: 1006, Reason: ","type":"WS","timestamp":"2026-03-31T21:11:55.784Z"}
+{"id":1774991525613.1921,"time":"۲۱:۱۲:۰۵","message":"Historical Bars Fetch Error: 504 - Request failed with status code 504","type":"ERROR","timestamp":"2026-03-31T21:12:05.613Z"}
+{"id":1774991525613.3655,"time":"۲۱:۱۲:۰۵","message":"Retrying historical bars fetch in 30s (Attempt 4/5)...","type":"INFO","timestamp":"2026-03-31T21:12:05.613Z"}
+{"id":1774991538284.7388,"time":"۲۱:۱۲:۱۸","message":"Connecting to FarazGold WS (DEMO): wss://demo.farazgold.com/ws/","type":"WS","timestamp":"2026-03-31T21:12:18.285Z"}
+{"id":1774991553342.8796,"time":"۲۱:۱۲:۳۳","message":"WS unexpected-response: 504","type":"ERROR","timestamp":"2026-03-31T21:12:33.343Z"}
+{"id":1774991553343.807,"time":"۲۱:۱۲:۳۳","message":"Scheduling WS reconnect in 34s (Attempt 4)","type":"WS","timestamp":"2026-03-31T21:12:33.343Z"}
+{"id":1774991553343.571,"time":"۲۱:۱۲:۳۳","message":"WS Error: WebSocket was closed before the connection was established","type":"ERROR","timestamp":"2026-03-31T21:12:33.344Z"}
+{"id":1774991553344.3918,"time":"۲۱:۱۲:۳۳","message":"WS Connection Closed. Code: 1006, Reason: ","type":"WS","timestamp":"2026-03-31T21:12:33.344Z"}
+{"id":1774991555614.9512,"time":"۲۱:۱۲:۳۵","message":"Fetching historical bars (1m) from 1774905155 to 1774991555...","type":"INFO","timestamp":"2026-03-31T21:12:35.615Z"}
+{"id":1774991562685.9678,"time":"۲۱:۱۲:۴۲","message":"Portfolio Update: Server busy or network issue after 5 retries (timeout of 10000ms exceeded).","type":"INFO","timestamp":"2026-03-31T21:12:42.685Z"}
+{"id":1774991570664.4521,"time":"۲۱:۱۲:۵۰","message":"Historical Bars Fetch Error: 504 - Request failed with status code 504","type":"ERROR","timestamp":"2026-03-31T21:12:50.665Z"}
+{"id":1774991570665.2874,"time":"۲۱:۱۲:۵۰","message":"Retrying historical bars fetch in 30s (Attempt 5/5)...","type":"INFO","timestamp":"2026-03-31T21:12:50.665Z"}

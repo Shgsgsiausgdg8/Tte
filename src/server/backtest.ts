@@ -57,6 +57,10 @@ export function simulateTrade({ bars, iEntry, side, cfg, entryPrice }: any) {
   const stopTicks = Number(tt.stopTicks ?? 12);
   const tp1Ticks = Number(tt.tpTicks ?? 18);
 
+  // Realistic factors
+  const slippageTicks = Number(cfg.backtest?.slippageTicks ?? 1);
+  const commissionTicks = Number(cfg.backtest?.commissionTicks ?? 0.5);
+
   const trailing = tt.trailing || {};
   const trailEnabled = Boolean(trailing.enabled);
   const activateAfterTicks = Number(trailing.activateAfterTicks ?? 12);
@@ -66,29 +70,28 @@ export function simulateTrade({ bars, iEntry, side, cfg, entryPrice }: any) {
   const beEnabled = Boolean(breakEven.enabled);
   const beBufferTicks = Number(breakEven.bufferTicks ?? 1);
 
-  const partial = cfg.targets?.partialClose || {};
-  const partialEnabled = Boolean(partial.enabled);
-
   const isBuy = side === 'BUY';
-  const sl = isBuy ? entryPrice - stopTicks * tickSize : entryPrice + stopTicks * tickSize;
-  const tp1 = isBuy ? entryPrice + tp1Ticks * tickSize : entryPrice - tp1Ticks * tickSize;
+  
+  // Apply slippage to entry
+  const actualEntry = isBuy ? entryPrice + slippageTicks * tickSize : entryPrice - slippageTicks * tickSize;
 
-  let posUnits = 1;
+  let sl = isBuy ? actualEntry - stopTicks * tickSize : actualEntry + stopTicks * tickSize;
+  let tp1 = isBuy ? actualEntry + tp1Ticks * tickSize : actualEntry - tp1Ticks * tickSize;
+
   let realizedTicks = 0;
-  let tp1Hit = false;
-
   let mfe = 0, mae = 0;
   let dynStop = sl;
   let trailingActive = false;
-  let peak = entryPrice;
+  let peak = actualEntry;
 
   for (let k = iEntry + 1; k < bars.length; k++) {
     const b = bars[k];
     const hi = Number(b.h ?? b.high ?? b.c);
     const lo = Number(b.l ?? b.low ?? b.c);
+    const cl = Number(b.c ?? b.close);
 
-    const favorable = isBuy ? (hi - entryPrice) : (entryPrice - lo);
-    const adverse = isBuy ? (entryPrice - lo) : (hi - entryPrice);
+    const favorable = isBuy ? (hi - actualEntry) : (actualEntry - lo);
+    const adverse = isBuy ? (actualEntry - lo) : (hi - actualEntry);
     mfe = Math.max(mfe, Math.round(favorable / tickSize));
     mae = Math.max(mae, Math.round(adverse / tickSize));
 
@@ -96,48 +99,55 @@ export function simulateTrade({ bars, iEntry, side, cfg, entryPrice }: any) {
     else peak = Math.min(peak, lo);
 
     if (trailEnabled) {
-      const movedTicks = isBuy ? Math.round((peak - entryPrice) / tickSize) : Math.round((entryPrice - peak) / tickSize);
+      const movedTicks = isBuy ? Math.round((peak - actualEntry) / tickSize) : Math.round((actualEntry - peak) / tickSize);
       if (!trailingActive && movedTicks >= activateAfterTicks) trailingActive = true;
+      
       if (trailingActive) {
-        const newStop = isBuy ? (peak - trailTicks * tickSize) : (peak + trailTicks * tickSize);
+        const newStop = isBuy ? peak - trailTicks * tickSize : peak + trailTicks * tickSize;
         if (isBuy) dynStop = Math.max(dynStop, newStop);
         else dynStop = Math.min(dynStop, newStop);
       }
     }
 
-    const slHit = isBuy ? (lo <= dynStop) : (hi >= dynStop);
-    if (slHit) {
-      const exit = dynStop;
-      const ticks = isBuy ? Math.round((exit - entryPrice) / tickSize) : Math.round((entryPrice - exit) / tickSize);
-      realizedTicks += ticks * posUnits;
-      return { exitIndex: k, exitPrice: exit, realizedTicks, maeTicks: mae, mfeTicks: mfe, reason: 'SL/Stop' };
+    if (beEnabled && !trailingActive) {
+      const trigger = isBuy ? actualEntry + (tp1Ticks * 0.5) * tickSize : actualEntry - (tp1Ticks * 0.5) * tickSize;
+      if (isBuy && hi >= trigger) dynStop = Math.max(dynStop, actualEntry + beBufferTicks * tickSize);
+      if (!isBuy && lo <= trigger) dynStop = Math.min(dynStop, actualEntry - beBufferTicks * tickSize);
     }
 
-    if (!tp1Hit) {
-      const tp1HitBar = isBuy ? (hi >= tp1) : (lo <= tp1);
-      if (tp1HitBar) {
-        tp1Hit = true;
-        if (partialEnabled) {
-          const pct = Number(partial.tp1ClosePercent ?? 50) / 100;
-          const closeUnits = Math.max(0, Math.min(posUnits, pct * posUnits));
-          const ticks = isBuy ? Math.round((tp1 - entryPrice) / tickSize) : Math.round((entryPrice - tp1) / tickSize);
-          realizedTicks += ticks * closeUnits;
-          posUnits -= closeUnits;
-        }
-        if (beEnabled) {
-          const be = isBuy ? (entryPrice + beBufferTicks * tickSize) : (entryPrice - beBufferTicks * tickSize);
-          if (isBuy) dynStop = Math.max(dynStop, be);
-          else dynStop = Math.min(dynStop, be);
-        }
-      }
+    // Check TP
+    if (isBuy && hi >= tp1) {
+      const exit = tp1 - slippageTicks * tickSize;
+      const ticks = Math.round((exit - actualEntry) / tickSize) - commissionTicks;
+      return { exitIndex: k, exitPrice: exit, realizedTicks: ticks, maeTicks: mae, mfeTicks: mfe, reason: 'TP' };
+    }
+    if (!isBuy && lo <= tp1) {
+      const exit = tp1 + slippageTicks * tickSize;
+      const ticks = Math.round((actualEntry - exit) / tickSize) - commissionTicks;
+      return { exitIndex: k, exitPrice: exit, realizedTicks: ticks, maeTicks: mae, mfeTicks: mfe, reason: 'TP' };
+    }
+
+    // Check SL / Trailing Stop
+    if (isBuy && lo <= dynStop) {
+      const exit = dynStop - slippageTicks * tickSize;
+      const ticks = Math.round((exit - actualEntry) / tickSize) - commissionTicks;
+      return { exitIndex: k, exitPrice: exit, realizedTicks: ticks, maeTicks: mae, mfeTicks: mfe, reason: trailingActive ? 'TSL' : 'SL' };
+    }
+    if (!isBuy && hi >= dynStop) {
+      const exit = dynStop + slippageTicks * tickSize;
+      const ticks = Math.round((actualEntry - exit) / tickSize) - commissionTicks;
+      return { exitIndex: k, exitPrice: exit, realizedTicks: ticks, maeTicks: mae, mfeTicks: mfe, reason: trailingActive ? 'TSL' : 'SL' };
+    }
+
+    // End of data
+    if (k === bars.length - 1) {
+      const exit = cl;
+      const ticks = isBuy ? Math.round((exit - actualEntry) / tickSize) : Math.round((actualEntry - exit) / tickSize);
+      return { exitIndex: k, exitPrice: exit, realizedTicks: ticks - commissionTicks, maeTicks: mae, mfeTicks: mfe, reason: 'EOD' };
     }
   }
 
-  const last = bars[bars.length - 1];
-  const exitPrice = Number(last.c ?? last.close ?? 0);
-  const ticks = isBuy ? Math.round((exitPrice - entryPrice) / tickSize) : Math.round((entryPrice - exitPrice) / tickSize);
-  realizedTicks += ticks * posUnits;
-  return { exitIndex: bars.length - 1, exitPrice, realizedTicks, maeTicks: mae, mfeTicks: mfe, reason: 'EOD' };
+  return { exitIndex: iEntry, exitPrice: actualEntry, realizedTicks: 0, maeTicks: 0, mfeTicks: 0, reason: 'ERROR' };
 }
 
 export function runBacktest(cfg: any, bars: any[], opts: any = {}) {
@@ -169,6 +179,23 @@ export function runBacktest(cfg: any, bars: any[], opts: any = {}) {
     const minScore = Number(cfg.strategy?.minSignalScore ?? 1);
     if (Number(s.score || 0) < minScore) { equityCurve.push(equityTicks); continue; }
 
+    // Cooldown check for backtest
+    if (trades.length > 0) {
+      const lastTrade = trades[trades.length - 1];
+      const cooldownMs = (cfg.strategy?.tradeCooldown || 10) * 1000;
+      const currentTime = Number(b.t || Date.now());
+      const lastTime = lastTrade.time;
+      
+      // Normalize to ms for comparison
+      const currentMs = currentTime < 10000000000 ? currentTime * 1000 : currentTime;
+      const lastMs = lastTime < 10000000000 ? lastTime * 1000 : lastTime;
+
+      if (currentMs - lastMs < cooldownMs) {
+        equityCurve.push(equityTicks);
+        continue;
+      }
+    }
+
     const side = s.type;
     const entryPrice = Number(b.c ?? b.close);
     const sim = simulateTrade({ bars, iEntry: i, side, cfg, entryPrice });
@@ -193,7 +220,9 @@ export function runBacktest(cfg: any, bars: any[], opts: any = {}) {
   for (let h = 0; h < 24; h++) hourlyStats[h] = { netTicks: 0, trades: 0 };
 
   for (const t of trades) {
-    const hour = new Date(t.time).getHours();
+    // FarazGold often uses seconds. If timestamp is too small, assume seconds.
+    const timestamp = t.time < 10000000000 ? t.time * 1000 : t.time;
+    const hour = new Date(timestamp).getHours();
     hourlyStats[hour].netTicks += t.pnlTicks;
     hourlyStats[hour].trades += 1;
   }
