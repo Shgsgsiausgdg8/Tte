@@ -845,12 +845,16 @@ ${analysisText}
       }
     } catch (error: any) {
       const status = error.response ? error.response.status : 'Network Error';
-      this.log(`MTF Bars Fetch Error: ${status} - ${error.message}`, "ERROR");
+      // Log 504 as INFO instead of ERROR to reduce clutter, as it's a known transient issue
+      if (status === 504) {
+        this.log(`MTF Bars Fetch: 504 Gateway Timeout (Attempt ${retryCount + 1}/5). Retrying...`, "INFO");
+      } else {
+        this.log(`MTF Bars Fetch Error: ${status} - ${error.message}`, "ERROR");
+      }
       
       // Retry on server errors or timeouts
       if ((status === 504 || status === 502 || status === 500 || status === 'Network Error') && retryCount < 5) {
-        const delay = Math.min(30000, 5000 * Math.pow(2, retryCount));
-        this.log(`Retrying MTF bars fetch in ${Math.round(delay/1000)}s (Attempt ${retryCount + 1}/5)...`, "INFO");
+        const delay = Math.min(15000, 2000 * Math.pow(2, retryCount)); // Faster initial retries
         setTimeout(() => this.fetchMTFBars(retryCount + 1), delay);
       }
     }
@@ -2266,10 +2270,7 @@ ${analysisText}
 
         if (pos.transactionId) {
           const endpoints = [
-            `/api/room/api/close-futures-transaction/${pos.transactionId}/`,
-            `/api/room/api/close-futures-position/${pos.transactionId}/`,
-            `/api/room/api/close-transaction/${pos.transactionId}/`,
-            `/api/room/api/close-order/${pos.transactionId}/`
+            `/api/room/api/close-futures-transaction/${pos.transactionId}/`
           ];
 
           for (const url of endpoints) {
@@ -2292,8 +2293,13 @@ ${analysisText}
             } catch (e: any) {
               const status = e.response?.status;
               const data = e.response?.data;
-              this.log(`Close Trade API Error (${url}): Status ${status} | Data: ${JSON.stringify(data || e.message)}`, "ERROR");
-              // If 500 or 404, the ID might be wrong for this endpoint, try next
+              this.log(`Close Trade API Error (${url}): Status ${status} | Data: ${typeof data === 'string' ? 'HTML Response' : JSON.stringify(data || e.message)}`, "ERROR");
+              // If 404, the trade might be already closed on server
+              if (status === 404) {
+                this.log(`Trade ${pos.transactionId} not found on ${url}. It might be already closed.`, "INFO");
+                if (url.includes('close-futures-transaction')) ok = true; // Consider it done if primary fails with 404
+              }
+              
               if (status === 500 || status === 404) {
                 this.log(`Endpoint ${url} returned ${status}. Trying next fallback...`, "INFO");
               } else {
@@ -2475,10 +2481,7 @@ ${analysisText}
         this.log(`Updating TP for transaction ${transactionId} to ${newTp}...`, "INFO");
         
         const endpoints = [
-          `/api/room/api/edit-take-profit/${transactionId}/`,
-          `/api/room/api/edit-futures-transaction/${transactionId}/`,
-          `/api/room/api/edit-transaction/${transactionId}/`,
-          `/api/room/api/edit-order/${transactionId}/`
+          `/api/room/api/edit-futures-transaction/${transactionId}/`
         ];
 
         let ok = false;
@@ -2490,8 +2493,7 @@ ${analysisText}
           if (ok) break;
           try {
             const res = await this.api.post(url, {
-              take_profit: String(Math.round(newTp)),
-              tp: String(Math.round(newTp))
+              take_profit: String(Math.round(newTp))
             }, {
               headers: { 'Accept': '*/*', 'X-Requested-With': 'XMLHttpRequest' },
               timeout: 5000
@@ -2565,10 +2567,7 @@ ${analysisText}
         this.log(`Updating SL for transaction ${transactionId} to ${newSl}...`, "INFO");
         
         const endpoints = [
-          `/api/room/api/edit-stop-loss/${transactionId}/`,
-          `/api/room/api/edit-futures-transaction/${transactionId}/`,
-          `/api/room/api/edit-transaction/${transactionId}/`,
-          `/api/room/api/edit-order/${transactionId}/`
+          `/api/room/api/edit-stop-loss/${transactionId}/`
         ];
 
         let ok = false;
