@@ -1948,7 +1948,7 @@ ${analysisText}
           
           this.log(`Trade Executed: ${signal.type} at ${this.price} (ID: ${transId || 'PENDING'})`, "SUCCESS");
           
-          if (transId) {
+          if (transId && !String(transId).includes('PENDING')) {
             // Immediate enforcement with a tiny delay to ensure server indexing
             setTimeout(() => {
               const p = this.openPositions.get(id);
@@ -2005,7 +2005,8 @@ ${analysisText}
       const now = Date.now();
 
       // Periodic SL/TP Enforcement Retry
-      if (this.settings.source === 'API' && position.transactionId && position.slEnforced === false) {
+      const isPending = !position.transactionId || position.transactionId === 'PENDING' || String(position.transactionId).includes('PENDING');
+      if (this.settings.source === 'API' && !isPending && position.slEnforced === false) {
         const lastAttempt = position.lastEnforceAttempt || 0;
         const attemptCount = position.enforceAttempts || 0;
         const retryInterval = attemptCount < 5 ? 3000 : 15000; // Fast retry for first 5 attempts
@@ -2313,7 +2314,9 @@ ${analysisText}
         let ok = false;
         let apiResponse: any = null;
 
-        if (pos.transactionId) {
+        const isPending = !pos.transactionId || pos.transactionId === 'PENDING' || String(pos.transactionId).includes('PENDING');
+
+        if (pos.transactionId && !isPending) {
           const endpoints = [
             `/api/room/api/close-futures-transaction/${pos.transactionId}/`,
             `/api/room/api/close-transaction/${pos.transactionId}/`
@@ -2339,6 +2342,7 @@ ${analysisText}
             } catch (e: any) {
               const status = e.response?.status;
               const data = e.response?.data;
+              apiResponse = data; // Store error response data for later checks
               
               // Per user feedback, 500 on close often means success
               if (status === 500) {
@@ -2391,10 +2395,16 @@ ${analysisText}
           // Humanized delay for fallback close
           await this.sleepWithJitter(200, 600);
           
-          const res = await this.api.post('/api/room/api/submit-order/', orderData, {
-            headers: { 'Accept': 'application/json, text/plain, */*', 'X-Requested-With': 'XMLHttpRequest' }
-          });
-          apiResponse = res?.data;
+          try {
+            const res = await this.api.post('/api/room/api/submit-order/', orderData, {
+              headers: { 'Accept': 'application/json, text/plain, */*', 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            apiResponse = res?.data;
+          } catch (e: any) {
+            apiResponse = e.response?.data;
+            this.log(`Fallback close error: ${e.message}`, "ERROR");
+          }
+          
           const rawStatus = apiResponse?.status;
           ok = rawStatus === true || rawStatus === 'true' || rawStatus === 1 || rawStatus === '1' || rawStatus === 'success' || Boolean(apiResponse?.order_id) || Boolean(apiResponse?.id) || (typeof apiResponse?.message === 'string' && apiResponse.message.includes('ثبت'));
           
@@ -2531,6 +2541,7 @@ ${analysisText}
   }
 
   async editTakeProfit(transactionId: number, newTp: number) {
+    if (String(transactionId).includes('PENDING')) return false;
     if (this.settings.source === 'API' && this.api && transactionId) {
       try {
         this.log(`Updating TP for transaction ${transactionId} to ${newTp}...`, "INFO");
@@ -2574,7 +2585,7 @@ ${analysisText}
             this.log(`Edit TP API Error (${url}): Status ${status} | Data: ${typeof data === 'string' ? 'HTML Response' : JSON.stringify(data || e.message)}`, "ERROR");
             
             // If trade closed or TP already hit, consider it "done" for enforcement purposes
-            if (errorMsg.includes('بسته شده')) {
+            if (errorMsg.includes('بسته شده') || errorMsg.includes('باز نیست')) {
               this.log(`TP Edit skipped: Trade is closed (${transactionId})`, "INFO");
               return true; 
             }
@@ -2617,6 +2628,7 @@ ${analysisText}
   }
 
   async editStopLoss(transactionId: number, newSl: number) {
+    if (String(transactionId).includes('PENDING')) return false;
     if (this.settings.source === 'API' && this.api && transactionId) {
       try {
         this.log(`Updating SL for transaction ${transactionId} to ${newSl}...`, "INFO");
@@ -2663,7 +2675,7 @@ ${analysisText}
             this.log(`Edit SL API Error (${url}): Status ${status} | Data: ${typeof data === 'string' ? 'HTML Response' : JSON.stringify(data || e.message)}`, "ERROR");
             
             // If trade closed, consider it "done"
-            if (errorMsg.includes('بسته شده')) {
+            if (errorMsg.includes('بسته شده') || errorMsg.includes('باز نیست')) {
               this.log(`SL Edit skipped: Trade is closed (${transactionId})`, "INFO");
               return true; 
             }

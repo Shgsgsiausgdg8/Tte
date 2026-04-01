@@ -208,6 +208,7 @@ export class Strategy {
 
     const ind = this.indicators;
     const scalpCfg = this.config.strategy?.scalp || {};
+    const scalpMode = scalpCfg.mode || 'NORMAL';
     
     const rsi = this.calculateRSI(closes, scalpCfg.rsiPeriod || 14);
     const emaFast = this.calculateEMA(closes, scalpCfg.emaFast || 9);
@@ -240,7 +241,18 @@ export class Strategy {
     const momentumUp = lastClose > prevClose;
     const momentumDown = lastClose < prevClose;
 
-    const maxDistPct = Number(scalpCfg.maxDistanceFromSlowEmaPercent ?? 0.08);
+    let maxDistPct = Number(scalpCfg.maxDistanceFromSlowEmaPercent ?? 0.08);
+    let requiredScore = effectiveMinScore;
+    
+    // Adjust logic based on mode
+    if (scalpMode === 'PRECISION') {
+      maxDistPct = 0.05; // Stricter distance
+      requiredScore = Math.max(effectiveMinScore, 4); // Require more confirmations
+    } else if (scalpMode === 'AGGRESSIVE') {
+      maxDistPct = 0.15; // Looser distance
+      requiredScore = Math.max(1, effectiveMinScore - 1); // Require fewer confirmations
+    }
+
     const maxDist = (maxDistPct / 100);
 
     // Stricter distance check from slow EMA to avoid buying at the top or selling at the bottom
@@ -369,11 +381,21 @@ export class Strategy {
     }
 
     // Stricter filtering: If volume is very low and trend is weak, reject
-    if (type && !volumeConfirmed && !trendStrong && score < effectiveMinScore + 2) {
-      return { signal: null, reason: 'Low volume and weak trend' };
+    if (type && !volumeConfirmed && !trendStrong && score < requiredScore + 2) {
+      if (scalpMode !== 'AGGRESSIVE') {
+        return { signal: null, reason: 'Low volume and weak trend' };
+      }
     }
 
-    if (!type || score < effectiveMinScore) return { signal: null, reason: `Score too low (${score}/${effectiveMinScore})` };
+    if (scalpMode === 'PRECISION') {
+      if (!volumeConfirmed) return { signal: null, reason: 'PRECISION Mode: Volume not confirming' };
+      if (!trendStrong) return { signal: null, reason: 'PRECISION Mode: Trend not strong enough' };
+      if (type === 'BUY' && !macdBuy) return { signal: null, reason: 'PRECISION Mode: MACD not confirming BUY' };
+      if (type === 'SELL' && !macdSell) return { signal: null, reason: 'PRECISION Mode: MACD not confirming SELL' };
+      if (!mtfConfirmed) return { signal: null, reason: 'PRECISION Mode: MTF Trend not aligned' };
+    }
+
+    if (!type || score < requiredScore) return { signal: null, reason: `Score too low (${score}/${requiredScore})` };
 
     // Additional High Quality Filters
     if (this.highQualityMode) {
