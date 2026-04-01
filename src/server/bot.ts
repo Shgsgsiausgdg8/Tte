@@ -1270,16 +1270,18 @@ ${analysisText}
 
           if (msg.new_user_orders) {
             const order = msg.new_user_orders;
-            const txId = Number(order.transaction_id || order.id || order.order_id);
-            this.log(`[WS] Real-time Order Update: ${order.action} ${order.units} units at ${order.price} (Status: ${order.status}, ID: ${txId || 'N/A'})`, "WS");
+            const txId = Number(order.transaction_id);
+            const orderId = Number(order.id || order.order_id);
+            this.log(`[WS] Real-time Order Update: ${order.action} ${order.units} units at ${order.price} (Status: ${order.status}, OrderID: ${orderId || 'N/A'})`, "WS");
             
             // Link transaction ID if it's missing or pending for an open position
-            if (txId) {
+            if (txId && !isNaN(txId)) {
               for (const [id, pos] of this.openPositions) {
                 // Link if pending OR if we have a new ID that might be the real transaction ID
                 const isPending = !pos.transactionId || pos.transactionId === 'PENDING' || String(pos.transactionId).includes('PENDING');
                 if (isPending) {
-                  const isMatch = (pos.type === 'BUY' && order.action === 'buy') || (pos.type === 'SELL' && order.action === 'sell');
+                  const action = (order.action || '').toLowerCase();
+                  const isMatch = (pos.type === 'BUY' && action.includes('buy')) || (pos.type === 'SELL' && action.includes('sell'));
                   if (isMatch) {
                     pos.transactionId = txId;
                     pos.status = 'open';
@@ -1394,7 +1396,12 @@ ${analysisText}
                   const isPending = !pos.transactionId || pos.transactionId === 'PENDING' || String(pos.transactionId).includes('PENDING');
                   // Check if this txId is already assigned to another position to avoid double-linking
                   const alreadyLinked = Array.from(this.openPositions.values()).some(p => p.transactionId === txId);
-                  if ((isPending || pos.transactionId !== txId) && !alreadyLinked) {
+                  
+                  // Make sure the direction matches
+                  const txType = tx.type || tx.action || '';
+                  const isMatch = !txType || (pos.type === 'BUY' && txType.toLowerCase().includes('buy')) || (pos.type === 'SELL' && txType.toLowerCase().includes('sell'));
+
+                  if ((isPending || pos.transactionId !== txId) && !alreadyLinked && isMatch) {
                     pos.transactionId = txId;
                     this.log(`[WS] Linked transaction ${txId} to local position ${id} (authoritative). Enforcing SL/TP in 1s...`, "SUCCESS");
                     
@@ -2308,7 +2315,8 @@ ${analysisText}
 
         if (pos.transactionId) {
           const endpoints = [
-            `/api/room/api/close-futures-transaction/${pos.transactionId}/`
+            `/api/room/api/close-futures-transaction/${pos.transactionId}/`,
+            `/api/room/api/close-transaction/${pos.transactionId}/`
           ];
 
           for (const url of endpoints) {
