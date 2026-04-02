@@ -202,11 +202,13 @@ export class FarazGoldBot {
 
   setupAxios() {
     const apiCfg = this.settings.api || defaultConfig.api;
-    const isReal = apiCfg.useRealAccount;
-    const auth = isReal ? apiCfg.real : apiCfg.demo;
+    const activeId = apiCfg.activeAccountId;
+    const auth = apiCfg.accounts?.[activeId] || apiCfg.accounts?.['demo_default'] || (defaultConfig.api.accounts as any)['demo_default'];
+    const isReal = auth.type === 'real';
     
     // Use the tokens if we have them
-    const authHeader = this.accessToken ? { 'Authorization': `Bearer ${this.accessToken}` } : {};
+    const tokenToUse = this.accessToken || auth.bearerToken;
+    const authHeader = tokenToUse ? { 'Authorization': `Bearer ${tokenToUse}` } : {};
     
     const cookies = [];
     if (auth.csrftoken) cookies.push(`csrftoken=${auth.csrftoken}`);
@@ -265,11 +267,16 @@ export class FarazGoldBot {
           originalRequest._retry = true;
           const refreshed = await this.refreshAuthToken();
           if (refreshed) {
-            originalRequest.headers['Authorization'] = `Bearer ${this.accessToken}`;
-            // Update cookies in the retry request too
             const apiCfg = this.settings.api || defaultConfig.api;
             const auth = apiCfg.useRealAccount ? apiCfg.real : apiCfg.demo;
-            originalRequest.headers['Cookie'] = `csrftoken=${auth.csrftoken}; sessionid=${auth.sessionid}; refresh_token=${this.refreshToken}`;
+            const tokenToUse = this.accessToken || auth.bearerToken;
+            originalRequest.headers['Authorization'] = `Bearer ${tokenToUse}`;
+            // Update cookies in the retry request too
+            const retryCookies = [];
+            if (auth.csrftoken) retryCookies.push(`csrftoken=${auth.csrftoken}`);
+            if (auth.sessionid) retryCookies.push(`sessionid=${auth.sessionid}`);
+            if (this.refreshToken) retryCookies.push(`refresh_token=${this.refreshToken}`);
+            originalRequest.headers['Cookie'] = retryCookies.join('; ');
             return this.api(originalRequest);
           }
         }
@@ -281,16 +288,22 @@ export class FarazGoldBot {
   async refreshAuthToken() {
     try {
       const apiCfg = this.settings.api || defaultConfig.api;
-      const isReal = apiCfg.useRealAccount;
-      const auth = isReal ? apiCfg.real : apiCfg.demo;
+      const activeId = apiCfg.activeAccountId;
+      const auth = apiCfg.accounts?.[activeId] || apiCfg.accounts?.['demo_default'] || (defaultConfig.api.accounts as any)['demo_default'];
+      const isReal = auth.type === 'real';
       const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
       
+      const cookies = [];
+      if (this.refreshToken) cookies.push(`refresh_token=${this.refreshToken}`);
+      if (auth.csrftoken) cookies.push(`csrftoken=${auth.csrftoken}`);
+      if (auth.sessionid) cookies.push(`sessionid=${auth.sessionid}`);
+
       this.log("Attempting to refresh auth token...", "INFO");
       const response = await axios.post(`${auth.baseUrl}/api/User/api/token/refresh/`, {
         refresh: this.refreshToken
       }, {
         headers: {
-          'Cookie': `refresh_token=${this.refreshToken}; csrftoken=${auth.csrftoken}; sessionid=${auth.sessionid}`,
+          'Cookie': cookies.join('; '),
           'Content-Type': 'application/json',
           'User-Agent': userAgent,
           'Origin': auth.baseUrl,
@@ -429,12 +442,14 @@ export class FarazGoldBot {
     
     const timeframeChanged = this.settings.timeframe?.value !== newSettings.timeframe?.value;
     
+    const oldActive = oldApi.accounts?.[oldApi.activeAccountId];
+    const newActive = newApi.accounts?.[newApi.activeAccountId];
+
     const sourceChanged = this.settings.source !== newSettings.source || 
-                         oldApi.useRealAccount !== newApi.useRealAccount ||
-                         (newApi.useRealAccount ? 
-                           (oldApi.real?.wsUrl !== newApi.real?.wsUrl || oldApi.real?.sessionid !== newApi.real?.sessionid || oldApi.real?.csrftoken !== newApi.real?.csrftoken) :
-                           (oldApi.demo?.wsUrl !== newApi.demo?.wsUrl || oldApi.demo?.sessionid !== newApi.demo?.sessionid || oldApi.demo?.csrftoken !== newApi.demo?.csrftoken)
-                         );
+                         oldApi.activeAccountId !== newApi.activeAccountId ||
+                         (oldActive?.wsUrl !== newActive?.wsUrl || 
+                          oldActive?.sessionid !== newActive?.sessionid || 
+                          oldActive?.csrftoken !== newActive?.csrftoken);
     
     // Force API source
     newSettings.source = 'API';
@@ -462,7 +477,7 @@ export class FarazGoldBot {
       this.fetchHistoricalBars();
       this.connectToExternalWS();
     } else if (sourceChanged) {
-      this.log(`Price source settings changed (${newApi.useRealAccount ? 'REAL' : 'DEMO'}). Restarting source...`, "INFO");
+      this.log(`Price source settings changed (${newActive?.type === 'real' ? 'REAL' : 'DEMO'} - ${newActive?.username}). Restarting source...`, "INFO");
       this.connectToExternalWS();
     }
   }
@@ -1135,8 +1150,9 @@ ${analysisText}
     }
 
     const apiCfg = this.settings.api || defaultConfig.api;
-    const isReal = apiCfg.useRealAccount;
-    const auth = isReal ? apiCfg.real : apiCfg.demo;
+    const activeId = apiCfg.activeAccountId;
+    const auth = apiCfg.accounts?.[activeId] || apiCfg.accounts?.['demo_default'] || (defaultConfig.api.accounts as any)['demo_default'];
+    const isReal = auth.type === 'real';
     const resolution = Math.floor((this.settings.timeframe?.value || 60) / 60);
     
     let baseWsUrl = auth.wsUrl || (isReal ? 'wss://farazgold.com/ws/' : 'wss://demo.farazgold.com/ws/');
@@ -1146,13 +1162,13 @@ ${analysisText}
       baseWsUrl = baseWsUrl.replace(/resolution=\d+/, `resolution=${resolution}`);
     }
     
+    const tokenToUse = this.accessToken || auth.bearerToken || '';
     const url = baseWsUrl.includes('?') 
-      ? `${baseWsUrl}&token=${this.accessToken || ''}`
-      : `${baseWsUrl}?token=${this.accessToken || ''}`;
-    const cookies = [
-      `csrftoken=${auth.csrftoken}`,
-      `sessionid=${auth.sessionid}`
-    ];
+      ? `${baseWsUrl}&token=${tokenToUse}`
+      : `${baseWsUrl}?token=${tokenToUse}`;
+    const cookies = [];
+    if (auth.csrftoken) cookies.push(`csrftoken=${auth.csrftoken}`);
+    if (auth.sessionid) cookies.push(`sessionid=${auth.sessionid}`);
     if (this.refreshToken) {
       cookies.push(`refresh_token=${this.refreshToken}`);
     }

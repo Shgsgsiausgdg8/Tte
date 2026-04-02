@@ -5,6 +5,7 @@ export const config = {
   auth: {
     csrftoken: process.env.FARAZGOLD_CSRF || 'GTiZlvd8jNoMuko3nkjjU0lhC8m6Yy3m',
     sessionid: process.env.FARAZGOLD_SESSION || 'njmnqc7hfkeyayowprwheqc73lvp98as',
+    bearerToken: process.env.FARAZGOLD_BEARER || '',
     baseUrl: process.env.FARAZGOLD_BASEURL || 'https://demo.farazgold.com',
     wsUrl: process.env.FARAZGOLD_WSURL || 'wss://demo.farazgold.com/room/api/get-bars-ws/?symbol=mazane&resolution=1&history=300',
     wsAutoDiscover: true,
@@ -398,22 +399,19 @@ export const config = {
   // 🧪 API Source (for UI)
   // ==========================================
   api: {
-    useRealAccount: false,
-    demo: {
-      wsUrl: 'wss://demo.farazgold.com/ws/',
-      baseUrl: 'https://demo.farazgold.com',
-      csrftoken: 'GTiZlvd8jNoMuko3nkjjU0lhC8m6Yy3m',
-      sessionid: 'njmnqc7hfkeyayowprwheqc73lvp98as',
-      accessToken: '',
-      refreshToken: ''
-    },
-    real: {
-      wsUrl: 'wss://farazgold.com/ws/',
-      baseUrl: 'https://farazgold.com',
-      csrftoken: '',
-      sessionid: '',
-      accessToken: '',
-      refreshToken: ''
+    activeAccountId: 'demo_default',
+    accounts: {
+      'demo_default': {
+        type: 'demo',
+        username: 'demo_user',
+        wsUrl: 'wss://demo.farazgold.com/ws/',
+        baseUrl: 'https://demo.farazgold.com',
+        csrftoken: 'GTiZlvd8jNoMuko3nkjjU0lhC8m6Yy3m',
+        sessionid: 'njmnqc7hfkeyayowprwheqc73lvp98as',
+        bearerToken: '',
+        accessToken: '',
+        refreshToken: ''
+      }
     }
   },
 

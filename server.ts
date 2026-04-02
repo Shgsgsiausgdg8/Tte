@@ -5,6 +5,7 @@ import { createServer as createViteServer } from "vite";
 import path from "path";
 import { WebSocketServer, WebSocket } from "ws";
 import { FarazGoldBot } from "./src/server/bot";
+import axios from "axios";
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
@@ -33,6 +34,81 @@ async function startServer() {
   });
 
   app.use(express.json());
+  
+  // Auth Endpoints
+  app.get("/api/auth/captcha", async (req, res) => {
+    const type = req.query.type as string;
+    const baseUrl = type === 'real' ? 'https://farazgold.com/api/User/api' : 'https://demo.farazgold.com/api/User/api';
+    try {
+      const response = await axios.get(`${baseUrl}/captcha/refresh/`, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36',
+          'Accept': 'application/json',
+          'Origin': type === 'real' ? 'https://farazgold.com' : 'https://demo.farazgold.com',
+        }
+      });
+      res.json({
+        key: response.data.key,
+        image_url: `${type === 'real' ? 'https://farazgold.com' : 'https://demo.farazgold.com'}${response.data.image_url}`
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/auth/login", async (req, res) => {
+    const { type, username, password, captcha_key, captcha_value } = req.body;
+    const baseUrl = type === 'real' ? 'https://farazgold.com/api/User/api' : 'https://demo.farazgold.com/api/User/api';
+    const origin = type === 'real' ? 'https://farazgold.com' : 'https://demo.farazgold.com';
+    
+    try {
+      const response = await axios.post(`${baseUrl}/login/`, {
+        username,
+        password,
+        captcha_key,
+        captcha_value
+      }, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36',
+          'Accept': 'application/json',
+          'Referer': `${origin}/user/login/`,
+          'Origin': origin,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = response.data;
+      if (data.access && data.refresh) {
+        const settings = bot.settings;
+        if (!settings.api) settings.api = { activeAccountId: '', accounts: {} } as any;
+        if (!settings.api.accounts) settings.api.accounts = {};
+        
+        const accountId = username; // Use phone number as ID
+        settings.api.accounts[accountId] = {
+          type,
+          username,
+          password,
+          accessToken: data.access,
+          refreshToken: data.refresh,
+          bearerToken: data.access,
+          baseUrl: type === 'real' ? 'https://farazgold.com' : 'https://demo.farazgold.com',
+          wsUrl: type === 'real' ? 'wss://farazgold.com/ws/' : 'wss://demo.farazgold.com/ws/',
+          csrftoken: '', 
+          sessionid: ''
+        };
+        settings.api.activeAccountId = accountId;
+        
+        bot.saveSettings(settings);
+        
+        res.json({ success: true, access: data.access, refresh: data.refresh });
+      } else {
+        res.status(400).json({ error: 'Invalid response from server' });
+      }
+    } catch (error: any) {
+      res.status(error.response?.status || 500).json({ error: error.response?.data || error.message });
+    }
+  });
+
   app.get("/api/bot/status", (req, res) => res.json(bot.getState()));
   app.post("/api/bot/toggle", (req, res) => {
     bot.isTrading = !bot.isTrading;

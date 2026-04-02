@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import Chart from 'react-apexcharts';
-import { Activity, TrendingUp, TrendingDown, AlertCircle, Clock, Power, ShieldCheck, Settings, Send, Save, X, ChevronRight, Terminal, RefreshCw, Lock, ShieldAlert, Zap, BarChart3, CircleDot, Layout, Layers, History, Target, Cpu, Waves } from 'lucide-react';
+import axios from 'axios';
+import { Activity, TrendingUp, TrendingDown, AlertCircle, Clock, Power, ShieldCheck, Settings, Send, Save, X, ChevronRight, Terminal, RefreshCw, Lock, ShieldAlert, Zap, BarChart3, CircleDot, Layout, Layers, History, Target, Cpu, Waves, Plus, CheckCircle2, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { LoginSection } from './LoginSection';
 
 const formatPrice = (price: number) => {
   if (price === undefined || price === null || isNaN(price)) return '---';
@@ -24,6 +26,8 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [isAutoTuning, setIsAutoTuning] = useState(false);
   const [autoTuneResults, setAutoTuneResults] = useState<any>(null);
+  const [showAddAccount, setShowAddAccount] = useState(false);
+  const [newAccountType, setNewAccountType] = useState<'real' | 'demo'>('demo');
 
   const showSettingsRef = React.useRef(showSettings);
   useEffect(() => {
@@ -1085,87 +1089,120 @@ export default function Dashboard() {
                 {/* Account & Data Source Selection */}
                 <section>
                   <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-3">
-                    <Lock className="w-4 h-4" /> تنظیمات حساب و اتصال
+                    <Lock className="w-4 h-4" /> مدیریت حساب‌ها (Multi-Account)
                   </h3>
                   
-                  <div className="bg-white/5 p-5 rounded-3xl border border-white/5 mb-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-3">
-                        <div className={`p-2 rounded-xl ${settings.api?.useRealAccount ? 'bg-rose-500/20 text-rose-500' : 'bg-emerald-500/20 text-emerald-500'}`}>
-                          <ShieldAlert className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-white">حساب واقعی (Real Account)</p>
-                          <p className="text-[10px] text-slate-500">فعال‌سازی ترید روی حساب اصلی فرازگلد</p>
+                  <div className="space-y-4">
+                    {/* Account List */}
+                    {Object.values(settings.api?.accounts || {}).map((acc: any) => (
+                      <div 
+                        key={acc.username}
+                        className={`p-4 rounded-3xl border transition-all cursor-pointer relative group ${settings.api.activeAccountId === acc.username ? 'bg-emerald-500/10 border-emerald-500/50' : 'bg-white/5 border-white/5 hover:border-white/10'}`}
+                        onClick={() => setSettings({ ...settings, api: { ...settings.api, activeAccountId: acc.username } })}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className={`p-2 rounded-xl ${acc.type === 'real' ? 'bg-rose-500/20 text-rose-500' : 'bg-emerald-500/20 text-emerald-500'}`}>
+                              <ShieldAlert className="w-5 h-5" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-bold text-white">{acc.username}</p>
+                              <p className="text-[10px] text-slate-500">{acc.type === 'real' ? 'حساب واقعی' : 'حساب دمو'}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            {settings.api.activeAccountId === acc.username && (
+                              <div className="flex items-center gap-2 text-emerald-500 text-[10px] font-bold">
+                                <CheckCircle2 className="w-4 h-4" /> فعال
+                              </div>
+                            )}
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const newAccounts = { ...settings.api.accounts };
+                                delete newAccounts[acc.username];
+                                let newActive = settings.api.activeAccountId;
+                                if (newActive === acc.username) {
+                                  newActive = Object.keys(newAccounts)[0] || '';
+                                }
+                                setSettings({ ...settings, api: { ...settings.api, accounts: newAccounts, activeAccountId: newActive } });
+                              }}
+                              className="p-2 text-slate-500 hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
                       </div>
-                      <button 
-                        onClick={() => setSettings({ ...settings, api: { ...settings.api, useRealAccount: !settings.api?.useRealAccount } })}
-                        className={`w-12 h-6 rounded-full transition-colors relative ${settings.api?.useRealAccount ? 'bg-rose-500' : 'bg-slate-700'}`}
-                      >
+                    ))}
+
+                    {/* Add New Account Button */}
+                    <button 
+                      onClick={() => setShowAddAccount(!showAddAccount)}
+                      className="w-full py-4 rounded-3xl border border-dashed border-white/10 hover:border-white/20 hover:bg-white/5 transition-all text-slate-400 text-sm flex items-center justify-center gap-2"
+                    >
+                      <Plus className="w-4 h-4" /> افزودن حساب جدید
+                    </button>
+
+                    <AnimatePresence>
+                      {showAddAccount && (
                         <motion.div 
-                          animate={{ x: settings.api?.useRealAccount ? 24 : 4 }}
-                          className="absolute top-1 w-4 h-4 bg-white rounded-full"
-                        />
-                      </button>
-                    </div>
-                    
-                    {settings.api?.useRealAccount && (
-                      <motion.div 
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        className="space-y-4 pt-4 border-t border-white/5"
-                      >
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">Real Access Token</label>
-                            <input 
-                              type="password" 
-                              value={settings.api?.real?.accessToken || ''}
-                              onChange={(e) => setSettings({ ...settings, api: { ...settings.api, real: { ...settings.api.real, accessToken: e.target.value } } })}
-                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm focus:border-rose-500/50 outline-none transition-all"
-                              placeholder="توکن دسترسی ریل"
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="overflow-hidden"
+                        >
+                          <div className="p-5 rounded-3xl bg-white/5 border border-white/10 space-y-4 mt-2">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-xs font-bold text-white">ورود به حساب جدید</span>
+                              <div className="flex bg-black/20 p-1 rounded-xl">
+                                <button 
+                                  onClick={() => setNewAccountType('real')}
+                                  className={`px-3 py-1 rounded-lg text-[10px] transition-all ${newAccountType === 'real' ? 'bg-rose-500 text-white' : 'text-slate-500'}`}
+                                >ریل</button>
+                                <button 
+                                  onClick={() => setNewAccountType('demo')}
+                                  className={`px-3 py-1 rounded-lg text-[10px] transition-all ${newAccountType === 'demo' ? 'bg-emerald-500 text-white' : 'text-slate-500'}`}
+                                >دمو</button>
+                              </div>
+                            </div>
+                            <LoginSection 
+                              type={newAccountType} 
+                              settings={settings} 
+                              setSettings={setSettings} 
+                              onLoginSuccess={() => setShowAddAccount(false)} 
                             />
                           </div>
-                          <div>
-                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">Real Refresh Token</label>
-                            <input 
-                              type="password" 
-                              value={settings.api?.real?.refreshToken || ''}
-                              onChange={(e) => setSettings({ ...settings, api: { ...settings.api, real: { ...settings.api.real, refreshToken: e.target.value } } })}
-                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm focus:border-rose-500/50 outline-none transition-all"
-                              placeholder="توکن رفرش ریل"
-                            />
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">Real CSRF Token</label>
-                            <input 
-                              type="password" 
-                              value={settings.api?.real?.csrftoken || ''}
-                              onChange={(e) => setSettings({ ...settings, api: { ...settings.api, real: { ...settings.api.real, csrftoken: e.target.value } } })}
-                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm focus:border-rose-500/50 outline-none transition-all"
-                              placeholder="توکن حساب ریل"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">Real Session ID</label>
-                            <input 
-                              type="password" 
-                              value={settings.api?.real?.sessionid || ''}
-                              onChange={(e) => setSettings({ ...settings, api: { ...settings.api, real: { ...settings.api.real, sessionid: e.target.value } } })}
-                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm focus:border-rose-500/50 outline-none transition-all"
-                              placeholder="سشن حساب ریل"
-                            />
-                          </div>
-                        </div>
-                        <p className="text-[9px] text-rose-500 font-bold flex items-center gap-2">
-                          <AlertCircle className="w-3 h-3" /> هشدار: در حالت ریل، معاملات با پول واقعی انجام می‌شود.
-                        </p>
-                      </motion.div>
-                    )}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
+
+                  {/* Active Account CSRF Token */}
+                  {settings.api?.activeAccountId && settings.api?.accounts?.[settings.api.activeAccountId] && (
+                    <div className="mt-4 p-5 rounded-3xl bg-white/5 border border-white/5 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[9px] text-slate-500 uppercase font-mono block">CSRF Token (حساب فعال: {settings.api.activeAccountId})</label>
+                        <div className={`px-2 py-0.5 rounded-md text-[8px] font-bold ${settings.api.accounts[settings.api.activeAccountId].type === 'real' ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'}`}>
+                          {settings.api.accounts[settings.api.activeAccountId].type === 'real' ? 'REAL' : 'DEMO'}
+                        </div>
+                      </div>
+                      <input
+                        type="text"
+                        value={settings.api.accounts[settings.api.activeAccountId].csrftoken || ''}
+                        onChange={(e) => {
+                          const newSettings = { ...settings };
+                          newSettings.api.accounts[settings.api.activeAccountId].csrftoken = e.target.value;
+                          setSettings(newSettings);
+                          axios.post('/api/bot/settings', newSettings);
+                        }}
+                        className="w-full bg-black/20 border border-white/5 rounded-2xl px-5 py-3 text-sm text-slate-200 outline-none focus:border-emerald-500/50 transition-all text-left font-mono"
+                        placeholder="توکن CSRF را اینجا وارد کنید"
+                        dir="ltr"
+                      />
+                      <p className="text-[8px] text-slate-500 text-center">این توکن برای تایید تراکنش‌ها در فرازگلد الزامی است.</p>
+                    </div>
+                  )}
 
                   <div className="mt-4 space-y-4">
                     <div className="grid grid-cols-2 gap-4">
@@ -1203,7 +1240,7 @@ export default function Dashboard() {
                           {botState?.isConnected ? (
                             <>
                               <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                              متصل ({settings.api?.useRealAccount ? 'REAL' : 'DEMO'})
+                              متصل ({settings.api?.accounts?.[settings.api?.activeAccountId]?.type?.toUpperCase() || 'NONE'})
                             </>
                           ) : (
                             <>
@@ -1214,51 +1251,6 @@ export default function Dashboard() {
                         </div>
                       </div>
                     </div>
-                    
-                    {!settings.api?.useRealAccount && (
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">Demo Access Token</label>
-                            <input 
-                              type="password" 
-                              value={settings.api?.demo?.accessToken || ''}
-                              onChange={(e) => setSettings({ ...settings, api: { ...settings.api, demo: { ...settings.api.demo, accessToken: e.target.value } } })}
-                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm focus:border-emerald-500/50 outline-none transition-all"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">Demo Refresh Token</label>
-                            <input 
-                              type="password" 
-                              value={settings.api?.demo?.refreshToken || ''}
-                              onChange={(e) => setSettings({ ...settings, api: { ...settings.api, demo: { ...settings.api.demo, refreshToken: e.target.value } } })}
-                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm focus:border-emerald-500/50 outline-none transition-all"
-                            />
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">Demo CSRF Token</label>
-                          <input 
-                            type="password" 
-                            value={settings.api?.demo?.csrftoken || ''}
-                            onChange={(e) => setSettings({ ...settings, api: { ...settings.api, demo: { ...settings.api.demo, csrftoken: e.target.value } } })}
-                            className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm focus:border-emerald-500/50 outline-none transition-all"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">Demo Session ID</label>
-                          <input 
-                            type="password" 
-                            value={settings.api?.demo?.sessionid || ''}
-                            onChange={(e) => setSettings({ ...settings, api: { ...settings.api, demo: { ...settings.api.demo, sessionid: e.target.value } } })}
-                            className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm focus:border-emerald-500/50 outline-none transition-all"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    )}
                   </div>
                 </section>
 
