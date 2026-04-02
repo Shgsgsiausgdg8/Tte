@@ -149,6 +149,31 @@ export const config = {
       maxVolatility: 1000,
       minAtrPercent: 0.005
     },
+    scalp: {
+      mode: 'NORMAL',
+      useRsiFilter: true,
+      rsiPeriod: 14,
+      rsiOversold: 40,
+      rsiOverbought: 60,
+      useEmaFilter: true,
+      emaFast: 9,
+      emaSlow: 21,
+      emaPeriod: 200,
+      useVolumeFilter: false,
+      volMultiplier: 1.5,
+      useAtrFilter: true,
+      minAtrTicks: 5,
+      useSpreadFilter: true,
+      maxSpreadTicks: 3,
+      useMomentumFilter: true,
+      momentumSensitivity: 50,
+      useMtfFilter: true,
+      mtfTimeframe: '5M',
+      maxDistanceFromSlowEmaPercent: 0.08,
+      adxThreshold: 20,
+      stochOversold: 30,
+      stochOverbought: 70
+    },
     indicators: {
       rsi: {
         enabled: true,

@@ -57,19 +57,33 @@ export class Strategy {
   }
 
   getMTFStatus(priceHistory: any[], mtfHistory?: any[]) {
-    if (!this.config.strategy?.mtf?.enabled) return null;
-    const history5 = mtfHistory && mtfHistory.length >= 20 ? mtfHistory : this.aggregateTo5Min(priceHistory);
-    if (history5.length < 20) return { status: 'WAITING', trend: 'UNKNOWN' };
+    const scalpCfg = this.config.strategy?.scalp || {};
+    const mtfEnabled = scalpCfg.useMtfFilter || this.config.strategy?.mtf?.enabled;
+    if (!mtfEnabled) return null;
+
+    const tf = scalpCfg.mtfTimeframe || this.config.strategy?.mtf?.higherTimeframe || '5M';
+    let history: any[] = [];
+
+    if (mtfHistory && mtfHistory.length >= 20) {
+      history = mtfHistory;
+    } else {
+      if (tf === '5M') history = this.aggregateTo5Min(priceHistory);
+      else if (tf === '15M') history = this.aggregateTo15Min(priceHistory);
+      else if (tf === '1H') history = this.aggregateTo1Hour(priceHistory);
+      else history = this.aggregateTo5Min(priceHistory);
+    }
+
+    if (history.length < 20) return { status: 'WAITING', trend: 'UNKNOWN' };
     
-    const closes5 = history5.map(p => p.price);
-    const emaFast5 = this.calculateEMA(closes5, 20);
-    const emaSlow5 = this.calculateEMA(closes5, 50);
-    const trend5 = emaFast5 > emaSlow5 ? 'BUY' : 'SELL';
+    const closes = history.map(p => p.price);
+    const emaFast = this.calculateEMA(closes, 20);
+    const emaSlow = this.calculateEMA(closes, 50);
+    const trend = emaFast > emaSlow ? 'BUY' : 'SELL';
     
     return {
       status: 'CONFIRMED',
-      trend: trend5,
-      timeframe: '5m'
+      trend: trend,
+      timeframe: tf
     };
   }
 
@@ -296,9 +310,16 @@ export class Strategy {
     const bullishPattern = patterns.some(p => p.type === 'BULLISH');
     const bearishPattern = patterns.some(p => p.type === 'BEARISH');
 
-    // 7. MTF Trend Check (5m trend)
+    // 7. MTF Trend Check
     const mtf = this.getMTFStatus(priceHistory);
     const mtfConfirmed = !mtf || mtf.status !== 'CONFIRMED' || mtf.trend === (trendUp ? 'BUY' : 'SELL');
+
+    // 8. Momentum Filter (Explosive Move Detection)
+    const roc = ((price - prevClose) / prevClose) * 10000; // in basis points
+    const sensitivity = scalpCfg.momentumSensitivity || 50;
+    const momentumThreshold = (101 - sensitivity) * 0.1; // 0.1 to 10.0 basis points
+    const explosiveUp = roc > momentumThreshold;
+    const explosiveDown = roc < -momentumThreshold;
 
     if (trendUp && nearSlowForBuy) {
       // Base signal: RSI Pullback
@@ -334,9 +355,14 @@ export class Strategy {
         if (scalpCfg.useBbFilter && bbBuy) { score += 1; reasons.push('BB Lower Half'); }
         if (scalpCfg.useCandleFilter && bullishPattern) { score += 1; reasons.push('Bullish Candle Pattern'); }
         
+        if (scalpCfg.useMomentumFilter) {
+          if (explosiveUp) { score += 2; reasons.push('Explosive Momentum Up'); }
+          else { score -= 1; reasons.push('Weak Momentum'); }
+        }
+
         if (scalpCfg.useMtfFilter) {
-          if (mtfConfirmed) { score += 1; reasons.push('MTF Trend Alignment (5m)'); }
-          else { score -= 2; reasons.push('MTF Trend Conflict (5m)'); }
+          if (mtfConfirmed) { score += 1; reasons.push(`MTF Trend Alignment (${mtf?.timeframe || '5M'})`); }
+          else { score -= 2; reasons.push(`MTF Trend Conflict (${mtf?.timeframe || '5M'})`); }
         }
       }
     } else if (trendDown && nearSlowForSell) {
@@ -373,9 +399,14 @@ export class Strategy {
         if (scalpCfg.useBbFilter && bbSell) { score += 1; reasons.push('BB Upper Half'); }
         if (scalpCfg.useCandleFilter && bearishPattern) { score += 1; reasons.push('Bearish Candle Pattern'); }
 
+        if (scalpCfg.useMomentumFilter) {
+          if (explosiveDown) { score += 2; reasons.push('Explosive Momentum Down'); }
+          else { score -= 1; reasons.push('Weak Momentum'); }
+        }
+
         if (scalpCfg.useMtfFilter) {
-          if (mtfConfirmed) { score += 1; reasons.push('MTF Trend Alignment (5m)'); }
-          else { score -= 2; reasons.push('MTF Trend Conflict (5m)'); }
+          if (mtfConfirmed) { score += 1; reasons.push(`MTF Trend Alignment (${mtf?.timeframe || '5M'})`); }
+          else { score -= 2; reasons.push(`MTF Trend Conflict (${mtf?.timeframe || '5M'})`); }
         }
       }
     }
@@ -1697,6 +1728,40 @@ export class Strategy {
     }
     if (current15MinBar) history15min.push(current15MinBar);
     return history15min;
+  }
+
+  // ==========================================
+  // HELPER: Aggregate 1m to 1h
+  // ==========================================
+  aggregateTo1Hour(priceHistory1min: any[]) {
+    const history1h: any[] = [];
+    let current1hBar: any = null;
+    
+    for (const bar of priceHistory1min) {
+      const time = bar.time || Date.now();
+      const time1h = Math.floor(time / (60 * 60 * 1000)) * (60 * 60 * 1000);
+      
+      if (!current1hBar || current1hBar.time !== time1h) {
+        if (current1hBar) history1h.push(current1hBar);
+        current1hBar = {
+          time: time1h,
+          open: bar.open ?? bar.price,
+          high: bar.high ?? bar.price,
+          low: bar.low ?? bar.price,
+          close: bar.price,
+          price: bar.price,
+          volume: bar.volume || 0
+        };
+      } else {
+        current1hBar.high = Math.max(current1hBar.high, bar.high ?? bar.price);
+        current1hBar.low = Math.min(current1hBar.low, bar.low ?? bar.price);
+        current1hBar.close = bar.price;
+        current1hBar.price = bar.price;
+        current1hBar.volume += (bar.volume || 0);
+      }
+    }
+    if (current1hBar) history1h.push(current1hBar);
+    return history1h;
   }
 
   // ==========================================
