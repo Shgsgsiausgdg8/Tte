@@ -49,17 +49,12 @@ export const config = {
   // 🎯 Targets & Stops (Tick-based)
   // ==========================================
   targetsTicks: {
-    stopTicks: 12,
-    tpTicks: 18,
+    stopTicks: 10,
+    tpTicks: 15,
     trailing: {
       enabled: true,
-      activateAfterTicks: 8,
-      trailTicks: 4
-    },
-    reversal: {
-      enabled: true,
-      triggerLossTicks: 6,
-      minOppositeSignalScore: 2
+      activateAfterTicks: 5,
+      trailTicks: 3
     }
   },
 
@@ -112,15 +107,12 @@ export const config = {
   strategy: {
     enabled: true,
     highQualityMode: false,
-    enableStrengthScaling: false,
     entry: {
       maxDistanceFromSlowEmaPercent: 0.5
     },
     tradeCooldown: 8,
     minSignalScore: 1,
     highQuality: {
-      autoScaleVolume: false,
-      volumeMultiplier: 1.5, // Increase volume for HQ signals
       tp1Percent: 60, // Target 60% of ATR for TP1
       tp2Percent: 120, // Target 120% of ATR for TP2
       trailing: {
@@ -170,9 +162,19 @@ export const config = {
       useMtfFilter: true,
       mtfTimeframe: '5M',
       maxDistanceFromSlowEmaPercent: 0.08,
+      useAdxFilter: true,
       adxThreshold: 20,
+      useStochFilter: true,
       stochOversold: 30,
-      stochOverbought: 70
+      stochOverbought: 70,
+      useMacdFilter: true,
+      useBbFilter: true,
+      useCandleFilter: true,
+      useDivergenceFilter: true,
+      useOrderBlockFilter: true,
+      useSessionFilter: true,
+      sessionStart: '11:00',
+      sessionEnd: '19:00'
     },
     indicators: {
       rsi: {

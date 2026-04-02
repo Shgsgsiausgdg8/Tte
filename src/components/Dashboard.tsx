@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Chart from 'react-apexcharts';
 import axios from 'axios';
-import { Activity, TrendingUp, TrendingDown, AlertCircle, Clock, Power, ShieldCheck, Settings, Send, Save, X, ChevronRight, Terminal, RefreshCw, Lock, ShieldAlert, Zap, BarChart3, CircleDot, Layout, Layers, History, Target, Cpu, Waves, Plus, CheckCircle2, Trash2 } from 'lucide-react';
+import { Activity, TrendingUp, TrendingDown, AlertCircle, Clock, Power, ShieldCheck, Settings, Send, Save, X, ChevronRight, Terminal, RefreshCw, Lock, ShieldAlert, Zap, BarChart3, CircleDot, Layout, Layers, History, Target, Cpu, Waves, Plus, CheckCircle2, Trash2, Globe, Cloud } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LoginSection } from './LoginSection';
 
@@ -353,18 +353,18 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-[#050505] text-slate-200 font-sans selection:bg-emerald-500/30 overflow-x-hidden">
       {/* Header */}
-      <header className="border-b border-white/5 bg-[#0a0a0a]/80 backdrop-blur-xl px-4 sm:px-8 py-4 sm:py-5 flex flex-col sm:flex-row items-center justify-between sticky top-0 z-40 gap-4 sm:gap-0">
+      <header className="border-b border-white/5 bg-[#0a0a0a]/80 backdrop-blur-xl px-4 sm:px-6 py-3 sm:py-4 flex flex-col sm:flex-row items-center justify-between sticky top-0 z-40 gap-3 sm:gap-0">
         <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-start">
           <div className="flex items-center gap-4">
             <motion.div 
               whileHover={{ rotate: 180 }}
-              className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20"
+              className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20"
             >
-              <Activity className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+              <Activity className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
             </motion.div>
             <div>
-              <h1 className="text-lg sm:text-2xl font-black tracking-tighter text-white">FARAZ <span className="text-emerald-500">GOLD</span></h1>
-              <p className="text-[8px] sm:text-[10px] text-slate-500 font-mono uppercase tracking-[0.2em]">ربات اسکالپر الگوریتمیک - نسخه ۴.۳</p>
+              <h1 className="text-base sm:text-xl font-black tracking-tighter text-white uppercase">FARAZ <span className="text-emerald-500">GOLD</span></h1>
+              <p className="text-[7px] sm:text-[9px] text-slate-500 font-mono uppercase tracking-[0.1em]">ربات اسکالپر الگوریتمیک - نسخه ۴.۳</p>
             </div>
           </div>
           
@@ -499,62 +499,53 @@ export default function Dashboard() {
             </p>
           </div>
           
-          <div className="flex items-center gap-2 bg-white/5 p-1.5 rounded-2xl border border-white/5">
+          <div className="flex items-center gap-2 bg-white/5 p-1 rounded-xl border border-white/5">
             <button 
               onClick={toggleHighQuality}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold transition-all ${settings?.strategy?.highQualityMode ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' : 'bg-white/5 text-slate-400 hover:bg-white/10'}`}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg font-bold transition-all text-xs ${settings?.strategy?.highQualityMode ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' : 'bg-white/5 text-slate-400 hover:bg-white/10'}`}
               title="حالت سیگنال‌های با کیفیت (تعداد کمتر، دقت بیشتر)"
             >
-              <div className="relative">
-                <ShieldAlert className="w-4 h-4" />
-                {settings?.strategy?.highQualityMode && (
-                  <motion.div 
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    className="absolute -top-1 -right-1 w-2 h-2 bg-white rounded-full border border-amber-500"
-                  />
-                )}
-              </div>
+              <ShieldAlert className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">کیفیت بالا</span>
             </button>
             <button 
               onClick={() => setShowSettings(true)}
-              className="p-2.5 rounded-xl hover:bg-white/5 transition-colors text-slate-400 hover:text-white"
+              className="p-2 rounded-lg hover:bg-white/5 transition-colors text-slate-400 hover:text-white"
             >
-              <Settings className="w-5 h-5" />
+              <Settings className="w-4 h-4" />
             </button>
             <button 
               onClick={toggleTrading}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold transition-all ${botState.isTrading ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'bg-rose-500 text-white shadow-lg shadow-rose-500/20'}`}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold transition-all text-xs ${botState.isTrading ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'bg-rose-500 text-white shadow-lg shadow-rose-500/20'}`}
             >
-              <Power className="w-4 h-4" />
+              <Power className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">{botState.isTrading ? 'فعال' : 'متوقف'}</span>
             </button>
           </div>
         </div>
       </header>
 
-      <main className="p-4 sm:p-8 max-w-[1800px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8" dir="rtl">
+      <main className="p-4 sm:p-6 max-w-[1800px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6" dir="rtl">
         {/* Main Chart Section */}
-        <div className="lg:col-span-8 space-y-6 sm:space-y-8">
-          <div className="lg:hidden flex items-center justify-between bg-[#0f0f0f] border border-white/5 rounded-2xl p-4">
+        <div className="lg:col-span-8 space-y-4 sm:space-y-6">
+          <div className="lg:hidden flex items-center justify-between bg-[#0f0f0f] border border-white/5 rounded-xl p-4">
             <div>
-              <p className="text-[9px] text-slate-500 font-mono uppercase tracking-wider mb-0.5">موجودی حساب</p>
-              <p className="text-lg font-black font-mono text-white">
+              <p className="text-[8px] text-slate-500 font-mono uppercase tracking-wider mb-0.5">موجودی حساب</p>
+              <p className="text-base font-black font-mono text-white">
                 {botState.portfolio ? formatPrice(botState.portfolio.balance) : '---'}
               </p>
             </div>
             {(!botState.portfolio || !botState.portfolio.has_portfolio) && (
               <button 
                 onClick={() => setShowCreatePortfolio(true)}
-                className="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 text-xs font-bold px-3 py-2 rounded-xl transition-colors"
+                className="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 text-[10px] font-bold px-3 py-1.5 rounded-lg transition-colors"
               >
                 ایجاد پرتفو
               </button>
             )}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 sm:gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 sm:gap-4">
             {[
               { label: 'قیمت لحظه‌ای', value: formatPrice(botState.price), icon: TrendingUp, color: 'text-white' },
               { label: 'تاخیر قیمت (ms)', value: botState.latency ? `${botState.latency}ms` : '---', icon: Activity, color: botState.latency > 1000 ? 'text-rose-500' : botState.latency > 500 ? 'text-amber-500' : 'text-emerald-500' },
@@ -566,13 +557,13 @@ export default function Dashboard() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.1 }}
                 key={i} 
-                className="bg-[#0f0f0f] border border-white/5 rounded-2xl sm:rounded-3xl p-5 sm:p-6 hover:border-emerald-500/30 transition-colors group"
+                className="bg-[#0f0f0f] border border-white/5 rounded-xl sm:rounded-2xl p-4 sm:p-5 hover:border-emerald-500/30 transition-colors group"
               >
-                <div className="flex items-center justify-between mb-3 sm:mb-4">
-                  <p className="text-[9px] sm:text-[10px] text-slate-500 font-mono uppercase tracking-widest">{stat.label}</p>
-                  <stat.icon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-600 group-hover:text-emerald-500 transition-colors" />
+                <div className="flex items-center justify-between mb-2 sm:mb-3">
+                  <p className="text-[8px] sm:text-[9px] text-slate-500 font-mono uppercase tracking-widest">{stat.label}</p>
+                  <stat.icon className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-600 group-hover:text-emerald-500 transition-colors" />
                 </div>
-                <p className={`text-2xl sm:text-3xl font-black font-mono tracking-tighter ${stat.color}`}>{stat.value}</p>
+                <p className={`text-xl sm:text-2xl font-black font-mono tracking-tighter ${stat.color}`}>{stat.value}</p>
               </motion.div>
             ))}
           </div>
@@ -580,7 +571,7 @@ export default function Dashboard() {
           <motion.div 
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-[#0f0f0f] border border-white/5 rounded-2xl sm:rounded-[2.5rem] p-4 sm:p-8 h-[400px] sm:h-[550px] shadow-2xl relative overflow-hidden"
+            className="bg-[#0f0f0f] border border-white/5 rounded-xl sm:rounded-3xl p-4 sm:p-6 h-[400px] sm:h-[500px] shadow-2xl relative overflow-hidden"
           >
             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-emerald-500/50 to-transparent" />
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 sm:mb-8 gap-4 sm:gap-0">
@@ -645,7 +636,7 @@ export default function Dashboard() {
           <motion.div 
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
-            className="bg-[#0f0f0f] border border-white/5 rounded-2xl sm:rounded-[2.5rem] p-6 sm:p-8 shadow-2xl"
+            className="bg-[#0f0f0f] border border-white/5 rounded-xl sm:rounded-2xl p-5 sm:p-6 shadow-2xl"
           >
             <h2 className="text-[10px] sm:text-xs font-bold text-white uppercase tracking-[0.2em] sm:tracking-[0.3em] mb-6 sm:mb-8 flex items-center gap-3">
               <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-500" />
@@ -664,24 +655,18 @@ export default function Dashboard() {
                     <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 blur-3xl rounded-full -mr-12 -mt-12" />
                     <div className="flex justify-between items-center mb-3 sm:mb-4">
                       <div className="flex flex-col">
-                        <span className={`text-[9px] sm:text-[10px] font-black px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full w-fit ${pos.type === 'BUY' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-rose-500/20 text-rose-500'}`}>
+                        <span className={`text-[8px] sm:text-[9px] font-black px-2 sm:px-2.5 py-0.5 rounded-full w-fit ${pos.type === 'BUY' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-rose-500/20 text-rose-500'}`}>
                           {pos.type}
                         </span>
                         <div className="flex items-center gap-2 mt-1">
-                          <span className="text-[8px] sm:text-[9px] text-slate-400 font-mono uppercase">{pos.pattern || 'EMA CROSS'}</span>
+                          <span className="text-[7px] sm:text-[8px] text-slate-400 font-mono uppercase">{pos.pattern || 'EMA CROSS'}</span>
                           {pos.strength && (
-                            <span className={`text-[7px] sm:text-[8px] px-1.5 py-0.5 rounded-md font-bold flex items-center gap-1 ${
+                            <span className={`text-[6px] sm:text-[7px] px-1 py-0.5 rounded-md font-bold flex items-center gap-1 ${
                               pos.strength === 'STRONG' ? 'bg-rose-500/20 text-rose-500' : 
                               pos.strength === 'WEAK' ? 'bg-slate-500/20 text-slate-400' : 
                               'bg-blue-500/20 text-blue-400'
                             }`}>
                               {pos.strength === 'STRONG' ? '🔥 STRONG' : pos.strength === 'WEAK' ? '⚠️ WEAK' : '✨ NORMAL'}
-                            </span>
-                          )}
-                          {pos.isHQ && (
-                            <span className="text-[7px] sm:text-[8px] bg-amber-500/20 text-amber-500 px-1.5 py-0.5 rounded-md font-bold flex items-center gap-1">
-                              <ShieldAlert className="w-2 h-2" />
-                              HQ
                             </span>
                           )}
                         </div>
@@ -744,7 +729,7 @@ export default function Dashboard() {
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.2 }}
-            className="bg-[#0f0f0f] border border-white/5 rounded-2xl sm:rounded-[2.5rem] p-6 sm:p-8 shadow-2xl"
+            className="bg-[#0f0f0f] border border-white/5 rounded-xl sm:rounded-2xl p-5 sm:p-6 shadow-2xl"
           >
             <h2 className="text-[10px] sm:text-xs font-bold text-white uppercase tracking-[0.2em] sm:tracking-[0.3em] mb-6 sm:mb-8 flex items-center gap-3">
               <Activity className="w-4 h-4 sm:w-5 sm:h-5 text-slate-500" />
@@ -785,16 +770,22 @@ export default function Dashboard() {
             </div>
 
             {/* Auto-Tune & Backtest Results */}
-            <div className="mb-8 p-6 bg-emerald-500/5 border border-emerald-500/10 rounded-3xl">
-              <div className="flex items-center justify-between mb-4">
+            <div className="mb-6 p-4 sm:p-5 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
                 <div className="flex items-center gap-3">
-                  <Zap className="w-5 h-5 text-emerald-500" />
-                  <h3 className="text-sm font-bold text-white">بهینه‌سازی هوشمند (Auto-Tune)</h3>
+                  <div className="p-2 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
+                    <Zap className="w-4 h-4 text-emerald-500" />
+                  </div>
+                  <div>
+                    <h3 className="text-[11px] font-bold text-white uppercase tracking-wider">بهینه‌سازی هوشمند (Auto-Tune)</h3>
+                    <p className="text-[8px] text-slate-500 font-medium">پیدا کردن بهترین استراتژی بر اساس نوسانات لحظه‌ای</p>
+                  </div>
                 </div>
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-xl border border-white/5">
-                    <span className="text-[9px] text-slate-500">تمرکز بر سود حداکثری:</span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex items-center gap-2 bg-white/5 px-2.5 py-1.5 rounded-xl border border-white/5">
+                    <span className="text-[8px] text-slate-500 font-bold uppercase tracking-tight">سود حداکثری:</span>
                     <button 
+                      type="button"
                       onClick={async () => {
                         const newSettings = { 
                           ...settings, 
@@ -810,12 +801,13 @@ export default function Dashboard() {
                           body: JSON.stringify(newSettings)
                         });
                       }}
-                      className={`w-8 h-4 rounded-full transition-colors relative ${settings?.autoTune?.maximizeBigWins ? 'bg-emerald-500' : 'bg-slate-700'}`}
+                      className={`w-7 h-3.5 rounded-full transition-colors relative ${settings?.autoTune?.maximizeBigWins ? 'bg-emerald-500' : 'bg-slate-700'}`}
                     >
-                      <motion.div animate={{ x: settings?.autoTune?.maximizeBigWins ? 16 : 2 }} className="w-3 h-3 bg-white rounded-full absolute top-0.5" />
+                      <motion.div animate={{ x: settings?.autoTune?.maximizeBigWins ? 14 : 2 }} className="w-2.5 h-2.5 bg-white rounded-full absolute top-0.5" />
                     </button>
                   </div>
                   <button 
+                    type="button"
                     onClick={async () => {
                       if (confirm('آیا مطمئن هستید که می‌خواهید تنظیمات را به حالت قبل از آخرین بهینه‌سازی برگردانید؟')) {
                         const res = await fetch('/api/bot/restore-settings', { method: 'POST' });
@@ -827,15 +819,16 @@ export default function Dashboard() {
                         }
                       }
                     }}
-                    className="px-4 py-2 rounded-xl text-[10px] font-bold transition-all bg-slate-800 text-slate-300 hover:bg-slate-700 border border-white/5 flex items-center gap-2"
+                    className="px-3 py-2 rounded-xl text-[9px] font-bold transition-all bg-white/5 text-slate-400 hover:bg-white/10 border border-white/5 flex items-center gap-2"
                   >
                     <RefreshCw className="w-3 h-3" />
-                    بازگشت به تنظیمات قبلی
+                    بازگشت به قبل
                   </button>
                   <button 
+                    type="button"
                     onClick={runAutoTune}
                     disabled={isAutoTuning}
-                    className={`px-4 py-2 rounded-xl text-[10px] font-bold transition-all flex items-center gap-2 ${isAutoTuning ? 'bg-slate-800 text-slate-500 cursor-not-allowed' : 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-lg shadow-emerald-500/20'}`}
+                    className={`px-4 py-2 rounded-xl text-[9px] font-bold transition-all flex items-center gap-2 ${isAutoTuning ? 'bg-slate-800 text-slate-500 cursor-not-allowed' : 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-lg shadow-emerald-500/20'}`}
                   >
                     {isAutoTuning ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
                     {isAutoTuning ? 'در حال بهینه‌سازی...' : 'شروع بهینه‌سازی'}
@@ -845,28 +838,28 @@ export default function Dashboard() {
               
               {autoTuneResults ? (
                 <div className="space-y-4">
-                  <div className="bg-emerald-500/10 p-4 rounded-2xl border border-emerald-500/20 mb-2">
+                  <div className="bg-emerald-500/10 p-3 rounded-xl border border-emerald-500/20 mb-2">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-[10px] text-slate-400 uppercase font-mono">استراتژی پیشنهادی</span>
-                      <span className="text-xs font-black text-emerald-500 bg-emerald-500/20 px-2 py-0.5 rounded-lg">{autoTuneResults.bestStrategy || '---'}</span>
+                      <span className="text-[9px] text-slate-400 uppercase font-mono font-bold tracking-wider">استراتژی پیشنهادی</span>
+                      <span className="text-[10px] font-black text-emerald-500 bg-emerald-500/20 px-2 py-0.5 rounded-lg border border-emerald-500/20">{autoTuneResults.bestStrategy || '---'}</span>
                     </div>
-                    <p className="text-[10px] text-slate-500 leading-relaxed">
-                      بر اساس تحلیل داده‌های اخیر، استراتژی <span className="text-white font-bold">{autoTuneResults.bestStrategy}</span> بیشترین بازدهی را با پارامترهای فعلی بازار داشته است.
+                    <p className="text-[9px] text-slate-400 leading-relaxed font-medium">
+                      بر اساس تحلیل داده‌های اخیر، استراتژی <span className="text-emerald-500 font-bold">{autoTuneResults.bestStrategy}</span> بیشترین بازدهی را با پارامترهای فعلی بازار داشته است.
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="bg-black/20 p-3 rounded-2xl border border-white/5">
-                      <p className="text-[8px] text-slate-500 uppercase mb-1">سود خالص (تیک)</p>
-                      <p className="text-sm font-black text-emerald-500">{autoTuneResults.metrics?.netTicks || 0}</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="bg-black/20 p-2.5 rounded-xl border border-white/5">
+                      <p className="text-[7px] text-slate-500 uppercase mb-1 font-bold tracking-widest">سود خالص (تیک)</p>
+                      <p className="text-xs font-black text-emerald-500">{autoTuneResults.metrics?.netTicks || 0}</p>
                     </div>
-                    <div className="bg-black/20 p-3 rounded-2xl border border-white/5">
-                      <p className="text-[8px] text-slate-500 uppercase mb-1">ضریب سود (PF)</p>
-                      <p className="text-sm font-black text-white">{autoTuneResults.metrics?.profitFactor?.toFixed(2) || 0}</p>
+                    <div className="bg-black/20 p-2.5 rounded-xl border border-white/5">
+                      <p className="text-[7px] text-slate-500 uppercase mb-1 font-bold tracking-widest">ضریب سود (PF)</p>
+                      <p className="text-xs font-black text-white">{autoTuneResults.metrics?.profitFactor?.toFixed(2) || 0}</p>
                     </div>
-                    <div className="bg-black/20 p-3 rounded-2xl border border-white/5">
-                      <p className="text-[8px] text-slate-500 uppercase mb-1">وین ریت (WR)</p>
-                      <p className="text-sm font-black text-emerald-500">{Math.round((autoTuneResults.metrics?.winRate || 0) * 100)}%</p>
+                    <div className="bg-black/20 p-2.5 rounded-xl border border-white/5">
+                      <p className="text-[7px] text-slate-500 uppercase mb-1 font-bold tracking-widest">وین ریت (WR)</p>
+                      <p className="text-xs font-black text-emerald-500">{Math.round((autoTuneResults.metrics?.winRate || 0) * 100)}%</p>
                     </div>
                   </div>
 
@@ -894,7 +887,13 @@ export default function Dashboard() {
                   </div>
                 </div>
               ) : (
-                <p className="text-[10px] text-slate-500 italic text-center py-4">هنوز بهینه‌سازی انجام نشده است. برای پیدا کردن بهترین تنظیمات، دکمه بالا را بزنید.</p>
+                <div className="flex flex-col items-center justify-center py-8 bg-black/20 rounded-xl border border-dashed border-white/5">
+                  <div className="p-3 bg-white/5 rounded-full mb-3">
+                    <Zap className="w-5 h-5 text-slate-600" />
+                  </div>
+                  <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">هنوز بهینه‌سازی انجام نشده است</p>
+                  <p className="text-[8px] text-slate-600 mt-1">برای پیدا کردن بهترین تنظیمات، دکمه بالا را بزنید.</p>
+                </div>
               )}
             </div>
 
@@ -926,7 +925,7 @@ export default function Dashboard() {
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.3 }}
-            className="bg-[#0f0f0f] border border-white/5 rounded-2xl sm:rounded-[2.5rem] p-6 sm:p-8 shadow-2xl"
+            className="bg-[#0f0f0f] border border-white/5 rounded-2xl sm:rounded-3xl p-5 sm:p-6 shadow-2xl"
           >
             <div className="flex justify-between items-center mb-6 sm:mb-8">
               <h2 className="text-[10px] sm:text-xs font-bold text-white uppercase tracking-[0.2em] sm:tracking-[0.3em] flex items-center gap-3">
@@ -1010,7 +1009,7 @@ export default function Dashboard() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
-            className="bg-[#0a0a0a] border border-white/5 rounded-2xl sm:rounded-[2.5rem] p-6 sm:p-8 shadow-2xl overflow-hidden"
+            className="bg-[#0a0a0a] border border-white/5 rounded-xl sm:rounded-3xl p-5 sm:p-6 shadow-2xl overflow-hidden"
           >
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-[10px] sm:text-xs font-bold text-white uppercase tracking-[0.2em] sm:tracking-[0.3em] flex items-center gap-3">
@@ -1070,50 +1069,51 @@ export default function Dashboard() {
               className="absolute inset-0 bg-black/80 backdrop-blur-sm"
             />
             <motion.div 
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative w-full max-w-2xl bg-[#0f0f0f] border border-white/10 rounded-2xl sm:rounded-[3rem] p-6 sm:p-10 shadow-3xl overflow-hidden"
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative w-full max-w-xl bg-[#0f0f0f] border border-white/10 rounded-2xl p-5 sm:p-6 shadow-3xl overflow-hidden"
             >
-              <div className="flex items-center justify-between mb-6 sm:mb-10" dir="rtl">
-                <h2 className="text-lg sm:text-xl font-black text-white flex items-center gap-4">
-                  <Settings className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-500" />
+              <div className="flex items-center justify-between mb-5 sm:mb-6" dir="rtl">
+                <h2 className="text-base sm:text-lg font-black text-white flex items-center gap-3">
+                  <Settings className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-500" />
                   تنظیمات پیشرفته ربات
                 </h2>
-                <button onClick={() => setShowSettings(false)} className="p-2 hover:bg-white/5 rounded-full transition-colors">
-                  <X className="w-5 h-5 sm:w-6 sm:h-6 text-slate-500" />
+                <button onClick={() => setShowSettings(false)} className="p-1.5 hover:bg-white/5 rounded-full transition-colors">
+                  <X className="w-4 h-4 sm:w-5 sm:h-5 text-slate-500" />
                 </button>
               </div>
 
-              <div className="space-y-6 sm:space-y-8 max-h-[70vh] overflow-y-auto pr-2 sm:pr-4 custom-scrollbar" dir="rtl">
+              <div className="space-y-5 sm:space-y-6 max-h-[75vh] overflow-y-auto pr-1 sm:pr-2 custom-scrollbar" dir="rtl">
                 {/* Account & Data Source Selection */}
                 <section>
-                  <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-3">
-                    <Lock className="w-4 h-4" /> مدیریت حساب‌ها (Multi-Account)
-                  </h3>
+                  <h2 className="text-[10px] sm:text-xs font-bold text-white uppercase tracking-[0.2em] sm:tracking-[0.3em] flex items-center gap-3 mb-5">
+                    <Lock className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-500" />
+                    مدیریت حساب‌ها (Multi-Account)
+                  </h2>
                   
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     {/* Account List */}
                     {Object.values(settings.api?.accounts || {}).map((acc: any) => (
                       <div 
                         key={acc.username}
-                        className={`p-4 rounded-3xl border transition-all cursor-pointer relative group ${settings.api.activeAccountId === acc.username ? 'bg-emerald-500/10 border-emerald-500/50' : 'bg-white/5 border-white/5 hover:border-white/10'}`}
+                        className={`p-3 rounded-xl border transition-all cursor-pointer relative group ${settings.api.activeAccountId === acc.username ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-white/5 border-white/5 hover:border-white/10'}`}
                         onClick={() => setSettings({ ...settings, api: { ...settings.api, activeAccountId: acc.username } })}
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
-                            <div className={`p-2 rounded-xl ${acc.type === 'real' ? 'bg-rose-500/20 text-rose-500' : 'bg-emerald-500/20 text-emerald-500'}`}>
-                              <ShieldAlert className="w-5 h-5" />
+                            <div className={`p-2 rounded-lg ${acc.type === 'real' ? 'bg-rose-500/20 text-rose-500' : 'bg-emerald-500/20 text-emerald-500'}`}>
+                              <ShieldAlert className="w-4 h-4" />
                             </div>
                             <div>
-                              <p className="text-sm font-bold text-white">{acc.username}</p>
-                              <p className="text-[10px] text-slate-500">{acc.type === 'real' ? 'حساب واقعی' : 'حساب دمو'}</p>
+                              <p className="text-xs font-bold text-white">{acc.username}</p>
+                              <p className="text-[9px] text-slate-500 font-mono uppercase tracking-wider">{acc.type === 'real' ? 'حساب واقعی' : 'حساب دمو'}</p>
                             </div>
                           </div>
                           <div className="flex items-center gap-3">
                             {settings.api.activeAccountId === acc.username && (
-                              <div className="flex items-center gap-2 text-emerald-500 text-[10px] font-bold">
-                                <CheckCircle2 className="w-4 h-4" /> فعال
+                              <div className="flex items-center gap-1.5 text-emerald-500 text-[9px] font-bold uppercase tracking-wider">
+                                <CheckCircle2 className="w-3.5 h-3.5" /> فعال
                               </div>
                             )}
                             <button 
@@ -1127,9 +1127,9 @@ export default function Dashboard() {
                                 }
                                 setSettings({ ...settings, api: { ...settings.api, accounts: newAccounts, activeAccountId: newActive } });
                               }}
-                              className="p-2 text-slate-500 hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100"
+                              className="p-1.5 text-slate-500 hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
                         </div>
@@ -1139,9 +1139,9 @@ export default function Dashboard() {
                     {/* Add New Account Button */}
                     <button 
                       onClick={() => setShowAddAccount(!showAddAccount)}
-                      className="w-full py-4 rounded-3xl border border-dashed border-white/10 hover:border-white/20 hover:bg-white/5 transition-all text-slate-400 text-sm flex items-center justify-center gap-2"
+                      className="w-full py-3 rounded-xl border border-dashed border-white/10 hover:border-white/20 hover:bg-white/5 transition-all text-slate-400 text-[10px] font-bold uppercase tracking-widest flex items-center justify-center gap-2"
                     >
-                      <Plus className="w-4 h-4" /> افزودن حساب جدید
+                      <Plus className="w-3.5 h-3.5" /> افزودن حساب جدید
                     </button>
 
                     <AnimatePresence>
@@ -1152,17 +1152,17 @@ export default function Dashboard() {
                           exit={{ opacity: 0, height: 0 }}
                           className="overflow-hidden"
                         >
-                          <div className="p-5 rounded-3xl bg-white/5 border border-white/10 space-y-4 mt-2">
+                          <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-4 mt-2">
                             <div className="flex items-center justify-between mb-2">
-                              <span className="text-xs font-bold text-white">ورود به حساب جدید</span>
-                              <div className="flex bg-black/20 p-1 rounded-xl">
+                              <span className="text-[10px] font-bold text-white uppercase tracking-widest">ورود به حساب جدید</span>
+                              <div className="flex bg-black/20 p-1 rounded-lg">
                                 <button 
                                   onClick={() => setNewAccountType('real')}
-                                  className={`px-3 py-1 rounded-lg text-[10px] transition-all ${newAccountType === 'real' ? 'bg-rose-500 text-white' : 'text-slate-500'}`}
+                                  className={`px-3 py-1 rounded-md text-[9px] font-bold transition-all ${newAccountType === 'real' ? 'bg-rose-500 text-white' : 'text-slate-500'}`}
                                 >ریل</button>
                                 <button 
                                   onClick={() => setNewAccountType('demo')}
-                                  className={`px-3 py-1 rounded-lg text-[10px] transition-all ${newAccountType === 'demo' ? 'bg-emerald-500 text-white' : 'text-slate-500'}`}
+                                  className={`px-3 py-1 rounded-md text-[9px] font-bold transition-all ${newAccountType === 'demo' ? 'bg-emerald-500 text-white' : 'text-slate-500'}`}
                                 >دمو</button>
                               </div>
                             </div>
@@ -1178,36 +1178,11 @@ export default function Dashboard() {
                     </AnimatePresence>
                   </div>
 
-                  {/* Active Account CSRF Token */}
-                  {settings.api?.activeAccountId && settings.api?.accounts?.[settings.api.activeAccountId] && (
-                    <div className="mt-4 p-5 rounded-3xl bg-white/5 border border-white/5 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <label className="text-[9px] text-slate-500 uppercase font-mono block">CSRF Token (حساب فعال: {settings.api.activeAccountId})</label>
-                        <div className={`px-2 py-0.5 rounded-md text-[8px] font-bold ${settings.api.accounts[settings.api.activeAccountId].type === 'real' ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'}`}>
-                          {settings.api.accounts[settings.api.activeAccountId].type === 'real' ? 'REAL' : 'DEMO'}
-                        </div>
-                      </div>
-                      <input
-                        type="text"
-                        value={settings.api.accounts[settings.api.activeAccountId].csrftoken || ''}
-                        onChange={(e) => {
-                          const newSettings = { ...settings };
-                          newSettings.api.accounts[settings.api.activeAccountId].csrftoken = e.target.value;
-                          setSettings(newSettings);
-                          axios.post('/api/bot/settings', newSettings);
-                        }}
-                        className="w-full bg-black/20 border border-white/5 rounded-2xl px-5 py-3 text-sm text-slate-200 outline-none focus:border-emerald-500/50 transition-all text-left font-mono"
-                        placeholder="توکن CSRF را اینجا وارد کنید"
-                        dir="ltr"
-                      />
-                      <p className="text-[8px] text-slate-500 text-center">این توکن برای تایید تراکنش‌ها در فرازگلد الزامی است.</p>
-                    </div>
-                  )}
 
-                  <div className="mt-4 space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
+                  <div className="mt-4 space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">تایم فریم</label>
+                        <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">تایم فریم</label>
                         <select 
                           value={settings.timeframe?.value || 60}
                           onChange={(e) => {
@@ -1215,7 +1190,7 @@ export default function Dashboard() {
                             const label = e.target.options[e.target.selectedIndex].text;
                             setSettings({ ...settings, timeframe: { value: val, label } });
                           }}
-                          className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm text-slate-200 outline-none focus:border-emerald-500/50 transition-all appearance-none"
+                          className="w-full bg-white/5 border border-white/5 rounded-xl px-4 py-2.5 text-xs text-slate-200 outline-none focus:border-emerald-500/50 transition-all appearance-none font-bold"
                         >
                           <option value="1">۱ ثانیه</option>
                           <option value="2">۲ ثانیه</option>
@@ -1235,16 +1210,16 @@ export default function Dashboard() {
                         </select>
                       </div>
                       <div>
-                        <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">وضعیت اتصال</label>
-                        <div className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm text-emerald-500 flex items-center gap-2">
+                        <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">وضعیت اتصال</label>
+                        <div className="w-full bg-white/5 border border-white/5 rounded-xl px-4 py-2.5 text-[10px] text-emerald-500 flex items-center gap-2 font-bold">
                           {botState?.isConnected ? (
                             <>
-                              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                               متصل ({settings.api?.accounts?.[settings.api?.activeAccountId]?.type?.toUpperCase() || 'NONE'})
                             </>
                           ) : (
                             <>
-                              <div className="w-2 h-2 rounded-full bg-rose-500" />
+                              <div className="w-1.5 h-1.5 rounded-full bg-rose-500" />
                               قطع / در حال اتصال...
                             </>
                           )}
@@ -1258,44 +1233,45 @@ export default function Dashboard() {
 
                 {/* SCALP Strategy Advanced Filters */}
                 {settings.activeStrategy === 'SCALP' && (
-                  <section className="border-t border-white/5 pt-8">
-                    <div className="flex items-center justify-between mb-6">
+                  <section className="border-t border-white/5 pt-6">
+                    <div className="flex items-center justify-between mb-5">
                       <div className="flex flex-col">
-                        <h3 className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest flex items-center gap-3">
-                          <ShieldCheck className="w-4 h-4" /> فیلترهای تاییدیه پیشرفته (SCALP)
-                        </h3>
-                        <p className="text-[9px] text-slate-500 mt-1">تاییدیه چندگانه برای ورود دقیق‌تر</p>
+                        <h2 className="text-[10px] sm:text-xs font-bold text-white uppercase tracking-[0.2em] sm:tracking-[0.3em] flex items-center gap-3">
+                          <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-500" />
+                          فیلترهای تاییدیه پیشرفته (SCALP)
+                        </h2>
+                        <p className="text-[8px] text-slate-500 mt-1 font-mono uppercase tracking-wider">تاییدیه چندگانه برای ورود دقیق‌تر</p>
                       </div>
-                      <span className="text-[8px] bg-emerald-500/10 text-emerald-500 px-2 py-1 rounded-md font-bold border border-emerald-500/20">PRO VERSION</span>
+                      <span className="text-[7px] bg-emerald-500/10 text-emerald-500 px-2 py-1 rounded-md font-bold border border-emerald-500/20 uppercase tracking-widest">PRO VERSION</span>
                     </div>
 
-                    <div className="mb-6 bg-white/5 p-4 sm:p-5 rounded-2xl border border-white/5">
-                      <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">حالت معامله (Trading Mode)</label>
+                    <div className="mb-5 bg-white/5 p-4 rounded-xl border border-white/5">
+                      <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">حالت معامله (Trading Mode)</label>
                       <select 
                         value={settings.strategy?.scalp?.mode || 'NORMAL'}
                         onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, scalp: { ...settings.strategy?.scalp, mode: e.target.value } } })}
-                        className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-emerald-500/50 transition-colors"
+                        className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2.5 text-xs text-white outline-none focus:border-emerald-500/50 transition-colors font-bold"
                       >
                         <option value="PRECISION" className="bg-[#0f0f0f]">دقت بسیار بالا (بدون اشتباه، معاملات کم) 💎</option>
                         <option value="NORMAL" className="bg-[#0f0f0f]">دقت بالا (استاندارد) ⚖️</option>
                         <option value="AGGRESSIVE" className="bg-[#0f0f0f]">تهاجمی (معاملات بیشتر) 🔥</option>
                       </select>
-                      <p className="text-[9px] text-slate-400 mt-2 leading-relaxed">
-                        با انتخاب حالت <span className="text-emerald-500 font-bold">دقت بسیار بالا</span>، ربات تنها در شرایطی وارد معامله می‌شود که تمامی فیلترها و تاییدیه‌ها هم‌جهت باشند (مشابه استراتژی HST).
+                      <p className="text-[8px] text-slate-400 mt-2 leading-relaxed font-mono uppercase tracking-tight">
+                        با انتخاب حالت <span className="text-emerald-500 font-bold">دقت بسیار بالا</span>، ربات تنها در شرایطی وارد معامله می‌شود که تمامی فیلترها و تاییدیه‌ها هم‌جهت باشند.
                       </p>
                     </div>
                     
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {/* RSI Filter */}
-                      <div className={`p-4 rounded-2xl border transition-all duration-300 ${settings.strategy?.scalp?.useRsiFilter ? 'bg-emerald-500/5 border-emerald-500/30' : 'bg-white/5 border-white/5'}`}>
-                        <div className="flex items-center justify-between mb-4">
+                      <div className={`p-3 rounded-xl border transition-all duration-300 ${settings.strategy?.scalp?.useRsiFilter ? 'bg-emerald-500/5 border-emerald-500/30' : 'bg-white/5 border-white/5'}`}>
+                        <div className="flex items-center justify-between mb-3">
                           <div className="flex items-center gap-3">
-                            <div className={`p-2 rounded-xl transition-colors ${settings.strategy?.scalp?.useRsiFilter ? 'bg-emerald-500/20 text-emerald-500' : 'bg-blue-500/10 text-blue-500'}`}>
-                              <Target className="w-4 h-4" />
+                            <div className={`p-2 rounded-lg transition-colors ${settings.strategy?.scalp?.useRsiFilter ? 'bg-emerald-500/20 text-emerald-500' : 'bg-blue-500/10 text-blue-500'}`}>
+                              <Target className="w-3.5 h-3.5" />
                             </div>
                             <div>
-                              <span className="text-sm font-bold text-white block">تاییدیه RSI</span>
-                              <span className="text-[9px] text-slate-500">اشباع خرید/فروش</span>
+                              <span className="text-xs font-bold text-white block">تاییدیه RSI</span>
+                              <span className="text-[8px] text-slate-500 font-mono uppercase tracking-wider">اشباع خرید/فروش</span>
                             </div>
                           </div>
                           <button 
@@ -1306,11 +1282,11 @@ export default function Dashboard() {
                                 scalp: { ...settings.strategy?.scalp, useRsiFilter: !settings.strategy?.scalp?.useRsiFilter } 
                               } 
                             })}
-                            className={`w-12 h-6 rounded-full transition-all relative ${settings.strategy?.scalp?.useRsiFilter ? 'bg-emerald-500' : 'bg-slate-700'}`}
+                            className={`w-10 h-5 rounded-full transition-all relative ${settings.strategy?.scalp?.useRsiFilter ? 'bg-emerald-500' : 'bg-slate-700'}`}
                           >
                             <motion.div 
-                              animate={{ x: settings.strategy?.scalp?.useRsiFilter ? 26 : 4 }}
-                              className="absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm"
+                              animate={{ x: settings.strategy?.scalp?.useRsiFilter ? 22 : 2 }}
+                              className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm"
                             />
                           </button>
                         </div>
@@ -1337,15 +1313,15 @@ export default function Dashboard() {
                                   <div className="flex items-center gap-1">
                                     <input 
                                       type="number" 
-                                      value={settings.strategy?.scalp?.rsiLow || 30}
-                                      onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, scalp: { ...settings.strategy.scalp, rsiLow: parseInt(e.target.value) } } })}
+                                      value={settings.strategy?.scalp?.rsiOversold || 40}
+                                      onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, scalp: { ...settings.strategy.scalp, rsiOversold: parseInt(e.target.value) } } })}
                                       className="w-full bg-black/20 border border-white/5 rounded-lg px-2 py-1 text-[10px] outline-none"
                                     />
                                     <span className="text-[8px] text-slate-600">/</span>
                                     <input 
                                       type="number" 
-                                      value={settings.strategy?.scalp?.rsiHigh || 70}
-                                      onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, scalp: { ...settings.strategy.scalp, rsiHigh: parseInt(e.target.value) } } })}
+                                      value={settings.strategy?.scalp?.rsiOverbought || 60}
+                                      onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, scalp: { ...settings.strategy.scalp, rsiOverbought: parseInt(e.target.value) } } })}
                                       className="w-full bg-black/20 border border-white/5 rounded-lg px-2 py-1 text-[10px] outline-none"
                                     />
                                   </div>
@@ -1356,7 +1332,7 @@ export default function Dashboard() {
                         </AnimatePresence>
                       </div>
 
-                      {/* EMA Trend Filter */}
+                      {/* EMA Fast/Slow Filter */}
                       <div className={`p-4 rounded-2xl border transition-all duration-300 ${settings.strategy?.scalp?.useEmaFilter ? 'bg-emerald-500/5 border-emerald-500/30' : 'bg-white/5 border-white/5'}`}>
                         <div className="flex items-center justify-between mb-4">
                           <div className="flex items-center gap-3">
@@ -1364,8 +1340,8 @@ export default function Dashboard() {
                               <TrendingUp className="w-4 h-4" />
                             </div>
                             <div>
-                              <span className="text-sm font-bold text-white block">فیلتر روند EMA</span>
-                              <span className="text-[9px] text-slate-500">معامله در جهت روند</span>
+                              <span className="text-sm font-bold text-white block">میانگین‌های متحرک (EMA)</span>
+                              <span className="text-[9px] text-slate-500">تشخیص روند سریع و کند</span>
                             </div>
                           </div>
                           <button 
@@ -1392,14 +1368,34 @@ export default function Dashboard() {
                               exit={{ height: 0, opacity: 0 }}
                               className="overflow-hidden"
                             >
-                              <div className="pt-2 border-t border-white/5">
-                                <label className="text-[8px] text-slate-500 uppercase block mb-1">دوره میانگین متحرک (EMA)</label>
-                                <input 
-                                  type="number" 
-                                  value={settings.strategy?.scalp?.emaPeriod || 200}
-                                  onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, scalp: { ...settings.strategy.scalp, emaPeriod: parseInt(e.target.value) } } })}
-                                  className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-1.5 text-[10px] outline-none focus:border-emerald-500/50"
-                                />
+                              <div className="grid grid-cols-2 gap-3 pt-2 border-t border-white/5">
+                                <div>
+                                  <label className="text-[8px] text-slate-500 uppercase block mb-1">EMA سریع</label>
+                                  <input 
+                                    type="number" 
+                                    value={settings.strategy?.scalp?.emaFast || 9}
+                                    onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, scalp: { ...settings.strategy.scalp, emaFast: parseInt(e.target.value) } } })}
+                                    className="w-full bg-black/20 border border-white/5 rounded-lg px-2 py-1 text-[10px] outline-none focus:border-emerald-500/50"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[8px] text-slate-500 uppercase block mb-1">EMA کند</label>
+                                  <input 
+                                    type="number" 
+                                    value={settings.strategy?.scalp?.emaSlow || 21}
+                                    onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, scalp: { ...settings.strategy.scalp, emaSlow: parseInt(e.target.value) } } })}
+                                    className="w-full bg-black/20 border border-white/5 rounded-lg px-2 py-1 text-[10px] outline-none focus:border-emerald-500/50"
+                                  />
+                                </div>
+                                <div className="col-span-2">
+                                  <label className="text-[8px] text-slate-500 uppercase block mb-1">فیلتر روند بلندمدت (EMA)</label>
+                                  <input 
+                                    type="number" 
+                                    value={settings.strategy?.scalp?.emaPeriod || 200}
+                                    onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, scalp: { ...settings.strategy.scalp, emaPeriod: parseInt(e.target.value) } } })}
+                                    className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-1.5 text-[10px] outline-none focus:border-emerald-500/50"
+                                  />
+                                </div>
                               </div>
                             </motion.div>
                           )}
@@ -1585,8 +1581,38 @@ export default function Dashboard() {
                             />
                           </button>
                         </div>
+                      </div>
+
+                      {/* ADX Filter */}
+                      <div className={`p-3 rounded-xl border transition-all duration-300 ${settings.strategy?.scalp?.useAdxFilter ? 'bg-emerald-500/5 border-emerald-500/30' : 'bg-white/5 border-white/5'}`}>
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <div className={`p-2 rounded-lg transition-colors ${settings.strategy?.scalp?.useAdxFilter ? 'bg-emerald-500/20 text-emerald-500' : 'bg-orange-500/10 text-orange-500'}`}>
+                              <TrendingUp className="w-3.5 h-3.5" />
+                            </div>
+                            <div>
+                              <span className="text-xs font-bold text-white block">قدرت روند (ADX)</span>
+                              <span className="text-[8px] text-slate-500 font-mono uppercase tracking-wider">فیلتر بازارهای ضعیف</span>
+                            </div>
+                          </div>
+                          <button 
+                            onClick={() => setSettings({ 
+                              ...settings, 
+                              strategy: { 
+                                ...settings.strategy, 
+                                scalp: { ...settings.strategy?.scalp, useAdxFilter: !settings.strategy?.scalp?.useAdxFilter } 
+                              } 
+                            })}
+                            className={`w-10 h-5 rounded-full transition-all relative ${settings.strategy?.scalp?.useAdxFilter ? 'bg-emerald-500' : 'bg-slate-700'}`}
+                          >
+                            <motion.div 
+                              animate={{ x: settings.strategy?.scalp?.useAdxFilter ? 22 : 2 }}
+                              className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm"
+                            />
+                          </button>
+                        </div>
                         <AnimatePresence>
-                          {settings.strategy?.scalp?.useMomentumFilter && (
+                          {settings.strategy?.scalp?.useAdxFilter && (
                             <motion.div 
                               initial={{ height: 0, opacity: 0 }}
                               animate={{ height: 'auto', opacity: 1 }}
@@ -1594,36 +1620,149 @@ export default function Dashboard() {
                               className="overflow-hidden"
                             >
                               <div className="pt-2 border-t border-white/5">
-                                <label className="text-[8px] text-slate-500 uppercase block mb-1">حساسیت مومنتوم (1-100)</label>
+                                <label className="text-[8px] text-slate-500 uppercase block mb-1.5 font-mono tracking-widest">آستانه ADX</label>
                                 <input 
-                                  type="range" 
-                                  min="1"
-                                  max="100"
-                                  value={settings.strategy?.scalp?.momentumSensitivity || 50}
-                                  onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, scalp: { ...settings.strategy.scalp, momentumSensitivity: parseInt(e.target.value) } } })}
-                                  className="w-full accent-emerald-500 h-1 bg-white/10 rounded-lg appearance-none cursor-pointer"
+                                  type="number" 
+                                  value={settings.strategy?.scalp?.adxThreshold || 20}
+                                  onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, scalp: { ...settings.strategy.scalp, adxThreshold: parseInt(e.target.value) } } })}
+                                  className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-[10px] text-white outline-none focus:border-emerald-500/50 font-bold"
                                 />
-                                <div className="flex justify-between mt-1">
-                                  <span className="text-[7px] text-slate-600">کم</span>
-                                  <span className="text-[8px] text-emerald-500 font-bold">{settings.strategy?.scalp?.momentumSensitivity || 50}%</span>
-                                  <span className="text-[7px] text-slate-600">زیاد</span>
-                                </div>
                               </div>
                             </motion.div>
                           )}
                         </AnimatePresence>
                       </div>
 
-                      {/* MTF Filter */}
-                      <div className={`p-4 rounded-2xl border transition-all duration-300 sm:col-span-2 ${settings.strategy?.scalp?.useMtfFilter ? 'bg-emerald-500/5 border-emerald-500/30' : 'bg-white/5 border-white/5'}`}>
-                        <div className="flex items-center justify-between mb-4">
+                      {/* Stochastic Filter */}
+                      <div className={`p-3 rounded-xl border transition-all duration-300 ${settings.strategy?.scalp?.useStochFilter ? 'bg-emerald-500/5 border-emerald-500/30' : 'bg-white/5 border-white/5'}`}>
+                        <div className="flex items-center justify-between mb-3">
                           <div className="flex items-center gap-3">
-                            <div className={`p-2 rounded-xl transition-colors ${settings.strategy?.scalp?.useMtfFilter ? 'bg-emerald-500/20 text-emerald-500' : 'bg-indigo-500/10 text-indigo-500'}`}>
-                              <Layers className="w-4 h-4" />
+                            <div className={`p-2 rounded-lg transition-colors ${settings.strategy?.scalp?.useStochFilter ? 'bg-emerald-500/20 text-emerald-500' : 'bg-yellow-500/10 text-yellow-500'}`}>
+                              <Activity className="w-3.5 h-3.5" />
                             </div>
                             <div>
-                              <span className="text-sm font-bold text-white block">تاییدیه ۵ دقیقه (MTF)</span>
-                              <span className="text-[9px] text-slate-500">هماهنگی روند در تایم‌فریم بالاتر</span>
+                              <span className="text-xs font-bold text-white block">فیلتر استوکاستیک</span>
+                              <span className="text-[8px] text-slate-500 font-mono uppercase tracking-wider">تاییدیه اشباع خرید/فروش</span>
+                            </div>
+                          </div>
+                          <button 
+                            onClick={() => setSettings({ 
+                              ...settings, 
+                              strategy: { 
+                                ...settings.strategy, 
+                                scalp: { ...settings.strategy?.scalp, useStochFilter: !settings.strategy?.scalp?.useStochFilter } 
+                              } 
+                            })}
+                            className={`w-10 h-5 rounded-full transition-all relative ${settings.strategy?.scalp?.useStochFilter ? 'bg-emerald-500' : 'bg-slate-700'}`}
+                          >
+                            <motion.div 
+                              animate={{ x: settings.strategy?.scalp?.useStochFilter ? 22 : 2 }}
+                              className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm"
+                            />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* MACD Filter */}
+                      <div className={`p-3 rounded-xl border transition-all duration-300 ${settings.strategy?.scalp?.useMacdFilter ? 'bg-emerald-500/5 border-emerald-500/30' : 'bg-white/5 border-white/5'}`}>
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <div className={`p-2 rounded-lg transition-colors ${settings.strategy?.scalp?.useMacdFilter ? 'bg-emerald-500/20 text-emerald-500' : 'bg-blue-500/10 text-blue-500'}`}>
+                              <BarChart3 className="w-3.5 h-3.5" />
+                            </div>
+                            <div>
+                              <span className="text-xs font-bold text-white block">فیلتر MACD</span>
+                              <span className="text-[8px] text-slate-500 font-mono uppercase tracking-wider">تاییدیه هیستوگرام</span>
+                            </div>
+                          </div>
+                          <button 
+                            onClick={() => setSettings({ 
+                              ...settings, 
+                              strategy: { 
+                                ...settings.strategy, 
+                                scalp: { ...settings.strategy?.scalp, useMacdFilter: !settings.strategy?.scalp?.useMacdFilter } 
+                              } 
+                            })}
+                            className={`w-10 h-5 rounded-full transition-all relative ${settings.strategy?.scalp?.useMacdFilter ? 'bg-emerald-500' : 'bg-slate-700'}`}
+                          >
+                            <motion.div 
+                              animate={{ x: settings.strategy?.scalp?.useMacdFilter ? 22 : 2 }}
+                              className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm"
+                            />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Bollinger Bands Filter */}
+                      <div className={`p-3 rounded-xl border transition-all duration-300 ${settings.strategy?.scalp?.useBbFilter ? 'bg-emerald-500/5 border-emerald-500/30' : 'bg-white/5 border-white/5'}`}>
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <div className={`p-2 rounded-lg transition-colors ${settings.strategy?.scalp?.useBbFilter ? 'bg-emerald-500/20 text-emerald-500' : 'bg-pink-500/10 text-pink-500'}`}>
+                              <CircleDot className="w-3.5 h-3.5" />
+                            </div>
+                            <div>
+                              <span className="text-xs font-bold text-white block">باندهای بولینگر</span>
+                              <span className="text-[8px] text-slate-500 font-mono uppercase tracking-wider">فیلتر محدوده قیمت</span>
+                            </div>
+                          </div>
+                          <button 
+                            onClick={() => setSettings({ 
+                              ...settings, 
+                              strategy: { 
+                                ...settings.strategy, 
+                                scalp: { ...settings.strategy?.scalp, useBbFilter: !settings.strategy?.scalp?.useBbFilter } 
+                              } 
+                            })}
+                            className={`w-10 h-5 rounded-full transition-all relative ${settings.strategy?.scalp?.useBbFilter ? 'bg-emerald-500' : 'bg-slate-700'}`}
+                          >
+                            <motion.div 
+                              animate={{ x: settings.strategy?.scalp?.useBbFilter ? 22 : 2 }}
+                              className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm"
+                            />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Candle Pattern Filter */}
+                      <div className={`p-3 rounded-xl border transition-all duration-300 ${settings.strategy?.scalp?.useCandleFilter ? 'bg-emerald-500/5 border-emerald-500/30' : 'bg-white/5 border-white/5'}`}>
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <div className={`p-2 rounded-lg transition-colors ${settings.strategy?.scalp?.useCandleFilter ? 'bg-emerald-500/20 text-emerald-500' : 'bg-violet-500/10 text-violet-500'}`}>
+                              <Layout className="w-3.5 h-3.5" />
+                            </div>
+                            <div>
+                              <span className="text-xs font-bold text-white block">الگوهای کندلی</span>
+                              <span className="text-[8px] text-slate-500 font-mono uppercase tracking-wider">تاییدیه پرایس اکشن</span>
+                            </div>
+                          </div>
+                          <button 
+                            onClick={() => setSettings({ 
+                              ...settings, 
+                              strategy: { 
+                                ...settings.strategy, 
+                                scalp: { ...settings.strategy?.scalp, useCandleFilter: !settings.strategy?.scalp?.useCandleFilter } 
+                              } 
+                            })}
+                            className={`w-10 h-5 rounded-full transition-all relative ${settings.strategy?.scalp?.useCandleFilter ? 'bg-emerald-500' : 'bg-slate-700'}`}
+                          >
+                            <motion.div 
+                              animate={{ x: settings.strategy?.scalp?.useCandleFilter ? 22 : 2 }}
+                              className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm"
+                            />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* MTF Filter */}
+                      <div className={`p-3 rounded-xl border transition-all duration-300 sm:col-span-2 ${settings.strategy?.scalp?.useMtfFilter ? 'bg-emerald-500/5 border-emerald-500/30' : 'bg-white/5 border-white/5'}`}>
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <div className={`p-2 rounded-lg transition-colors ${settings.strategy?.scalp?.useMtfFilter ? 'bg-emerald-500/20 text-emerald-500' : 'bg-indigo-500/10 text-indigo-500'}`}>
+                              <Layers className="w-3.5 h-3.5" />
+                            </div>
+                            <div>
+                              <span className="text-xs font-bold text-white block">تاییدیه روند (MTF)</span>
+                              <span className="text-[8px] text-slate-500 font-mono uppercase tracking-wider">هماهنگی روند در تایم‌فریم {settings.strategy?.scalp?.mtfTimeframe || '5M'}</span>
                             </div>
                           </div>
                           <button 
@@ -1634,11 +1773,11 @@ export default function Dashboard() {
                                 scalp: { ...settings.strategy?.scalp, useMtfFilter: !settings.strategy?.scalp?.useMtfFilter } 
                               } 
                             })}
-                            className={`w-12 h-6 rounded-full transition-all relative ${settings.strategy?.scalp?.useMtfFilter ? 'bg-emerald-500' : 'bg-slate-700'}`}
+                            className={`w-10 h-5 rounded-full transition-all relative ${settings.strategy?.scalp?.useMtfFilter ? 'bg-emerald-500' : 'bg-slate-700'}`}
                           >
                             <motion.div 
-                              animate={{ x: settings.strategy?.scalp?.useMtfFilter ? 26 : 4 }}
-                              className="absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm"
+                              animate={{ x: settings.strategy?.scalp?.useMtfFilter ? 22 : 2 }}
+                              className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm"
                             />
                           </button>
                         </div>
@@ -1651,17 +1790,138 @@ export default function Dashboard() {
                               className="overflow-hidden"
                             >
                               <div className="pt-2 border-t border-white/5 flex items-center justify-between">
-                                <span className="text-[10px] text-slate-300">تایم‌فریم مرجع:</span>
-                                <div className="flex gap-2">
+                                <span className="text-[9px] text-slate-400 font-mono uppercase tracking-widest">تایم‌فریم مرجع:</span>
+                                <div className="flex gap-1.5">
                                   {['5M', '15M', '1H'].map(tf => (
                                     <button 
                                       key={tf}
                                       onClick={() => setSettings({ ...settings, strategy: { ...settings.strategy, scalp: { ...settings.strategy.scalp, mtfTimeframe: tf } } })}
-                                      className={`px-3 py-1 rounded-lg text-[9px] font-bold transition-all ${settings.strategy?.scalp?.mtfTimeframe === tf ? 'bg-emerald-500 text-white' : 'bg-white/5 text-slate-500'}`}
+                                      className={`px-3 py-1 rounded-md text-[9px] font-bold transition-all ${settings.strategy?.scalp?.mtfTimeframe === tf ? 'bg-emerald-500 text-white' : 'bg-white/5 text-slate-500 hover:text-white'}`}
                                     >
                                       {tf}
                                     </button>
                                   ))}
+                                </div>
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+
+                      {/* Divergence Filter */}
+                      <div className={`p-3 rounded-xl border transition-all duration-300 ${settings.strategy?.scalp?.useDivergenceFilter ? 'bg-emerald-500/5 border-emerald-500/30' : 'bg-white/5 border-white/5'}`}>
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <div className={`p-2 rounded-lg transition-colors ${settings.strategy?.scalp?.useDivergenceFilter ? 'bg-emerald-500/20 text-emerald-500' : 'bg-orange-500/10 text-orange-500'}`}>
+                              <Target className="w-3.5 h-3.5" />
+                            </div>
+                            <div>
+                              <span className="text-xs font-bold text-white block">فیلتر واگرایی (Divergence)</span>
+                              <span className="text-[8px] text-slate-500 font-mono uppercase tracking-wider">تشخیص بازگشت‌های احتمالی</span>
+                            </div>
+                          </div>
+                          <button 
+                            onClick={() => setSettings({ 
+                              ...settings, 
+                              strategy: { 
+                                ...settings.strategy, 
+                                scalp: { ...settings.strategy?.scalp, useDivergenceFilter: !settings.strategy?.scalp?.useDivergenceFilter } 
+                              } 
+                            })}
+                            className={`w-10 h-5 rounded-full transition-all relative ${settings.strategy?.scalp?.useDivergenceFilter ? 'bg-emerald-500' : 'bg-slate-700'}`}
+                          >
+                            <motion.div 
+                              animate={{ x: settings.strategy?.scalp?.useDivergenceFilter ? 22 : 2 }}
+                              className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm"
+                            />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Order Block Filter */}
+                      <div className={`p-3 rounded-xl border transition-all duration-300 ${settings.strategy?.scalp?.useOrderBlockFilter ? 'bg-emerald-500/5 border-emerald-500/30' : 'bg-white/5 border-white/5'}`}>
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <div className={`p-2 rounded-lg transition-colors ${settings.strategy?.scalp?.useOrderBlockFilter ? 'bg-emerald-500/20 text-emerald-500' : 'bg-blue-500/10 text-blue-500'}`}>
+                              <Layers className="w-3.5 h-3.5" />
+                            </div>
+                            <div>
+                              <span className="text-xs font-bold text-white block">نواحی نقدینگی (OB)</span>
+                              <span className="text-[8px] text-slate-500 font-mono uppercase tracking-wider">تاییدیه اوردربلاک‌ها</span>
+                            </div>
+                          </div>
+                          <button 
+                            onClick={() => setSettings({ 
+                              ...settings, 
+                              strategy: { 
+                                ...settings.strategy, 
+                                scalp: { ...settings.strategy?.scalp, useOrderBlockFilter: !settings.strategy?.scalp?.useOrderBlockFilter } 
+                              } 
+                            })}
+                            className={`w-10 h-5 rounded-full transition-all relative ${settings.strategy?.scalp?.useOrderBlockFilter ? 'bg-emerald-500' : 'bg-slate-700'}`}
+                          >
+                            <motion.div 
+                              animate={{ x: settings.strategy?.scalp?.useOrderBlockFilter ? 22 : 2 }}
+                              className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm"
+                            />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Session Filter */}
+                      <div className={`p-3 rounded-xl border transition-all duration-300 sm:col-span-2 ${settings.strategy?.scalp?.useSessionFilter ? 'bg-emerald-500/5 border-emerald-500/30' : 'bg-white/5 border-white/5'}`}>
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <div className={`p-2 rounded-lg transition-colors ${settings.strategy?.scalp?.useSessionFilter ? 'bg-emerald-500/20 text-emerald-500' : 'bg-amber-500/10 text-amber-500'}`}>
+                              <Clock className="w-3.5 h-3.5" />
+                            </div>
+                            <div>
+                              <span className="text-xs font-bold text-white block">فیلتر زمانی (Session)</span>
+                              <span className="text-[8px] text-slate-500 font-mono uppercase tracking-wider">ترید فقط در ساعات مشخص</span>
+                            </div>
+                          </div>
+                          <button 
+                            onClick={() => setSettings({ 
+                              ...settings, 
+                              strategy: { 
+                                ...settings.strategy, 
+                                scalp: { ...settings.strategy?.scalp, useSessionFilter: !settings.strategy?.scalp?.useSessionFilter } 
+                              } 
+                            })}
+                            className={`w-10 h-5 rounded-full transition-all relative ${settings.strategy?.scalp?.useSessionFilter ? 'bg-emerald-500' : 'bg-slate-700'}`}
+                          >
+                            <motion.div 
+                              animate={{ x: settings.strategy?.scalp?.useSessionFilter ? 22 : 2 }}
+                              className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm"
+                            />
+                          </button>
+                        </div>
+                        <AnimatePresence>
+                          {settings.strategy?.scalp?.useSessionFilter && (
+                            <motion.div 
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              className="overflow-hidden"
+                            >
+                              <div className="pt-2 border-t border-white/5 grid grid-cols-2 gap-3">
+                                <div>
+                                  <label className="text-[8px] text-slate-500 uppercase block mb-1.5 font-mono tracking-widest">شروع جلسه</label>
+                                  <input 
+                                    type="time" 
+                                    value={settings.strategy?.scalp?.sessionStart || '11:00'}
+                                    onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, scalp: { ...settings.strategy.scalp, sessionStart: e.target.value } } })}
+                                    className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-[10px] text-white outline-none focus:border-emerald-500/50 font-bold"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[8px] text-slate-500 uppercase block mb-1.5 font-mono tracking-widest">پایان جلسه</label>
+                                  <input 
+                                    type="time" 
+                                    value={settings.strategy?.scalp?.sessionEnd || '19:00'}
+                                    onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, scalp: { ...settings.strategy.scalp, sessionEnd: e.target.value } } })}
+                                    className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-[10px] text-white outline-none focus:border-emerald-500/50 font-bold"
+                                  />
                                 </div>
                               </div>
                             </motion.div>
@@ -1673,89 +1933,96 @@ export default function Dashboard() {
                 )}
 
                 {/* Risk Management */}
-                <section>
-                  <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-3">
-                    <AlertCircle className="w-4 h-4" /> مدیریت ریسک و سرمایه
-                  </h3>
-                  <div className="grid grid-cols-2 gap-6">
+                <section className="border-t border-white/5 pt-6">
+                  <h2 className="text-[10px] sm:text-xs font-bold text-white uppercase tracking-[0.2em] sm:tracking-[0.3em] flex items-center gap-3 mb-5">
+                    <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-rose-500" />
+                    مدیریت ریسک و سرمایه
+                  </h2>
+                  <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">حداکثر ریسک هر معامله (تومان)</label>
+                      <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">حداکثر ریسک هر معامله (تومان)</label>
                       <input 
                         type="number" 
                         value={settings.risk?.maxRiskTomanPerTrade || 1000000}
                         onChange={(e) => setSettings({ ...settings, risk: { ...settings.risk, maxRiskTomanPerTrade: parseInt(e.target.value) } })}
-                        className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-emerald-500/50"
+                        className="w-full bg-white/5 border border-white/5 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-emerald-500/50 font-bold"
                       />
                     </div>
                     <div>
-                      <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">حداکثر ضرر روزانه (تومان)</label>
+                      <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">حداکثر ضرر روزانه (تومان)</label>
                       <input 
                         type="number" 
                         value={settings.risk?.maxDailyLossToman || 5000000}
                         onChange={(e) => setSettings({ ...settings, risk: { ...settings.risk, maxDailyLossToman: parseInt(e.target.value) } })}
-                        className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-rose-500/50"
+                        className="w-full bg-white/5 border border-white/5 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-rose-500/50 font-bold"
                       />
                     </div>
                     <div>
-                      <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">حداکثر پوزیشن همزمان</label>
+                      <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">حداکثر پوزیشن همزمان</label>
                       <input 
                         type="number" 
                         value={settings.risk?.maxOpenPositions || 2}
                         onChange={(e) => setSettings({ ...settings, risk: { ...settings.risk, maxOpenPositions: parseInt(e.target.value) } })}
-                        className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none"
+                        className="w-full bg-white/5 border border-white/5 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-emerald-500/50 font-bold"
                       />
                     </div>
                     <div>
-                      <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">حد سود پایه (تیک)</label>
+                      <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">حد سود پایه (تیک)</label>
                       <input 
                         type="number" 
                         value={settings.targetsTicks?.tpTicks || 18}
                         onChange={(e) => setSettings({ ...settings, targetsTicks: { ...settings.targetsTicks, tpTicks: parseInt(e.target.value) } })}
-                        className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none"
+                        className="w-full bg-white/5 border border-white/5 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-emerald-500/50 font-bold"
                       />
                     </div>
                   </div>
                 </section>
 
                 {/* Backtest Settings */}
-                <section className="mt-10">
-                  <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-3">
-                    <History className="w-4 h-4" /> تنظیمات بک‌تست و شبیه‌سازی
-                  </h3>
-                  <div className="grid grid-cols-2 gap-6">
+                <section className="border-t border-white/5 pt-6">
+                  <h2 className="text-[10px] sm:text-xs font-bold text-white uppercase tracking-[0.2em] sm:tracking-[0.3em] flex items-center gap-3 mb-5">
+                    <History className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
+                    تنظیمات بک‌تست و شبیه‌سازی
+                  </h2>
+                  <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">لغزش قیمت (Slippage - تیک)</label>
+                      <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">لغزش قیمت (Slippage - تیک)</label>
                       <input 
                         type="number" 
                         step="0.1"
                         value={settings.backtest?.slippageTicks || 1}
                         onChange={(e) => setSettings({ ...settings, backtest: { ...settings.backtest, slippageTicks: parseFloat(e.target.value) } })}
-                        className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-emerald-500/50"
+                        className="w-full bg-white/5 border border-white/5 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-emerald-500/50 font-bold"
                       />
-                      <p className="text-[9px] text-slate-500 mt-1">اختلاف قیمت ورود/خروج واقعی با قیمت مارکت.</p>
+                      <p className="text-[8px] text-slate-500 mt-1 font-mono uppercase tracking-tight">اختلاف قیمت ورود/خروج واقعی با قیمت مارکت.</p>
                     </div>
                     <div>
-                      <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">کارمزد (Commission - تیک)</label>
+                      <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">کارمزد (Commission - تیک)</label>
                       <input 
                         type="number" 
                         step="0.1"
                         value={settings.backtest?.commissionTicks || 0.5}
                         onChange={(e) => setSettings({ ...settings, backtest: { ...settings.backtest, commissionTicks: parseFloat(e.target.value) } })}
-                        className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-emerald-500/50"
+                        className="w-full bg-white/5 border border-white/5 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-emerald-500/50 font-bold"
                       />
-                      <p className="text-[9px] text-slate-500 mt-1">هزینه هر معامله که از سود کسر می‌شود.</p>
+                      <p className="text-[8px] text-slate-500 mt-1 font-mono uppercase tracking-tight">هزینه هر معامله که از سود کسر می‌شود.</p>
                     </div>
                   </div>
                 </section>
 
-                {/* Risk-Free Settings */}
-                <section>
-                  <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-3">
-                    <ShieldCheck className="w-4 h-4" /> تنظیمات ریسک‌فری (Risk-Free)
-                  </h3>
-                  <div className="grid grid-cols-1 gap-6">
-                    <div className="flex items-center justify-between bg-white/5 p-4 rounded-2xl">
-                      <span className="text-sm font-medium">فعال‌سازی ریسک‌فری خودکار</span>
+                <section className="border-t border-white/5 pt-6">
+                  <h2 className="text-[10px] sm:text-xs font-bold text-white uppercase tracking-[0.2em] sm:tracking-[0.3em] flex items-center gap-3 mb-5">
+                    <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-500" />
+                    تنظیمات ریسک‌فری (Risk-Free)
+                  </h2>
+                  <div className="grid grid-cols-1 gap-3">
+                    <div className="flex items-center justify-between bg-white/5 p-3 rounded-xl border border-white/5">
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-lg transition-colors ${settings.targets?.breakEven?.enabled ? 'bg-emerald-500/20 text-emerald-500' : 'bg-slate-500/10 text-slate-500'}`}>
+                          <ShieldCheck className="w-3.5 h-3.5" />
+                        </div>
+                        <span className="text-xs font-bold text-white">فعال‌سازی ریسک‌فری خودکار</span>
+                      </div>
                       <button 
                         onClick={() => setSettings({ 
                           ...settings, 
@@ -1764,17 +2031,17 @@ export default function Dashboard() {
                             breakEven: { ...settings.targets?.breakEven, enabled: !settings.targets?.breakEven?.enabled } 
                           } 
                         })}
-                        className={`w-12 h-6 rounded-full transition-colors relative ${settings.targets?.breakEven?.enabled ? 'bg-emerald-500' : 'bg-slate-700'}`}
+                        className={`w-10 h-5 rounded-full transition-all relative ${settings.targets?.breakEven?.enabled ? 'bg-emerald-500' : 'bg-slate-700'}`}
                       >
                         <motion.div 
-                          animate={{ x: settings.targets?.breakEven?.enabled ? 24 : 4 }}
-                          className="absolute top-1 w-4 h-4 bg-white rounded-full"
+                          animate={{ x: settings.targets?.breakEven?.enabled ? 22 : 2 }}
+                          className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm"
                         />
                       </button>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">درصد سود برای فعال‌سازی</label>
+                        <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">درصد سود برای فعال‌سازی</label>
                         <input 
                           type="number" 
                           value={settings.targets?.breakEven?.triggerPercent || 50}
@@ -1785,12 +2052,12 @@ export default function Dashboard() {
                               breakEven: { ...settings.targets?.breakEven, triggerPercent: parseInt(e.target.value) } 
                             } 
                           })}
-                          className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-emerald-500/50"
+                          className="w-full bg-white/5 border border-white/5 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-emerald-500/50 font-bold"
                         />
-                        <p className="text-[8px] text-slate-500 mt-1">مثلاً ۵۰ یعنی وقتی معامله ۵۰٪ به سمت تارگت رفت، ریسک‌فری شود.</p>
+                        <p className="text-[7px] text-slate-500 mt-1 font-mono uppercase tracking-tight">مثلاً ۵۰ یعنی وقتی معامله ۵۰٪ به سمت تارگت رفت، ریسک‌فری شود.</p>
                       </div>
                       <div>
-                        <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">بافر ورود (تیک)</label>
+                        <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">بافر ورود (تیک)</label>
                         <input 
                           type="number" 
                           value={settings.targets?.breakEven?.bufferTicks || 0}
@@ -1801,18 +2068,23 @@ export default function Dashboard() {
                               breakEven: { ...settings.targets?.breakEven, bufferTicks: parseInt(e.target.value) } 
                             } 
                           })}
-                          className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-emerald-500/50"
+                          className="w-full bg-white/5 border border-white/5 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-emerald-500/50 font-bold"
                         />
-                        <p className="text-[8px] text-slate-500 mt-1">تعداد تیک بالاتر از نقطه ورود برای پوشش کارمزد.</p>
+                        <p className="text-[7px] text-slate-500 mt-1 font-mono uppercase tracking-tight">تعداد تیک بالاتر از نقطه ورود برای پوشش کارمزد.</p>
                       </div>
                     </div>
 
                     {/* Stepped Risk-Free */}
-                    <div className="border-t border-white/5 pt-6 mt-2">
-                      <div className="flex items-center justify-between bg-white/5 p-4 rounded-2xl mb-4">
-                        <div className="flex flex-col">
-                          <span className="text-sm font-medium">ریسک‌فری پله‌ای (هوشمند)</span>
-                          <span className="text-[10px] text-slate-500">کاهش ریسک در ۳ مرحله با حرکت قیمت</span>
+                    <div className="border-t border-white/5 pt-4 mt-1">
+                      <div className="flex items-center justify-between bg-white/5 p-3 rounded-xl border border-white/5 mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className={`p-2 rounded-lg transition-colors ${settings.targets?.steppedRiskFree?.enabled ? 'bg-emerald-500/20 text-emerald-500' : 'bg-blue-500/10 text-blue-500'}`}>
+                            <Layers className="w-3.5 h-3.5" />
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-xs font-bold text-white">ریسک‌فری پله‌ای (هوشمند)</span>
+                            <span className="text-[8px] text-slate-500 font-mono uppercase tracking-wider">کاهش ریسک در ۳ مرحله با حرکت قیمت</span>
+                          </div>
                         </div>
                         <button 
                           onClick={() => setSettings({ 
@@ -1822,11 +2094,11 @@ export default function Dashboard() {
                               steppedRiskFree: { ...settings.targets?.steppedRiskFree, enabled: !settings.targets?.steppedRiskFree?.enabled } 
                             } 
                           })}
-                          className={`w-12 h-6 rounded-full transition-colors relative ${settings.targets?.steppedRiskFree?.enabled ? 'bg-emerald-500' : 'bg-slate-700'}`}
+                          className={`w-10 h-5 rounded-full transition-all relative ${settings.targets?.steppedRiskFree?.enabled ? 'bg-emerald-500' : 'bg-slate-700'}`}
                         >
                           <motion.div 
-                            animate={{ x: settings.targets?.steppedRiskFree?.enabled ? 24 : 4 }}
-                            className="absolute top-1 w-4 h-4 bg-white rounded-full"
+                            animate={{ x: settings.targets?.steppedRiskFree?.enabled ? 22 : 2 }}
+                            className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm"
                           />
                         </button>
                       </div>
@@ -1930,17 +2202,23 @@ export default function Dashboard() {
                 </section>
 
                 {/* Aggressive Systems */}
-                <section>
-                  <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-3">
-                    <Zap className="w-4 h-4" /> سیستم‌های تهاجمی
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <section className="border-t border-white/5 pt-6">
+                  <h2 className="text-[10px] sm:text-xs font-bold text-white uppercase tracking-[0.2em] sm:tracking-[0.3em] flex items-center gap-3 mb-5">
+                    <Zap className="w-4 h-4 sm:w-5 sm:h-5 text-orange-500" />
+                    سیستم‌های تهاجمی
+                  </h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {/* Reversal System */}
-                    <div className="flex flex-col bg-white/5 p-4 rounded-2xl">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex flex-col">
-                          <span className="text-sm font-medium">سیستم ریورس (Reversal)</span>
-                          <span className="text-[10px] text-slate-500">باز کردن پوزیشن معکوس در صورت ضرر</span>
+                    <div className="flex flex-col bg-white/5 p-3 rounded-xl border border-white/5">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className={`p-2 rounded-lg transition-colors ${settings.targetsTicks?.reversal?.enabled ? 'bg-orange-500/20 text-orange-500' : 'bg-slate-500/10 text-slate-500'}`}>
+                            <RefreshCw className="w-3.5 h-3.5" />
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-xs font-bold text-white">سیستم ریورس (Reversal)</span>
+                            <span className="text-[8px] text-slate-500 font-mono uppercase tracking-wider">باز کردن پوزیشن معکوس در صورت ضرر</span>
+                          </div>
                         </div>
                         <button 
                           onClick={() => setSettings({ 
@@ -1950,18 +2228,18 @@ export default function Dashboard() {
                               reversal: { ...settings.targetsTicks?.reversal, enabled: !settings.targetsTicks?.reversal?.enabled } 
                             } 
                           })}
-                          className={`w-12 h-6 rounded-full transition-colors relative ${settings.targetsTicks?.reversal?.enabled ? 'bg-orange-500' : 'bg-slate-700'}`}
+                          className={`w-10 h-5 rounded-full transition-all relative ${settings.targetsTicks?.reversal?.enabled ? 'bg-orange-500' : 'bg-slate-700'}`}
                         >
                           <motion.div 
-                            animate={{ x: settings.targetsTicks?.reversal?.enabled ? 24 : 4 }}
-                            className="absolute top-1 w-4 h-4 bg-white rounded-full"
+                            animate={{ x: settings.targetsTicks?.reversal?.enabled ? 22 : 2 }}
+                            className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm"
                           />
                         </button>
                       </div>
                       {settings.targetsTicks?.reversal?.enabled && (
-                        <div className="space-y-4 bg-orange-500/5 border border-orange-500/20 p-4 rounded-2xl">
+                        <div className="space-y-3 bg-orange-500/5 border border-orange-500/20 p-3 rounded-xl">
                           <div>
-                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">تعداد تیک ضرر برای فعال‌سازی</label>
+                            <label className="text-[8px] text-slate-500 uppercase font-mono mb-1 block tracking-widest">تعداد تیک ضرر برای فعال‌سازی</label>
                             <input 
                               type="number" 
                               value={settings.targetsTicks?.reversal?.triggerLossTicks || 6}
@@ -1972,11 +2250,11 @@ export default function Dashboard() {
                                   reversal: { ...settings.targetsTicks?.reversal, triggerLossTicks: parseInt(e.target.value) } 
                                 } 
                               })}
-                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-orange-500/50"
+                              className="w-full bg-white/5 border border-white/5 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-orange-500/50 font-bold"
                             />
                           </div>
                           <div>
-                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">حداقل قدرت سیگنال معکوس</label>
+                            <label className="text-[8px] text-slate-500 uppercase font-mono mb-1 block tracking-widest">حداقل قدرت سیگنال معکوس</label>
                             <input 
                               type="number" 
                               value={settings.targetsTicks?.reversal?.minOppositeSignalScore || 2}
@@ -1987,7 +2265,7 @@ export default function Dashboard() {
                                   reversal: { ...settings.targetsTicks?.reversal, minOppositeSignalScore: parseInt(e.target.value) } 
                                 } 
                               })}
-                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-orange-500/50"
+                              className="w-full bg-white/5 border border-white/5 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-orange-500/50 font-bold"
                             />
                           </div>
                         </div>
@@ -1995,11 +2273,16 @@ export default function Dashboard() {
                     </div>
 
                     {/* Pyramiding System */}
-                    <div className="flex flex-col bg-white/5 p-4 rounded-2xl">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex flex-col">
-                          <span className="text-sm font-medium">سیستم پله‌ای (Pyramiding)</span>
-                          <span className="text-[10px] text-slate-500">افزایش حجم در روند سودده</span>
+                    <div className="flex flex-col bg-white/5 p-3 rounded-xl border border-white/5">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className={`p-2 rounded-lg transition-colors ${settings.strategy?.pyramiding?.enabled ? 'bg-orange-500/20 text-orange-500' : 'bg-slate-500/10 text-slate-500'}`}>
+                            <Zap className="w-3.5 h-3.5" />
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-xs font-bold text-white">سیستم پله‌ای (Pyramiding)</span>
+                            <span className="text-[8px] text-slate-500 font-mono uppercase tracking-wider">افزایش حجم در روند سودده</span>
+                          </div>
                         </div>
                         <button 
                           onClick={() => setSettings({ 
@@ -2009,18 +2292,18 @@ export default function Dashboard() {
                               pyramiding: { ...settings.strategy?.pyramiding, enabled: !settings.strategy?.pyramiding?.enabled } 
                             } 
                           })}
-                          className={`w-12 h-6 rounded-full transition-colors relative ${settings.strategy?.pyramiding?.enabled ? 'bg-orange-500' : 'bg-slate-700'}`}
+                          className={`w-10 h-5 rounded-full transition-all relative ${settings.strategy?.pyramiding?.enabled ? 'bg-orange-500' : 'bg-slate-700'}`}
                         >
                           <motion.div 
-                            animate={{ x: settings.strategy?.pyramiding?.enabled ? 24 : 4 }}
-                            className="absolute top-1 w-4 h-4 bg-white rounded-full"
+                            animate={{ x: settings.strategy?.pyramiding?.enabled ? 22 : 2 }}
+                            className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm"
                           />
                         </button>
                       </div>
                       {settings.strategy?.pyramiding?.enabled && (
-                        <div className="space-y-4 bg-orange-500/5 border border-orange-500/20 p-4 rounded-2xl">
+                        <div className="space-y-3 bg-orange-500/5 border border-orange-500/20 p-3 rounded-xl">
                           <div>
-                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">تعداد تیک سود برای ورود پله دوم</label>
+                            <label className="text-[8px] text-slate-500 uppercase font-mono mb-1 block tracking-widest">تعداد تیک سود برای ورود پله دوم</label>
                             <input 
                               type="number" 
                               value={settings.strategy?.pyramiding?.profitTicksTrigger || 5}
@@ -2031,9 +2314,9 @@ export default function Dashboard() {
                                   pyramiding: { ...settings.strategy?.pyramiding, profitTicksTrigger: parseInt(e.target.value) } 
                                 } 
                               })}
-                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-orange-500/50"
+                              className="w-full bg-white/5 border border-white/5 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-orange-500/50 font-bold"
                             />
-                            <p className="text-[8px] text-slate-500 mt-1">پس از این مقدار سود، پله دوم وارد می‌شود.</p>
+                            <p className="text-[7px] text-slate-500 mt-1 font-mono uppercase tracking-tight">پس از این مقدار سود، پله دوم وارد می‌شود.</p>
                           </div>
                         </div>
                       )}
@@ -2042,15 +2325,21 @@ export default function Dashboard() {
                 </section>
 
                 {/* Security Settings */}
-                <section>
-                  <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-3">
-                    <Lock className="w-4 h-4" /> امنیت و آنتی-آربیتراژ
-                  </h3>
-                  <div className="grid grid-cols-1 gap-6">
-                    <div className="flex items-center justify-between bg-white/5 p-4 rounded-2xl">
-                      <div className="flex flex-col">
-                        <span className="text-sm font-medium">بسته امنیتی آنتی-آربیتراژ</span>
-                        <span className="text-[10px] text-slate-500">جلوگیری از حساسیت صرافی در حساب واقعی</span>
+                <section className="border-t border-white/5 pt-6">
+                  <h2 className="text-[10px] sm:text-xs font-bold text-white uppercase tracking-[0.2em] sm:tracking-[0.3em] flex items-center gap-3 mb-5">
+                    <Lock className="w-4 h-4 sm:w-5 sm:h-5 text-rose-500" />
+                    امنیت و آنتی-آربیتراژ
+                  </h2>
+                  <div className="grid grid-cols-1 gap-3">
+                    <div className="flex items-center justify-between bg-white/5 p-3 rounded-xl border border-white/5">
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-lg transition-colors ${settings.risk?.antiArbitrage?.enabled ? 'bg-rose-500/20 text-rose-500' : 'bg-slate-500/10 text-slate-500'}`}>
+                          <ShieldAlert className="w-3.5 h-3.5" />
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-xs font-bold text-white">بسته امنیتی آنتی-آربیتراژ</span>
+                          <span className="text-[8px] text-slate-500 font-mono uppercase tracking-wider">جلوگیری از حساسیت صرافی در حساب واقعی</span>
+                        </div>
                       </div>
                       <button 
                         onClick={() => setSettings({ 
@@ -2060,18 +2349,18 @@ export default function Dashboard() {
                             antiArbitrage: { ...settings.risk?.antiArbitrage, enabled: !settings.risk?.antiArbitrage?.enabled } 
                           } 
                         })}
-                        className={`w-12 h-6 rounded-full transition-colors relative ${settings.risk?.antiArbitrage?.enabled ? 'bg-rose-500' : 'bg-slate-700'}`}
+                        className={`w-10 h-5 rounded-full transition-all relative ${settings.risk?.antiArbitrage?.enabled ? 'bg-rose-500' : 'bg-slate-700'}`}
                       >
                         <motion.div 
-                          animate={{ x: settings.risk?.antiArbitrage?.enabled ? 24 : 4 }}
-                          className="absolute top-1 w-4 h-4 bg-white rounded-full"
+                          animate={{ x: settings.risk?.antiArbitrage?.enabled ? 22 : 2 }}
+                          className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm"
                         />
                       </button>
                     </div>
                     {settings.risk?.antiArbitrage?.enabled && (
-                      <div className="space-y-4 bg-rose-500/5 border border-rose-500/20 p-4 rounded-2xl">
+                      <div className="space-y-3 bg-rose-500/5 border border-rose-500/20 p-3 rounded-xl">
                         <div>
-                          <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">حداقل زمان نگهداری (ثانیه)</label>
+                          <label className="text-[8px] text-slate-500 uppercase font-mono mb-1 block tracking-widest">حداقل زمان نگهداری (ثانیه)</label>
                           <input 
                             type="number" 
                             value={settings.risk?.antiArbitrage?.minHoldTimeSeconds || 30}
@@ -2082,11 +2371,11 @@ export default function Dashboard() {
                                 antiArbitrage: { ...settings.risk?.antiArbitrage, minHoldTimeSeconds: parseInt(e.target.value) } 
                               } 
                             })}
-                            className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-rose-500/50"
+                            className="w-full bg-white/5 border border-white/5 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-rose-500/50 font-bold"
                           />
-                          <p className="text-[8px] text-slate-500 mt-1">صرافی‌ها به پوزیشن‌های زیر ۳۰ ثانیه حساس هستند.</p>
+                          <p className="text-[7px] text-slate-500 mt-1 font-mono uppercase tracking-tight">صرافی‌ها به پوزیشن‌های زیر ۳۰ ثانیه حساس هستند.</p>
                         </div>
-                        <div className="flex items-center gap-2 text-[10px] text-rose-500/70">
+                        <div className="flex items-center gap-2 text-[8px] text-rose-500/70 font-mono uppercase tracking-tight">
                           <ShieldAlert className="w-3 h-3" />
                           <span>تاخیر تصادفی (Jitter) برای شبیه‌سازی رفتار انسانی فعال است.</span>
                         </div>
@@ -2096,64 +2385,65 @@ export default function Dashboard() {
                 </section>
 
                 {/* Telegram Settings */}
-                <section>
-                  <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-3">
-                    <Send className="w-4 h-4" /> تنظیمات تلگرام
-                  </h3>
-                  <div className="grid grid-cols-1 gap-6">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="flex items-center justify-between bg-white/5 p-4 rounded-2xl">
-                        <span className="text-sm font-medium">فعال‌سازی تلگرام</span>
+                <section className="border-t border-white/5 pt-6">
+                  <h2 className="text-[10px] sm:text-xs font-bold text-white uppercase tracking-[0.2em] sm:tracking-[0.3em] flex items-center gap-3 mb-5">
+                    <Send className="w-4 h-4 sm:w-5 sm:h-5 text-blue-400" />
+                    تنظیمات تلگرام
+                  </h2>
+                  <div className="grid grid-cols-1 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="flex items-center justify-between bg-white/5 p-3 rounded-xl border border-white/5">
+                        <span className="text-xs font-bold text-white">فعال‌سازی تلگرام</span>
                         <button 
                           onClick={() => setSettings({ ...settings, telegram: { ...settings.telegram, enabled: !settings.telegram.enabled } })}
-                          className={`w-12 h-6 rounded-full transition-colors relative ${settings.telegram.enabled ? 'bg-emerald-500' : 'bg-slate-700'}`}
+                          className={`w-10 h-5 rounded-full transition-all relative ${settings.telegram.enabled ? 'bg-emerald-500' : 'bg-slate-700'}`}
                         >
                           <motion.div 
-                            animate={{ x: settings.telegram.enabled ? 24 : 4 }}
-                            className="absolute top-1 w-4 h-4 bg-white rounded-full"
+                            animate={{ x: settings.telegram.enabled ? 22 : 2 }}
+                            className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm"
                           />
                         </button>
                       </div>
-                      <div className="flex items-center justify-between bg-white/5 p-4 rounded-2xl">
-                        <span className="text-sm font-medium">ارسال لاگ‌ها به تلگرام</span>
+                      <div className="flex items-center justify-between bg-white/5 p-3 rounded-xl border border-white/5">
+                        <span className="text-xs font-bold text-white">ارسال لاگ‌ها به تلگرام</span>
                         <button 
                           onClick={() => setSettings({ ...settings, telegram: { ...settings.telegram, logEnabled: !settings.telegram.logEnabled } })}
-                          className={`w-12 h-6 rounded-full transition-colors relative ${settings.telegram.logEnabled ? 'bg-emerald-500' : 'bg-slate-700'}`}
+                          className={`w-10 h-5 rounded-full transition-all relative ${settings.telegram.logEnabled ? 'bg-emerald-500' : 'bg-slate-700'}`}
                         >
                           <motion.div 
-                            animate={{ x: settings.telegram.logEnabled ? 24 : 4 }}
-                            className="absolute top-1 w-4 h-4 bg-white rounded-full"
+                            animate={{ x: settings.telegram.logEnabled ? 22 : 2 }}
+                            className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm"
                           />
                         </button>
                       </div>
                     </div>
-                    <div className="space-y-4">
+                    <div className="space-y-3">
                       <div>
-                        <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">توکن ربات (Bot Token)</label>
+                        <label className="text-[8px] text-slate-500 uppercase font-mono mb-1 block tracking-widest">توکن ربات (Bot Token)</label>
                         <input 
                           type="password" 
                           value={settings.telegram.botToken}
                           onChange={(e) => setSettings({ ...settings, telegram: { ...settings.telegram, botToken: e.target.value } })}
-                          className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm focus:border-emerald-500/50 outline-none transition-all"
+                          className="w-full bg-white/5 border border-white/5 rounded-xl px-4 py-2.5 text-xs text-white focus:border-emerald-500/50 outline-none transition-all font-bold"
                           placeholder="توکن را اینجا وارد کنید"
                         />
                       </div>
                       <div>
-                        <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">شناسه چت (Chat IDs - با کاما جدا کنید)</label>
+                        <label className="text-[8px] text-slate-500 uppercase font-mono mb-1 block tracking-widest">شناسه چت (Chat IDs - با کاما جدا کنید)</label>
                         <input 
                           type="text" 
                           value={settings.telegram.chatId}
                           onChange={(e) => setSettings({ ...settings, telegram: { ...settings.telegram, chatId: e.target.value } })}
-                          className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm focus:border-emerald-500/50 outline-none transition-all"
+                          className="w-full bg-white/5 border border-white/5 rounded-xl px-4 py-2.5 text-xs text-white focus:border-emerald-500/50 outline-none transition-all font-bold"
                           placeholder="مثلاً 123456, 789012"
                         />
                       </div>
                       <div>
-                        <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">راهنمای سریع (Quick Guide)</label>
+                        <label className="text-[8px] text-slate-500 uppercase font-mono mb-1 block tracking-widest">راهنمای سریع (Quick Guide)</label>
                         <textarea 
                           value={settings.telegram.quickGuide}
                           onChange={(e) => setSettings({ ...settings, telegram: { ...settings.telegram, quickGuide: e.target.value } })}
-                          className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm focus:border-emerald-500/50 outline-none transition-all h-24 resize-none"
+                          className="w-full bg-white/5 border border-white/5 rounded-xl px-4 py-2.5 text-xs text-white focus:border-emerald-500/50 outline-none transition-all h-20 resize-none font-medium"
                           placeholder="متن راهنمای سریع برای سیگنال‌ها"
                         />
                       </div>
@@ -2162,55 +2452,56 @@ export default function Dashboard() {
                 </section>
 
                 {/* Rubika Settings */}
-                <section>
-                  <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-3">
-                    <Send className="w-4 h-4" /> تنظیمات روبیکا
-                  </h3>
-                  <div className="grid grid-cols-1 gap-6">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="flex items-center justify-between bg-white/5 p-4 rounded-2xl">
-                        <span className="text-sm font-medium">فعال‌سازی روبیکا</span>
+                <section className="border-t border-white/5 pt-6">
+                  <h2 className="text-[10px] sm:text-xs font-bold text-white uppercase tracking-[0.2em] sm:tracking-[0.3em] flex items-center gap-3 mb-5">
+                    <Send className="w-4 h-4 sm:w-5 sm:h-5 text-orange-400" />
+                    تنظیمات روبیکا
+                  </h2>
+                  <div className="grid grid-cols-1 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="flex items-center justify-between bg-white/5 p-3 rounded-xl border border-white/5">
+                        <span className="text-xs font-bold text-white">فعال‌سازی روبیکا</span>
                         <button 
                           onClick={() => setSettings({ ...settings, rubika: { ...settings.rubika, enabled: !settings.rubika?.enabled } })}
-                          className={`w-12 h-6 rounded-full transition-colors relative ${settings.rubika?.enabled ? 'bg-orange-500' : 'bg-slate-700'}`}
+                          className={`w-10 h-5 rounded-full transition-all relative ${settings.rubika?.enabled ? 'bg-orange-500' : 'bg-slate-700'}`}
                         >
                           <motion.div 
-                            animate={{ x: settings.rubika?.enabled ? 24 : 4 }}
-                            className="absolute top-1 w-4 h-4 bg-white rounded-full"
+                            animate={{ x: settings.rubika?.enabled ? 22 : 2 }}
+                            className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm"
                           />
                         </button>
                       </div>
-                      <div className="flex items-center justify-between bg-white/5 p-4 rounded-2xl">
-                        <span className="text-sm font-medium">ارسال لاگ‌ها به روبیکا</span>
+                      <div className="flex items-center justify-between bg-white/5 p-3 rounded-xl border border-white/5">
+                        <span className="text-xs font-bold text-white">ارسال لاگ‌ها به روبیکا</span>
                         <button 
                           onClick={() => setSettings({ ...settings, rubika: { ...settings.rubika, logEnabled: !settings.rubika?.logEnabled } })}
-                          className={`w-12 h-6 rounded-full transition-colors relative ${settings.rubika?.logEnabled ? 'bg-orange-500' : 'bg-slate-700'}`}
+                          className={`w-10 h-5 rounded-full transition-all relative ${settings.rubika?.logEnabled ? 'bg-orange-500' : 'bg-slate-700'}`}
                         >
                           <motion.div 
-                            animate={{ x: settings.rubika?.logEnabled ? 24 : 4 }}
-                            className="absolute top-1 w-4 h-4 bg-white rounded-full"
+                            animate={{ x: settings.rubika?.logEnabled ? 22 : 2 }}
+                            className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm"
                           />
                         </button>
                       </div>
                     </div>
-                    <div className="space-y-4">
+                    <div className="space-y-3">
                       <div>
-                        <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">توکن ربات روبیکا</label>
+                        <label className="text-[8px] text-slate-500 uppercase font-mono mb-1 block tracking-widest">توکن ربات روبیکا</label>
                         <input 
                           type="password" 
                           value={settings.rubika?.botToken || ''}
                           onChange={(e) => setSettings({ ...settings, rubika: { ...settings.rubika, botToken: e.target.value } })}
-                          className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm focus:border-orange-500/50 outline-none transition-all"
+                          className="w-full bg-white/5 border border-white/5 rounded-xl px-4 py-2.5 text-xs text-white focus:border-orange-500/50 outline-none transition-all font-bold"
                           placeholder="توکن روبیکا را اینجا وارد کنید"
                         />
                       </div>
                       <div>
-                        <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">شناسه چت روبیکا (Chat IDs - با کاما جدا کنید)</label>
+                        <label className="text-[8px] text-slate-500 uppercase font-mono mb-1 block tracking-widest">شناسه چت روبیکا (Chat IDs - با کاما جدا کنید)</label>
                         <input 
                           type="text" 
                           value={settings.rubika?.chatId || ''}
                           onChange={(e) => setSettings({ ...settings, rubika: { ...settings.rubika, chatId: e.target.value } })}
-                          className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm focus:border-orange-500/50 outline-none transition-all"
+                          className="w-full bg-white/5 border border-white/5 rounded-xl px-4 py-2.5 text-xs text-white focus:border-orange-500/50 outline-none transition-all font-bold"
                           placeholder="مثلاً b0LWeW0W..."
                         />
                       </div>
@@ -2219,72 +2510,53 @@ export default function Dashboard() {
                 </section>
 
                 {/* Trade Settings */}
-                <section>
-                  <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-3">
-                    <ShieldCheck className="w-4 h-4" /> تنظیمات معامله
-                  </h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                <section className="border-t border-white/5 pt-6">
+                  <h2 className="text-[10px] sm:text-xs font-bold text-white uppercase tracking-[0.2em] sm:tracking-[0.3em] flex items-center gap-3 mb-5">
+                    <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-500" />
+                    تنظیمات معامله
+                  </h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">حجم معامله (تعداد واحد - Units)</label>
+                      <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">حجم معامله (تعداد واحد - Units)</label>
                       <input 
                         type="number" 
                         step="0.1"
                         value={settings.trade?.minUnits || 1}
                         onChange={(e) => setSettings({ ...settings, trade: { ...settings.trade, minUnits: parseFloat(e.target.value) } })}
-                        className="w-full bg-white/5 border border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-2.5 sm:py-3 text-sm outline-none focus:border-emerald-500/50"
+                        className="w-full bg-white/5 border border-white/5 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-emerald-500/50 font-bold"
                       />
-                      <p className="text-[8px] text-slate-500 mt-1">تعداد واحد پایه برای هر معامله. پیش‌فرض ۱ واحد است.</p>
-                    </div>
-
-                    <div className="flex items-center justify-between bg-white/5 p-4 rounded-2xl">
-                      <div className="flex flex-col">
-                        <span className="text-sm font-medium">تغییر حجم هوشمند</span>
-                        <span className="text-[10px] text-slate-500">تغییر حجم بر اساس قدرت سیگنال (۱.۵ برابر برای قوی)</span>
-                      </div>
-                      <button 
-                        onClick={() => setSettings({ ...settings, strategy: { ...settings.strategy, enableStrengthScaling: !settings.strategy?.enableStrengthScaling } })}
-                        className={`w-12 h-6 rounded-full transition-all duration-300 relative ${settings.strategy?.enableStrengthScaling ? 'bg-emerald-500' : 'bg-white/10'}`}
-                      >
-                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all duration-300 ${settings.strategy?.enableStrengthScaling ? 'right-1' : 'right-7'}`} />
-                      </button>
-                    </div>
-
-                    <div className="flex items-center justify-between bg-white/5 p-4 rounded-2xl">
-                      <div className="flex flex-col">
-                        <span className="text-sm font-medium">افزایش حجم خودکار (HQ)</span>
-                        <span className="text-[10px] text-slate-500">افزایش حجم در حالت High Quality</span>
-                      </div>
-                      <button 
-                        onClick={() => setSettings({ ...settings, strategy: { ...settings.strategy, highQuality: { ...settings.strategy?.highQuality, autoScaleVolume: !settings.strategy?.highQuality?.autoScaleVolume } } })}
-                        className={`w-12 h-6 rounded-full transition-all duration-300 relative ${settings.strategy?.highQuality?.autoScaleVolume ? 'bg-emerald-500' : 'bg-white/10'}`}
-                      >
-                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all duration-300 ${settings.strategy?.highQuality?.autoScaleVolume ? 'right-1' : 'right-7'}`} />
-                      </button>
+                      <p className="text-[7px] text-slate-500 mt-1 font-mono uppercase tracking-tight">تعداد واحد پایه برای هر معامله. پیش‌فرض ۱ واحد است.</p>
                     </div>
                   </div>
                 </section>
 
                 {/* Signal Quality Settings */}
-                <section>
-                  <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-3">
-                    <ShieldAlert className="w-4 h-4" /> کیفیت سیگنال‌ها
-                  </h3>
-                  <div className="grid grid-cols-1 gap-6">
-                    <div className="flex items-center justify-between bg-white/5 p-4 rounded-2xl">
-                      <div className="flex flex-col">
-                        <span className="text-sm font-medium">حالت کیفیت بالا (High Quality)</span>
-                        <span className="text-[10px] text-slate-500">تعداد سیگنال کمتر، اما با دقت و تاییدیه بسیار بیشتر (مناسب حساب واقعی)</span>
+                <section className="border-t border-white/5 pt-6">
+                  <h2 className="text-[10px] sm:text-xs font-bold text-white uppercase tracking-[0.2em] sm:tracking-[0.3em] flex items-center gap-3 mb-5">
+                    <ShieldAlert className="w-4 h-4 sm:w-5 sm:h-5 text-amber-500" />
+                    کیفیت سیگنال‌ها
+                  </h2>
+                  <div className="grid grid-cols-1 gap-3">
+                    <div className="flex items-center justify-between bg-white/5 p-3 rounded-xl border border-white/5">
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-lg transition-colors ${settings.strategy?.highQualityMode ? 'bg-amber-500/20 text-amber-500' : 'bg-slate-500/10 text-slate-500'}`}>
+                          <ShieldAlert className="w-3.5 h-3.5" />
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-xs font-bold text-white">حالت کیفیت بالا (High Quality)</span>
+                          <span className="text-[8px] text-slate-500 font-mono uppercase tracking-wider">تعداد سیگنال کمتر، اما با دقت و تاییدیه بسیار بیشتر</span>
+                        </div>
                       </div>
                       <button 
                         onClick={() => setSettings({ 
                           ...settings, 
                           strategy: { ...settings.strategy, highQualityMode: !settings.strategy.highQualityMode } 
                         })}
-                        className={`w-12 h-6 rounded-full transition-colors relative ${settings.strategy?.highQualityMode ? 'bg-amber-500' : 'bg-slate-700'}`}
+                        className={`w-10 h-5 rounded-full transition-all relative ${settings.strategy?.highQualityMode ? 'bg-amber-500' : 'bg-slate-700'}`}
                       >
                         <motion.div 
-                          animate={{ x: settings.strategy?.highQualityMode ? 24 : 4 }}
-                          className="absolute top-1 w-4 h-4 bg-white rounded-full"
+                          animate={{ x: settings.strategy?.highQualityMode ? 22 : 2 }}
+                          className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm"
                         />
                       </button>
                     </div>
@@ -2292,11 +2564,12 @@ export default function Dashboard() {
                 </section>
 
                 {/* Strategy Selection */}
-                <section>
-                  <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-3">
-                    <ShieldCheck className="w-4 h-4" /> استراتژی فعال
-                  </h3>
-                  <div className="grid grid-cols-3 gap-4">
+                <section className="border-t border-white/5 pt-6">
+                  <h2 className="text-[10px] sm:text-xs font-bold text-white uppercase tracking-[0.2em] sm:tracking-[0.3em] flex items-center gap-3 mb-5">
+                    <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-500" />
+                    استراتژی فعال
+                  </h2>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     {[
                       { id: 'HMAMACD', label: 'HMA + MACD', desc: 'کراس Hull و تایید MACD' },
                       { id: 'SCALP', label: 'اسکالپر پرو', desc: 'مبتنی بر RSI و EMA' },
@@ -2324,11 +2597,11 @@ export default function Dashboard() {
                             setShowStrategySettings(false);
                           }
                         }}
-                        className={`p-4 rounded-2xl border transition-all text-right relative overflow-hidden group cursor-pointer ${settings.activeStrategy === type.id ? 'bg-emerald-500/10 border-emerald-500 text-white' : 'bg-white/5 border-white/5 text-slate-500 hover:bg-white/10'}`}
+                        className={`p-3 rounded-xl border transition-all text-right relative overflow-hidden group cursor-pointer ${settings.activeStrategy === type.id ? 'bg-emerald-500/10 border-emerald-500 text-white' : 'bg-white/5 border-white/5 text-slate-500 hover:bg-white/10'}`}
                       >
                         <div className="relative z-10">
-                          <p className="text-xs font-bold">{type.label}</p>
-                          <p className="text-[9px] opacity-60 mt-1">{type.desc}</p>
+                          <p className="text-[10px] font-bold">{type.label}</p>
+                          <p className="text-[8px] opacity-60 mt-0.5 font-mono uppercase tracking-tight">{type.desc}</p>
                           
                           {settings.activeStrategy === type.id && (
                             <button
@@ -2336,9 +2609,9 @@ export default function Dashboard() {
                                 e.stopPropagation();
                                 setShowStrategySettings(!showStrategySettings);
                               }}
-                              className="mt-3 w-full py-1.5 bg-emerald-500 text-white text-[9px] font-bold rounded-lg flex items-center justify-center gap-2 hover:bg-emerald-600 transition-colors"
+                              className="mt-2 w-full py-1 bg-emerald-500 text-white text-[8px] font-bold rounded-lg flex items-center justify-center gap-1.5 hover:bg-emerald-600 transition-colors"
                             >
-                              <Settings className="w-3 h-3" />
+                              <Settings className="w-2.5 h-2.5" />
                               {showStrategySettings ? 'بستن تنظیمات' : 'تنظیمات اختصاصی'}
                             </button>
                           )}
@@ -2354,29 +2627,30 @@ export default function Dashboard() {
                   </div>
                 </section>
 
-                <section>
-                  <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-3">
-                    <ShieldCheck className="w-4 h-4" /> فیلترها و محدودیت‌ها
-                  </h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                <section className="border-t border-white/5 pt-6">
+                  <h2 className="text-[10px] sm:text-xs font-bold text-white uppercase tracking-[0.2em] sm:tracking-[0.3em] flex items-center gap-3 mb-5">
+                    <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-500" />
+                    فیلترها و محدودیت‌ها
+                  </h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">حداکثر پوزیشن همزمان</label>
+                      <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">حداکثر پوزیشن همزمان</label>
                       <input 
                         type="number" 
                         value={settings.strategy?.filters?.maxPositions || 3}
                         onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, filters: { ...settings.strategy?.filters, maxPositions: parseInt(e.target.value) } } })}
-                        className="w-full bg-white/5 border border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-2.5 sm:py-3 text-sm outline-none focus:border-emerald-500/50"
+                        className="w-full bg-white/5 border border-white/5 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-emerald-500/50 font-bold"
                       />
                     </div>
                     <div>
-                      <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">حداکثر معامله در ۱۰ دقیقه</label>
+                      <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">حداکثر معامله در ۱۰ دقیقه</label>
                       <input 
                         type="number" 
                         value={settings.strategy?.filters?.maxTradesPer10Min || 2}
                         onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, filters: { ...settings.strategy?.filters, maxTradesPer10Min: parseInt(e.target.value) } } })}
-                        className="w-full bg-white/5 border border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-2.5 sm:py-3 text-sm outline-none focus:border-emerald-500/50"
+                        className="w-full bg-white/5 border border-white/5 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-emerald-500/50 font-bold"
                       />
-                      <p className="text-[8px] text-slate-500 mt-1">برای جلوگیری از اورتریدینگ (Overtrading)</p>
+                      <p className="text-[7px] text-slate-500 mt-1 font-mono uppercase tracking-tight">برای جلوگیری از اورتریدینگ (Overtrading)</p>
                     </div>
                   </div>
                 </section>
@@ -2386,9 +2660,9 @@ export default function Dashboard() {
                   <motion.section 
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="bg-white/5 p-6 rounded-3xl border border-white/5"
+                    className="bg-white/5 p-4 sm:p-6 rounded-2xl border border-white/5"
                   >
-                    <h3 className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest mb-6 flex items-center gap-3">
+                    <h3 className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest mb-5 flex items-center gap-3">
                       <Activity className="w-4 h-4" /> تنظیمات حرفه‌ای: {
                         settings.activeStrategy === 'HMAMACD' ? 'HMA + MACD' : 
                         settings.activeStrategy === 'SCALP' ? 'اسکالپر پرو' : 
@@ -2408,86 +2682,89 @@ export default function Dashboard() {
                       <motion.div 
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="space-y-6"
+                        className="space-y-4"
                       >
-                        <div className="bg-emerald-500/5 p-4 rounded-2xl border border-emerald-500/10">
-                          <p className="text-[10px] text-emerald-500 font-bold mb-1">💡 راهنمای HMA + MACD</p>
-                          <p className="text-[9px] text-slate-400 leading-relaxed">
+                        <div className="bg-emerald-500/5 p-3 rounded-xl border border-emerald-500/10">
+                          <p className="text-[10px] text-emerald-500 font-bold mb-1 flex items-center gap-2">
+                            <Zap className="w-3 h-3" />
+                            راهنمای HMA + MACD
+                          </p>
+                          <p className="text-[8px] text-slate-400 leading-relaxed font-medium">
                             این استراتژی از کراس دو میانگین متحرک Hull برای تشخیص روند و از MACD برای تایید نهایی استفاده می‌کند.
                             ورود فقط زمانی انجام می‌شود که هر دو تاییدیه صادر شده باشند.
                           </p>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">HMA Fast Length</label>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="bg-white/5 p-3 rounded-xl border border-white/5">
+                            <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">HMA سریع</label>
                             <input 
                               type="number" 
                               value={settings.strategy?.hmamacd?.hmaFast || 9}
                               onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, hmamacd: { ...settings.strategy.hmamacd, hmaFast: parseInt(e.target.value) } } })}
-                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm focus:border-emerald-500/50 outline-none transition-all"
+                              className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-[10px] text-white outline-none focus:border-emerald-500/50 font-bold"
                             />
                           </div>
-                          <div>
-                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">HMA Slow Length</label>
+                          <div className="bg-white/5 p-3 rounded-xl border border-white/5">
+                            <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">HMA کند</label>
                             <input 
                               type="number" 
                               value={settings.strategy?.hmamacd?.hmaSlow || 21}
                               onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, hmamacd: { ...settings.strategy.hmamacd, hmaSlow: parseInt(e.target.value) } } })}
-                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm focus:border-emerald-500/50 outline-none transition-all"
+                              className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-[10px] text-white outline-none focus:border-emerald-500/50 font-bold"
                             />
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-3 gap-4">
-                          <div>
-                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">MACD Fast</label>
+                        <div className="grid grid-cols-3 gap-3">
+                          <div className="bg-white/5 p-3 rounded-xl border border-white/5">
+                            <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">MACD Fast</label>
                             <input 
                               type="number" 
                               value={settings.strategy?.hmamacd?.macdFast || 12}
                               onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, hmamacd: { ...settings.strategy.hmamacd, macdFast: parseInt(e.target.value) } } })}
-                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm focus:border-emerald-500/50 outline-none transition-all"
+                              className="w-full bg-black/20 border border-white/5 rounded-lg px-2 py-2 text-[10px] text-white outline-none focus:border-emerald-500/50 font-bold"
                             />
                           </div>
-                          <div>
-                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">MACD Slow</label>
+                          <div className="bg-white/5 p-3 rounded-xl border border-white/5">
+                            <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">MACD Slow</label>
                             <input 
                               type="number" 
                               value={settings.strategy?.hmamacd?.macdSlow || 26}
                               onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, hmamacd: { ...settings.strategy.hmamacd, macdSlow: parseInt(e.target.value) } } })}
-                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm focus:border-emerald-500/50 outline-none transition-all"
+                              className="w-full bg-black/20 border border-white/5 rounded-lg px-2 py-2 text-[10px] text-white outline-none focus:border-emerald-500/50 font-bold"
                             />
                           </div>
-                          <div>
-                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">MACD Signal</label>
+                          <div className="bg-white/5 p-3 rounded-xl border border-white/5">
+                            <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">MACD Signal</label>
                             <input 
                               type="number" 
                               value={settings.strategy?.hmamacd?.macdSignal || 9}
                               onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, hmamacd: { ...settings.strategy.hmamacd, macdSignal: parseInt(e.target.value) } } })}
-                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm focus:border-emerald-500/50 outline-none transition-all"
+                              className="w-full bg-black/20 border border-white/5 rounded-lg px-2 py-2 text-[10px] text-white outline-none focus:border-emerald-500/50 font-bold"
                             />
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">Distance Filter (%)</label>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="bg-white/5 p-3 rounded-xl border border-white/5">
+                            <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">فیلتر فاصله (%)</label>
                             <input 
                               type="number" 
                               step="0.001"
                               value={settings.strategy?.hmamacd?.distanceFilter || 0.005}
                               onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, hmamacd: { ...settings.strategy.hmamacd, distanceFilter: parseFloat(e.target.value) } } })}
-                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm focus:border-emerald-500/50 outline-none transition-all"
+                              className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-[10px] text-white outline-none focus:border-emerald-500/50 font-bold"
                             />
                           </div>
-                          <div>
-                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">Min Candle Strength</label>
+                          <div className="bg-white/5 p-3 rounded-xl border border-white/5">
+                            <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">قدرت کندل</label>
                             <input 
                               type="number" 
                               step="0.0001"
                               value={settings.strategy?.hmamacd?.minCandleStrength || 0.001}
                               onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, hmamacd: { ...settings.strategy.hmamacd, minCandleStrength: parseFloat(e.target.value) } } })}
-                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm focus:border-emerald-500/50 outline-none transition-all"
+                              className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-[10px] text-white outline-none focus:border-emerald-500/50 font-bold"
                             />
                           </div>
                         </div>
@@ -2495,126 +2772,135 @@ export default function Dashboard() {
                     )}
 
                     {settings.activeStrategy === 'SCALP' && (
-                      <div className="space-y-6">
-                        <div className="bg-emerald-500/5 p-4 rounded-2xl border border-emerald-500/20 mb-6">
-                          <p className="text-[10px] text-emerald-500 font-bold mb-1">💡 راهنمای اسکالپر پرو (Faraz Gold)</p>
-                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                      <div className="space-y-4">
+                        <div className="bg-emerald-500/5 p-3 rounded-xl border border-emerald-500/20 mb-4">
+                          <p className="text-[10px] text-emerald-500 font-bold mb-1 flex items-center gap-2">
+                            <Zap className="w-3 h-3" />
+                            راهنمای اسکالپر پرو (Faraz Gold)
+                          </p>
+                          <p className="text-[8px] text-slate-400 leading-relaxed font-medium">
                             این استراتژی برای نوسان‌گیری‌های سریع در چارت ۱ دقیقه‌ای طلا بهینه شده است. 
                             <br/>**مثال:** اگر بازار رنج است، دوره RSI را روی ۵ بگذارید تا حساسیت بیشتر شود. اگر بازار رونددار است، روی ۷ یا ۹ قرار دهید.
                           </p>
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                          <div>
-                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">دوره RSI (حساسیت نوسان)</label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="bg-white/5 p-3 rounded-xl border border-white/5">
+                            <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">دوره RSI (حساسیت نوسان)</label>
                             <input 
                               type="number" 
                               value={settings.strategy?.indicators?.rsi?.period || 5}
                               onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, indicators: { ...settings.strategy?.indicators, rsi: { ...settings.strategy?.indicators?.rsi, period: parseInt(e.target.value) } } } })}
-                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-emerald-500/50"
+                              className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-[10px] text-white outline-none focus:border-emerald-500/50 font-bold"
                             />
-                            <p className="text-[8px] text-slate-500 mt-2">کمتر = حساسیت بیشتر (مثال: ۵ برای نوسانات ریز)</p>
+                            <p className="text-[7px] text-slate-500 mt-1.5 font-mono uppercase tracking-tight">کمتر = حساسیت بیشتر (مثال: ۵ برای نوسانات ریز)</p>
                           </div>
-                          <div>
-                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">EMA سریع (تشخیص جهت)</label>
+                          <div className="bg-white/5 p-3 rounded-xl border border-white/5">
+                            <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">EMA سریع (تشخیص جهت)</label>
                             <input 
                               type="number" 
                               value={settings.strategy?.indicators?.ema?.fast || 3}
                               onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, indicators: { ...settings.strategy?.indicators, ema: { ...settings.strategy?.indicators?.ema, fast: parseInt(e.target.value) } } } })}
-                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-emerald-500/50"
+                              className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-[10px] text-white outline-none focus:border-emerald-500/50 font-bold"
                             />
-                            <p className="text-[8px] text-slate-500 mt-2">میانگین متحرک برای تایید جهت حرکت (پیش‌فرض: ۳)</p>
+                            <p className="text-[7px] text-slate-500 mt-1.5 font-mono uppercase tracking-tight">میانگین متحرک برای تایید جهت حرکت (پیش‌فرض: ۳)</p>
                           </div>
                         </div>
                       </div>
                     )}
 
                     {settings.activeStrategy === 'FAST' && (
-                      <div className="space-y-6">
-                        <div className="bg-emerald-500/5 p-4 rounded-2xl border border-emerald-500/20">
-                          <p className="text-[10px] text-emerald-500 font-bold mb-1">⚡ راهنمای استراتژی فوق سریع</p>
-                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                      <div className="space-y-4">
+                        <div className="bg-emerald-500/5 p-3 rounded-xl border border-emerald-500/20">
+                          <p className="text-[10px] text-emerald-500 font-bold mb-1 flex items-center gap-2">
+                            <Zap className="w-3 h-3" />
+                            راهنمای استراتژی فوق سریع
+                          </p>
+                          <p className="text-[8px] text-slate-400 leading-relaxed font-medium">
                             طراحی شده برای شکار حرکت‌های انفجاری طلا. در زمان اخبار یا نوسانات شدید عالی عمل می‌کند.
                             <br/>**مثال:** در زمان نوسان کم، کول‌داون را روی ۱۵ ثانیه بگذارید تا از ورودهای مکرر در یک نقطه جلوگیری شود.
                           </p>
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                          <div>
-                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">حداقل امتیاز تاییدیه (۱-۱۰)</label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="bg-white/5 p-3 rounded-xl border border-white/5">
+                            <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">حداقل امتیاز تاییدیه (۱-۱۰)</label>
                             <input 
                               type="number" 
                               value={settings.strategy?.minSignalScore || 1}
                               onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, minSignalScore: parseInt(e.target.value) } })}
-                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-emerald-500/50"
+                              className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-[10px] text-white outline-none focus:border-emerald-500/50 font-bold"
                             />
-                            <p className="text-[8px] text-slate-500 mt-2">بالاتر = امنیت بیشتر، تعداد معامله کمتر (پیش‌فرض: ۱)</p>
+                            <p className="text-[7px] text-slate-500 mt-1.5 font-mono uppercase tracking-tight">بالاتر = امنیت بیشتر، تعداد معامله کمتر (پیش‌فرض: ۱)</p>
                           </div>
-                          <div>
-                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">کول‌داون (ثانیه)</label>
+                          <div className="bg-white/5 p-3 rounded-xl border border-white/5">
+                            <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">کول‌داون (ثانیه)</label>
                             <input 
                               type="number" 
                               value={settings.strategy?.tradeCooldown || 8}
                               onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, tradeCooldown: parseInt(e.target.value) } })}
-                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-emerald-500/50"
+                              className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-[10px] text-white outline-none focus:border-emerald-500/50 font-bold"
                             />
-                            <p className="text-[8px] text-slate-500 mt-2">فاصله زمانی اجباری بین دو معامله (مثال: ۸ ثانیه)</p>
+                            <p className="text-[7px] text-slate-500 mt-1.5 font-mono uppercase tracking-tight">فاصله زمانی اجباری بین دو معامله (مثال: ۸ ثانیه)</p>
                           </div>
                         </div>
                       </div>
                     )}
 
                     {settings.activeStrategy === 'HST' && (
-                      <div className="space-y-6">
-                        <div className="bg-emerald-500/5 p-4 rounded-2xl border border-emerald-500/20">
-                          <p className="text-[10px] text-emerald-500 font-bold mb-1">🛡️ راهنمای استراتژی HST (Hull + SuperTrend)</p>
-                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                      <div className="space-y-4">
+                        <div className="bg-emerald-500/5 p-3 rounded-xl border border-emerald-500/20">
+                          <p className="text-[10px] text-emerald-500 font-bold mb-1 flex items-center gap-2">
+                            <ShieldCheck className="w-3 h-3" />
+                            راهنمای استراتژی HST (Hull + SuperTrend)
+                          </p>
+                          <p className="text-[8px] text-slate-400 leading-relaxed font-medium">
                             یکی از دقیق‌ترین استراتژی‌ها برای بازار طلا. از میانگین متحرک هال برای فیلتر نویز استفاده می‌کند.
                             <br/>**مثال:** برای امنیت حداکثری، حالت را روی PRECISION قرار دهید. در این حالت فقط زمانی وارد می‌شود که تمام اندیکاتورها هم‌جهت باشند.
                           </p>
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                          <div>
-                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">حالت معامله (Aggressive vs Precision)</label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="bg-white/5 p-3 rounded-xl border border-white/5">
+                            <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">حالت معامله (Aggressive vs Precision)</label>
                             <select 
                               value={settings.strategy?.hst?.mode || 'NORMAL'}
                               onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, hst: { ...settings.strategy?.hst, mode: e.target.value } } })}
-                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-emerald-500/50"
+                              className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-[10px] text-white outline-none focus:border-emerald-500/50 font-bold"
                             >
-                              <option value="PRECISION">دقت بسیار بالا (معاملات بسیار کم) 💎</option>
+                              <option value="PRECISION">دقت بسیار بالا 💎</option>
                               <option value="NORMAL">دقت بالا (استاندارد) ⚖️</option>
-                              <option value="AGGRESSIVE">تهاجمی (معاملات بیشتر) 🔥</option>
+                              <option value="AGGRESSIVE">تهاجمی 🔥</option>
                             </select>
                           </div>
-                          <div>
-                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">ضریب SuperTrend (حساسیت روند)</label>
+                          <div className="bg-white/5 p-3 rounded-xl border border-white/5">
+                            <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">ضریب SuperTrend (حساسیت روند)</label>
                             <input 
                               type="number" 
                               step="0.1"
                               value={settings.strategy?.hst?.stMultiplier || 3}
                               onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, hst: { ...settings.strategy?.hst, stMultiplier: parseFloat(e.target.value) } } })}
-                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-emerald-500/50"
+                              className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-[10px] text-white outline-none focus:border-emerald-500/50 font-bold"
                             />
-                            <p className="text-[8px] text-slate-500 mt-2">کمتر = واکنش سریع‌تر به چرخش قیمت (پیش‌فرض: ۳)</p>
+                            <p className="text-[7px] text-slate-500 mt-1.5 font-mono uppercase tracking-tight">کمتر = واکنش سریع‌تر به چرخش قیمت (پیش‌فرض: ۳)</p>
                           </div>
-                          <div>
-                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">دوره HMA (Hull Moving Average)</label>
+                          <div className="bg-white/5 p-3 rounded-xl border border-white/5">
+                            <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">دوره HMA (Hull Moving Average)</label>
                             <input 
                               type="number" 
                               value={settings.strategy?.hst?.hmaLength || 55}
                               onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, hst: { ...settings.strategy?.hst, hmaLength: parseInt(e.target.value) } } })}
-                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-emerald-500/50"
+                              className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-[10px] text-white outline-none focus:border-emerald-500/50 font-bold"
                             />
-                            <p className="text-[8px] text-slate-500 mt-2">طول میانگین متحرک برای تشخیص روند کلی (مثال: ۵۵)</p>
+                            <p className="text-[7px] text-slate-500 mt-1.5 font-mono uppercase tracking-tight">طول میانگین متحرک برای تشخیص روند کلی (مثال: ۵۵)</p>
                           </div>
-                          <div className="flex items-center justify-between bg-white/5 p-4 rounded-2xl border border-white/5">
+                          <div className="flex items-center justify-between bg-white/5 p-3 rounded-xl border border-white/5">
                             <div className="flex flex-col">
-                              <span className="text-xs font-bold">تاییدیه قیمت بالای HMA</span>
-                              <span className="text-[9px] text-slate-500">فیلتر سخت‌گیرانه برای ورود</span>
+                              <span className="text-[10px] font-bold">تاییدیه قیمت بالای HMA</span>
+                              <span className="text-[8px] text-slate-500">فیلتر سخت‌گیرانه برای ورود</span>
                             </div>
                             <button 
                               onClick={() => setSettings({ ...settings, strategy: { ...settings.strategy, hst: { ...settings.strategy?.hst, requireCloseAboveHMA: !settings.strategy?.hst?.requireCloseAboveHMA } } })}
-                              className={`w-10 h-5 rounded-full transition-colors relative ${settings.strategy?.hst?.requireCloseAboveHMA ? 'bg-emerald-500' : 'bg-slate-700'}`}
+                              className={`w-8 h-4 rounded-full transition-colors relative ${settings.strategy?.hst?.requireCloseAboveHMA ? 'bg-emerald-500' : 'bg-slate-700'}`}
                             >
-                              <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${settings.strategy?.hst?.requireCloseAboveHMA ? 'left-6' : 'left-1'}`} />
+                              <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all ${settings.strategy?.hst?.requireCloseAboveHMA ? 'left-4.5' : 'left-0.5'}`} />
                             </button>
                           </div>
                         </div>
@@ -2622,165 +2908,177 @@ export default function Dashboard() {
                     )}
 
                     {settings.activeStrategy === 'NUMERICAL' && (
-                      <div className="space-y-6">
-                        <div className="bg-emerald-500/5 p-4 rounded-2xl border border-emerald-500/20">
-                          <p className="text-[10px] text-emerald-500 font-bold mb-1">🔢 راهنمای نوسان‌گیری عددی (Numerical)</p>
-                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                      <div className="space-y-4">
+                        <div className="bg-emerald-500/5 p-3 rounded-xl border border-emerald-500/20">
+                          <p className="text-[10px] text-emerald-500 font-bold mb-1 flex items-center gap-2">
+                            <Zap className="w-3 h-3" />
+                            راهنمای نوسان‌گیری عددی (Numerical)
+                          </p>
+                          <p className="text-[8px] text-slate-400 leading-relaxed font-medium">
                             مبتنی بر روانشناسی اعداد رند و مومنتوم آنی. عالی برای نوسانات پله‌ای طلا.
                             <br/>**مثال:** اگر اسپرد بازار زیاد است، حد اسپرد را روی ۲۰ تیک بگذارید تا فرصت‌های بیشتری شناسایی شود.
                           </p>
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                          <div>
-                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">حد اسپرد مجاز (تیک)</label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="bg-white/5 p-3 rounded-xl border border-white/5">
+                            <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">حد اسپرد مجاز (تیک)</label>
                             <input 
                               type="number" 
                               value={settings.strategy?.numerical?.spreadThreshold || 14}
                               onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, numerical: { ...settings.strategy?.numerical, spreadThreshold: parseInt(e.target.value) } } })}
-                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-emerald-500/50"
+                              className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-[10px] text-white outline-none focus:border-emerald-500/50 font-bold"
                             />
-                            <p className="text-[8px] text-slate-500 mt-2">حداکثر فاصله خرید و فروش برای ورود (مثال: ۱۴)</p>
+                            <p className="text-[7px] text-slate-500 mt-1.5 font-mono uppercase tracking-tight">حداکثر فاصله خرید و فروش (مثال: ۱۴)</p>
                           </div>
-                          <div>
-                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">حد سود (تیک)</label>
+                          <div className="bg-white/5 p-3 rounded-xl border border-white/5">
+                            <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">حد سود (تیک)</label>
                             <input 
                               type="number" 
                               value={settings.strategy?.numerical?.takeProfitPips || 10}
                               onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, numerical: { ...settings.strategy?.numerical, takeProfitPips: parseInt(e.target.value) } } })}
-                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-emerald-500/50"
+                              className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-[10px] text-white outline-none focus:border-emerald-500/50 font-bold"
                             />
                           </div>
-                          <div>
-                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">حد ضرر (تیک)</label>
+                          <div className="bg-white/5 p-3 rounded-xl border border-white/5">
+                            <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">حد ضرر (تیک)</label>
                             <input 
                               type="number" 
                               value={settings.strategy?.numerical?.stopLossPips || 8}
                               onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, numerical: { ...settings.strategy?.numerical, stopLossPips: parseInt(e.target.value) } } })}
-                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-rose-500/50"
+                              className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-[10px] text-white outline-none focus:border-rose-500/50 font-bold"
                             />
                           </div>
-                          <div>
-                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">فاصله مگنت عدد رند</label>
+                          <div className="bg-white/5 p-3 rounded-xl border border-white/5">
+                            <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">فاصله مگنت عدد رند</label>
                             <input 
                               type="number" 
                               value={settings.strategy?.numerical?.roundNumberMagnet || 5}
                               onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, numerical: { ...settings.strategy?.numerical, roundNumberMagnet: parseInt(e.target.value) } } })}
-                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-emerald-500/50"
+                              className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-[10px] text-white outline-none focus:border-emerald-500/50 font-bold"
                             />
-                            <p className="text-[8px] text-slate-500 mt-2">فاصله تا عدد رند برای فعال‌سازی سیگنال (مثال: ۵ تیک)</p>
+                            <p className="text-[7px] text-slate-500 mt-1.5 font-mono uppercase tracking-tight">فاصله تا عدد رند (مثال: ۵ تیک)</p>
                           </div>
                         </div>
                       </div>
                     )}
 
                     {settings.activeStrategy === 'QUANT' && (
-                      <div className="space-y-6">
-                        <div className="bg-emerald-500/5 p-4 rounded-2xl border border-emerald-500/20">
-                          <p className="text-[10px] text-emerald-500 font-bold mb-1">📊 راهنمای استراتژی کوانت (Quant)</p>
-                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                      <div className="space-y-4">
+                        <div className="bg-emerald-500/5 p-3 rounded-xl border border-emerald-500/20">
+                          <p className="text-[10px] text-emerald-500 font-bold mb-1 flex items-center gap-2">
+                            <BarChart3 className="w-3 h-3" />
+                            راهنمای استراتژی کوانت (Quant)
+                          </p>
+                          <p className="text-[8px] text-slate-400 leading-relaxed font-medium">
                             ترکیب ریاضیات و پرایس اکشن. از میانگین‌های متحرک بلندمدت برای تشخیص روند اصلی استفاده می‌کند.
                             <br/>**مثال:** برای معاملات میان‌مدت، MA کند را روی ۲۰۰ و MA سریع را روی ۵۰ بگذارید.
                           </p>
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                          <div>
-                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">MA سریع (روند کوتاه‌مدت)</label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="bg-white/5 p-3 rounded-xl border border-white/5">
+                            <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">MA سریع (روند کوتاه‌مدت)</label>
                             <input 
                               type="number" 
                               value={settings.strategy?.quant?.maFast || 50}
                               onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, quant: { ...settings.strategy?.quant, maFast: parseInt(e.target.value) } } })}
-                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-emerald-500/50"
+                              className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-[10px] text-white outline-none focus:border-emerald-500/50 font-bold"
                             />
                           </div>
-                          <div>
-                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">MA کند (روند بلندمدت)</label>
+                          <div className="bg-white/5 p-3 rounded-xl border border-white/5">
+                            <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">MA کند (روند بلندمدت)</label>
                             <input 
                               type="number" 
                               value={settings.strategy?.quant?.maSlow || 200}
                               onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, quant: { ...settings.strategy?.quant, maSlow: parseInt(e.target.value) } } })}
-                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-emerald-500/50"
+                              className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-[10px] text-white outline-none focus:border-emerald-500/50 font-bold"
                             />
                           </div>
-                          <div>
-                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">نسبت ریسک به ریوارد (R:R)</label>
+                          <div className="bg-white/5 p-3 rounded-xl border border-white/5">
+                            <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">نسبت ریسک به ریوارد (R:R)</label>
                             <input 
                               type="number" 
                               step="0.1"
                               value={settings.strategy?.quant?.riskRewardRatio || 2}
                               onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, quant: { ...settings.strategy?.quant, riskRewardRatio: parseFloat(e.target.value) } } })}
-                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-emerald-500/50"
+                              className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-[10px] text-white outline-none focus:border-emerald-500/50 font-bold"
                             />
-                            <p className="text-[8px] text-slate-500 mt-2">مثال: ۲ یعنی به ازای هر ۱ واحد ضرر، ۲ واحد سود هدف‌گذاری شود.</p>
+                            <p className="text-[7px] text-slate-500 mt-1.5 font-mono uppercase tracking-tight">مثال: ۲ یعنی به ازای هر ۱ واحد ضرر، ۲ واحد سود هدف‌گذاری شود.</p>
                           </div>
                         </div>
                       </div>
                     )}
 
                     {settings.activeStrategy === 'PINBAR' && (
-                      <div className="space-y-6">
-                        <div className="bg-emerald-500/5 p-4 rounded-2xl border border-emerald-500/20">
-                          <p className="text-[10px] text-emerald-500 font-bold mb-1">🕯️ راهنمای استراتژی پین بار (Pinbar)</p>
-                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                      <div className="space-y-4">
+                        <div className="bg-emerald-500/5 p-3 rounded-xl border border-emerald-500/20">
+                          <p className="text-[10px] text-emerald-500 font-bold mb-1 flex items-center gap-2">
+                            <Activity className="w-3 h-3" />
+                            راهنمای استراتژی پین بار (Pinbar)
+                          </p>
+                          <p className="text-[8px] text-slate-400 leading-relaxed font-medium">
                             تمرکز بر روی بازگشت‌های قیمتی با استفاده از کندل‌های پین‌بار.
                             <br/>**مثال:** برای سخت‌گیرانه‌تر کردن الگو، نسبت سایه را روی ۳.۰ بگذارید تا فقط پین‌بارهای با سایه بسیار بلند تایید شوند.
                           </p>
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                          <div>
-                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">نسبت بدنه (حداکثر)</label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="bg-white/5 p-3 rounded-xl border border-white/5">
+                            <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">نسبت بدنه (حداکثر)</label>
                             <input 
                               type="number" 
                               step="0.1"
                               value={settings.strategy?.pinbar?.bodyRatio || 0.4}
                               onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, pinbar: { ...settings.strategy?.pinbar, bodyRatio: parseFloat(e.target.value) } } })}
-                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-emerald-500/50"
+                              className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-[10px] text-white outline-none focus:border-emerald-500/50 font-bold"
                             />
-                            <p className="text-[8px] text-slate-500 mt-2">نسبت اندازه بدنه به کل کندل (پیش‌فرض: ۰.۴)</p>
+                            <p className="text-[7px] text-slate-500 mt-1.5 font-mono uppercase tracking-tight">نسبت بدنه به کل کندل (پیش‌فرض: ۰.۴)</p>
                           </div>
-                          <div>
-                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">نسبت سایه (حداقل)</label>
+                          <div className="bg-white/5 p-3 rounded-xl border border-white/5">
+                            <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">نسبت سایه (حداقل)</label>
                             <input 
                               type="number" 
                               step="0.1"
                               value={settings.strategy?.pinbar?.wickRatio || 2.5}
                               onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, pinbar: { ...settings.strategy?.pinbar, wickRatio: parseFloat(e.target.value) } } })}
-                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-emerald-500/50"
+                              className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-[10px] text-white outline-none focus:border-emerald-500/50 font-bold"
                             />
-                            <p className="text-[8px] text-slate-500 mt-2">نسبت سایه به بدنه (بزرگتر = الگوی قوی‌تر)</p>
+                            <p className="text-[7px] text-slate-500 mt-1.5 font-mono uppercase tracking-tight">نسبت سایه به بدنه (بزرگتر = قوی‌تر)</p>
                           </div>
                         </div>
                       </div>
                     )}
 
                     {settings.activeStrategy === 'MTF_PATTERN' && (
-                      <div className="space-y-6">
-                        <div className="bg-emerald-500/5 p-4 rounded-2xl border border-emerald-500/20">
-                          <p className="text-[10px] text-emerald-500 font-bold mb-1">🌐 راهنمای الگوهای MTF (Multi-Timeframe)</p>
-                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                      <div className="space-y-4">
+                        <div className="bg-emerald-500/5 p-3 rounded-xl border border-emerald-500/20">
+                          <p className="text-[10px] text-emerald-500 font-bold mb-1 flex items-center gap-2">
+                            <Globe className="w-3 h-3" />
+                            راهنمای الگوهای MTF (Multi-Timeframe)
+                          </p>
+                          <p className="text-[8px] text-slate-400 leading-relaxed font-medium">
                             تحلیل همزمان تایم‌فریم ۱ دقیقه و ۵ دقیقه برای یافتن نقاط ورود دقیق.
                             <br/>**مثال:** اگر می‌خواهید فقط در جهت روند ۵ دقیقه‌ای وارد شوید، امتیاز تاییدیه را روی ۴ بگذارید.
                           </p>
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                          <div>
-                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">حداقل امتیاز سیگنال (۱-۵)</label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="bg-white/5 p-3 rounded-xl border border-white/5">
+                            <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">حداقل امتیاز سیگنال (۱-۵)</label>
                             <input 
                               type="number" 
                               value={settings.strategy?.mtfPatterns?.minScore || 3}
                               onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, mtfPatterns: { ...settings.strategy?.mtfPatterns, minScore: parseInt(e.target.value) } } })}
-                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-emerald-500/50"
+                              className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-[10px] text-white outline-none focus:border-emerald-500/50 font-bold"
                             />
                           </div>
-                          <div className="flex items-center justify-between bg-white/5 p-4 rounded-2xl border border-white/5">
+                          <div className="flex items-center justify-between bg-white/5 p-3 rounded-xl border border-white/5">
                             <div className="flex flex-col">
-                              <span className="text-xs font-bold">فیلتر حجم معاملات</span>
-                              <span className="text-[9px] text-slate-500">تاییدیه با حجم بازار</span>
+                              <span className="text-[10px] font-bold">فیلتر حجم معاملات</span>
+                              <span className="text-[8px] text-slate-500">تاییدیه با حجم بازار</span>
                             </div>
                             <button 
                               onClick={() => setSettings({ ...settings, strategy: { ...settings.strategy, mtfPatterns: { ...settings.strategy?.mtfPatterns, useVolume: !settings.strategy?.mtfPatterns?.useVolume } } })}
-                              className={`w-10 h-5 rounded-full transition-colors relative ${settings.strategy?.mtfPatterns?.useVolume ? 'bg-emerald-500' : 'bg-slate-700'}`}
+                              className={`w-8 h-4 rounded-full transition-colors relative ${settings.strategy?.mtfPatterns?.useVolume ? 'bg-emerald-500' : 'bg-slate-700'}`}
                             >
-                              <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${settings.strategy?.mtfPatterns?.useVolume ? 'left-6' : 'left-1'}`} />
+                              <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all ${settings.strategy?.mtfPatterns?.useVolume ? 'left-4.5' : 'left-0.5'}`} />
                             </button>
                           </div>
                         </div>
@@ -2788,34 +3086,37 @@ export default function Dashboard() {
                     )}
 
                     {settings.activeStrategy === 'ICHIMOKU_MTF' && (
-                      <div className="space-y-6">
-                        <div className="bg-emerald-500/5 p-4 rounded-2xl border border-emerald-500/20">
-                          <p className="text-[10px] text-emerald-500 font-bold mb-1">☁️ راهنمای ایچیموکو MTF</p>
-                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                      <div className="space-y-4">
+                        <div className="bg-emerald-500/5 p-3 rounded-xl border border-emerald-500/20">
+                          <p className="text-[10px] text-emerald-500 font-bold mb-1 flex items-center gap-2">
+                            <Cloud className="w-3 h-3" />
+                            راهنمای ایچیموکو MTF
+                          </p>
+                          <p className="text-[8px] text-slate-400 leading-relaxed font-medium">
                             استفاده از قدرت ابر کومو و خطوط کیجون/تنکان برای شکار روندهای پایدار.
                             <br/>**مثال:** برای امنیت بالا، حتماً تاییدیه ابر کومو را روشن بگذارید تا فقط در جهت ابر معامله کند.
                           </p>
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                          <div>
-                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">حداقل امتیاز سیگنال</label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="bg-white/5 p-3 rounded-xl border border-white/5">
+                            <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">حداقل امتیاز سیگنال</label>
                             <input 
                               type="number" 
                               value={settings.strategy?.ichimoku?.minScore || 4}
                               onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, ichimoku: { ...settings.strategy?.ichimoku, minScore: parseInt(e.target.value) } } })}
-                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-emerald-500/50"
+                              className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-[10px] text-white outline-none focus:border-emerald-500/50 font-bold"
                             />
                           </div>
-                          <div className="flex items-center justify-between bg-white/5 p-4 rounded-2xl border border-white/5">
+                          <div className="flex items-center justify-between bg-white/5 p-3 rounded-xl border border-white/5">
                             <div className="flex flex-col">
-                              <span className="text-xs font-bold">تاییدیه ابر کومو</span>
-                              <span className="text-[9px] text-slate-500">معامله فقط در جهت ابر</span>
+                              <span className="text-[10px] font-bold">تاییدیه ابر کومو</span>
+                              <span className="text-[8px] text-slate-500">معامله فقط در جهت ابر</span>
                             </div>
                             <button 
                               onClick={() => setSettings({ ...settings, strategy: { ...settings.strategy, ichimoku: { ...settings.strategy?.ichimoku, trendFilter: { ...settings.strategy?.ichimoku?.trendFilter, requireCloudConfirmation: !settings.strategy?.ichimoku?.trendFilter?.requireCloudConfirmation } } } })}
-                              className={`w-10 h-5 rounded-full transition-colors relative ${settings.strategy?.ichimoku?.trendFilter?.requireCloudConfirmation ? 'bg-emerald-500' : 'bg-slate-700'}`}
+                              className={`w-8 h-4 rounded-full transition-colors relative ${settings.strategy?.ichimoku?.trendFilter?.requireCloudConfirmation ? 'bg-emerald-500' : 'bg-slate-700'}`}
                             >
-                              <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${settings.strategy?.ichimoku?.trendFilter?.requireCloudConfirmation ? 'left-6' : 'left-1'}`} />
+                              <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all ${settings.strategy?.ichimoku?.trendFilter?.requireCloudConfirmation ? 'left-4.5' : 'left-0.5'}`} />
                             </button>
                           </div>
                         </div>
@@ -2823,61 +3124,67 @@ export default function Dashboard() {
                     )}
 
                     {settings.activeStrategy === 'ICHIMOKU_HARAMI' && (
-                      <div className="space-y-6">
-                        <div className="bg-emerald-500/5 p-4 rounded-2xl border border-emerald-500/20">
-                          <p className="text-[10px] text-emerald-500 font-bold mb-1">🕯️ راهنمای ایچیموکو هارامی</p>
-                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                      <div className="space-y-4">
+                        <div className="bg-emerald-500/5 p-3 rounded-xl border border-emerald-500/20">
+                          <p className="text-[10px] text-emerald-500 font-bold mb-1 flex items-center gap-2">
+                            <Activity className="w-3 h-3" />
+                            راهنمای ایچیموکو هارامی
+                          </p>
+                          <p className="text-[8px] text-slate-400 leading-relaxed font-medium">
                             ترکیب سطوح ایچیموکو با الگوهای بازگشتی خاص مانند هارامی، نفوذی و ابر سیاه.
                           </p>
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                          <div>
-                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">حداقل امتیاز سیگنال</label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="bg-white/5 p-3 rounded-xl border border-white/5">
+                            <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">حداقل امتیاز سیگنال</label>
                             <input 
                               type="number" 
                               value={settings.strategy?.ichimokuHarami?.riskManagement?.minScore || 4}
                               onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, ichimokuHarami: { ...settings.strategy?.ichimokuHarami, riskManagement: { ...settings.strategy?.ichimokuHarami?.riskManagement, minScore: parseInt(e.target.value) } } } })}
-                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-emerald-500/50"
+                              className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-[10px] text-white outline-none focus:border-emerald-500/50 font-bold"
                             />
                           </div>
-                          <div>
-                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">حداقل قدرت هارامی</label>
+                          <div className="bg-white/5 p-3 rounded-xl border border-white/5">
+                            <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">حداقل قدرت هارامی</label>
                             <input 
                               type="number" 
                               value={settings.strategy?.ichimokuHarami?.patterns?.harami?.minStrength || 3}
                               onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, ichimokuHarami: { ...settings.strategy?.ichimokuHarami, patterns: { ...settings.strategy?.ichimokuHarami?.patterns, harami: { ...settings.strategy?.ichimokuHarami?.patterns?.harami, minStrength: parseInt(e.target.value) } } } } })}
-                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-emerald-500/50"
+                              className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-[10px] text-white outline-none focus:border-emerald-500/50 font-bold"
                             />
                           </div>
                         </div>
                       </div>
                     )}
                     {settings.activeStrategy === 'TREND' && (
-                      <div className="space-y-6">
-                        <div className="bg-emerald-500/5 p-4 rounded-2xl border border-emerald-500/20">
-                          <p className="text-[10px] text-emerald-500 font-bold mb-1">📈 راهنمای ترند فالووینگ (Trend Following)</p>
-                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                      <div className="space-y-4">
+                        <div className="bg-emerald-500/5 p-3 rounded-xl border border-emerald-500/20">
+                          <p className="text-[10px] text-emerald-500 font-bold mb-1 flex items-center gap-2">
+                            <TrendingUp className="w-3 h-3" />
+                            راهنمای ترند فالووینگ (Trend Following)
+                          </p>
+                          <p className="text-[8px] text-slate-400 leading-relaxed font-medium">
                             استراتژی کلاسیک تعقیب روند با استفاده از تقاطع میانگین‌های متحرک.
                             <br/>**مثال:** برای روندهای بلندمدت، MA سریع را روی ۲۰ و MA کند را روی ۵۰ بگذارید.
                           </p>
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                          <div>
-                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">MA سریع (دوره کوتاه)</label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="bg-white/5 p-3 rounded-xl border border-white/5">
+                            <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">MA سریع (دوره کوتاه)</label>
                             <input 
                               type="number" 
                               value={settings.strategy?.trend?.maFast || 20}
                               onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, trend: { ...settings.strategy?.trend, maFast: parseInt(e.target.value) } } })}
-                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-emerald-500/50"
+                              className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-[10px] text-white outline-none focus:border-emerald-500/50 font-bold"
                             />
                           </div>
-                          <div>
-                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">MA کند (دوره بلند)</label>
+                          <div className="bg-white/5 p-3 rounded-xl border border-white/5">
+                            <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">MA کند (دوره بلند)</label>
                             <input 
                               type="number" 
                               value={settings.strategy?.trend?.maSlow || 50}
                               onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, trend: { ...settings.strategy?.trend, maSlow: parseInt(e.target.value) } } })}
-                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-emerald-500/50"
+                              className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-[10px] text-white outline-none focus:border-emerald-500/50 font-bold"
                             />
                           </div>
                         </div>
@@ -2885,51 +3192,51 @@ export default function Dashboard() {
                     )}
 
                     {/* Entry Optimization Section */}
-                    <div className="space-y-6 pt-6 mt-6 border-t border-white/10">
-                      <div className="flex items-center gap-2 mb-4">
+                    <div className="space-y-4 pt-5 mt-5 border-t border-white/10">
+                      <div className="flex items-center gap-2 mb-3">
                         <Zap className="w-4 h-4 text-amber-500" />
                         <h3 className="text-[10px] font-bold text-amber-500 uppercase tracking-widest">بهینه‌سازی ورود (Entry Optimization)</h3>
                       </div>
                       
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                        <div className="flex items-center justify-between bg-white/5 p-4 rounded-2xl border border-white/5">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="flex items-center justify-between bg-white/5 p-3 rounded-xl border border-white/5">
                           <div className="flex flex-col">
-                            <span className="text-xs font-bold">ورود در پولبک (Pullback)</span>
-                            <span className="text-[9px] text-slate-500">انتظار برای قیمت بهتر بعد از سیگنال</span>
+                            <span className="text-[10px] font-bold">ورود در پولبک (Pullback)</span>
+                            <span className="text-[8px] text-slate-500">انتظار برای قیمت بهتر بعد از سیگنال</span>
                           </div>
                           <button 
                             type="button"
                             onClick={() => setSettings({ ...settings, strategy: { ...settings.strategy, pullback: { ...settings.strategy?.pullback, enabled: !settings.strategy?.pullback?.enabled } } })}
-                            className={`w-10 h-5 rounded-full transition-colors relative ${settings.strategy?.pullback?.enabled ? 'bg-amber-500' : 'bg-slate-700'}`}
+                            className={`w-8 h-4 rounded-full transition-colors relative ${settings.strategy?.pullback?.enabled ? 'bg-amber-500' : 'bg-slate-700'}`}
                           >
-                            <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${settings.strategy?.pullback?.enabled ? 'left-6' : 'left-1'}`} />
+                            <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all ${settings.strategy?.pullback?.enabled ? 'left-4.5' : 'left-0.5'}`} />
                           </button>
                         </div>
 
-                        <div className="flex items-center justify-between bg-white/5 p-4 rounded-2xl border border-white/5">
+                        <div className="flex items-center justify-between bg-white/5 p-3 rounded-xl border border-white/5">
                           <div className="flex flex-col">
-                            <span className="text-xs font-bold">تاییدیه چند زمانی (MTF)</span>
-                            <span className="text-[9px] text-slate-500">هماهنگی با روند تایم‌فریم ۵ دقیقه</span>
+                            <span className="text-[10px] font-bold">تاییدیه چند زمانی (MTF)</span>
+                            <span className="text-[8px] text-slate-500">هماهنگی با روند تایم‌فریم ۵ دقیقه</span>
                           </div>
                           <button 
                             type="button"
                             onClick={() => setSettings({ ...settings, strategy: { ...settings.strategy, mtf: { ...settings.strategy?.mtf, enabled: !settings.strategy?.mtf?.enabled } } })}
-                            className={`w-10 h-5 rounded-full transition-colors relative ${settings.strategy?.mtf?.enabled ? 'bg-blue-500' : 'bg-slate-700'}`}
+                            className={`w-8 h-4 rounded-full transition-colors relative ${settings.strategy?.mtf?.enabled ? 'bg-blue-500' : 'bg-slate-700'}`}
                           >
-                            <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${settings.strategy?.mtf?.enabled ? 'left-6' : 'left-1'}`} />
+                            <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all ${settings.strategy?.mtf?.enabled ? 'left-4.5' : 'left-0.5'}`} />
                           </button>
                         </div>
 
                         {settings.strategy?.pullback?.enabled && (
-                          <div className="sm:col-span-2">
-                            <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">میزان عقب‌نشینی (تیک)</label>
+                          <div className="sm:col-span-2 bg-white/5 p-3 rounded-xl border border-white/5">
+                            <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">میزان عقب‌نشینی (تیک)</label>
                             <input 
                               type="number" 
                               value={settings.strategy?.pullback?.retracementTicks || 5}
                               onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, pullback: { ...settings.strategy?.pullback, retracementTicks: parseInt(e.target.value) } } })}
-                              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm outline-none focus:border-amber-500/50"
+                              className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-[10px] text-white outline-none focus:border-amber-500/50 font-bold"
                             />
-                            <p className="text-[8px] text-slate-500 mt-2">چند تیک قیمت برگردد تا وارد شویم؟ (پیش‌فرض: ۵)</p>
+                            <p className="text-[7px] text-slate-500 mt-1.5 font-mono uppercase tracking-tight">چند تیک قیمت برگردد تا وارد شویم؟ (پیش‌فرض: ۵)</p>
                           </div>
                         )}
                       </div>
@@ -2938,7 +3245,7 @@ export default function Dashboard() {
                 )}
               </div>
 
-              <div className="mt-6 sm:mt-10 flex flex-col sm:flex-row gap-3 sm:gap-4">
+              <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row gap-3">
                 <button 
                   onClick={async () => {
                     if (window.confirm('آیا از راه‌اندازی مجدد ربات اطمینان دارید؟')) {
@@ -2946,21 +3253,21 @@ export default function Dashboard() {
                       setShowSettings(false);
                     }
                   }}
-                  className="flex-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 font-black py-3 sm:py-4 rounded-xl sm:rounded-2xl transition-all flex items-center justify-center gap-3 text-sm sm:text-base border border-rose-500/20"
+                  className="flex-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2 text-[10px] border border-rose-500/20"
                 >
-                  <RefreshCw className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <RefreshCw className="w-3.5 h-3.5" />
                   راه‌اندازی مجدد موتور
                 </button>
                 <button 
                   onClick={saveSettings}
-                  className="flex-[2] bg-emerald-500 hover:bg-emerald-600 text-white font-black py-3 sm:py-4 rounded-xl sm:rounded-2xl transition-all flex items-center justify-center gap-3 shadow-xl shadow-emerald-500/20 text-sm sm:text-base"
+                  className="flex-[2] bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 text-[10px]"
                 >
-                  <Save className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <Save className="w-3.5 h-3.5" />
                   ذخیره تنظیمات
                 </button>
                 <button 
                   onClick={() => setShowSettings(false)}
-                  className="flex-1 bg-white/5 hover:bg-white/10 text-slate-400 py-3 sm:py-4 rounded-xl sm:rounded-2xl transition-all text-sm sm:text-base"
+                  className="flex-1 bg-white/5 hover:bg-white/10 text-slate-400 py-3 rounded-xl transition-all text-[10px] font-bold border border-white/5"
                 >
                   انصراف
                 </button>

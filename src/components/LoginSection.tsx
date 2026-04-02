@@ -115,18 +115,6 @@ export const LoginSection: React.FC<LoginSectionProps> = ({ type, settings, setS
         </div>
       </div>
 
-      <div>
-        <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">CSRF Token (اختیاری)</label>
-        <input
-          type="text"
-          value={csrftoken}
-          onChange={(e) => setCsrftoken(e.target.value)}
-          className={`w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-3 text-sm focus:border-${themeColor}-500/50 outline-none transition-all text-left font-mono`}
-          placeholder="اگر توکن CSRF دارید وارد کنید"
-          dir="ltr"
-        />
-      </div>
-
       <div className="flex items-end gap-4">
         <div className="flex-1">
           <label className="text-[9px] text-slate-500 uppercase font-mono mb-2 block">کد امنیتی</label>

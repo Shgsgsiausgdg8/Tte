@@ -20,17 +20,12 @@
     "maxUnits": 1
   },
   "targetsTicks": {
-    "stopTicks": 12,
-    "tpTicks": 18,
+    "stopTicks": 10,
+    "tpTicks": 15,
     "trailing": {
       "enabled": true,
-      "activateAfterTicks": 8,
-      "trailTicks": 4
-    },
-    "reversal": {
-      "enabled": true,
-      "triggerLossTicks": 6,
-      "minOppositeSignalScore": 2
+      "activateAfterTicks": 5,
+      "trailTicks": 3
     }
   },
   "targets": {
@@ -101,9 +96,19 @@
       "useMtfFilter": true,
       "mtfTimeframe": "5M",
       "maxDistanceFromSlowEmaPercent": 0.08,
+      "useAdxFilter": true,
       "adxThreshold": 20,
+      "useStochFilter": true,
       "stochOversold": 30,
-      "stochOverbought": 70
+      "stochOverbought": 70,
+      "useMacdFilter": true,
+      "useBbFilter": true,
+      "useCandleFilter": true,
+      "useDivergenceFilter": true,
+      "useOrderBlockFilter": true,
+      "useSessionFilter": true,
+      "sessionStart": "11:00",
+      "sessionEnd": "19:00"
     },
     "indicators": {
       "rsi": {

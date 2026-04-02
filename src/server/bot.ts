@@ -1820,18 +1820,6 @@ ${analysisText}
       
       // Volume Calculation
       let units = Number(this.settings.trade?.minUnits || 1);
-      const isHQ = this.strategy.highQualityMode;
-
-      if (isHQ && this.settings.strategy?.highQuality?.autoScaleVolume) {
-        const multiplier = Number(this.settings.strategy?.highQuality?.volumeMultiplier || 1.5);
-        units = Math.round(units * multiplier);
-      }
-
-      if (this.settings.strategy?.enableStrengthScaling) {
-        if (signal.strength === 'STRONG') units = Math.round(units * 1.5);
-        else if (signal.strength === 'WEAK') units = Math.max(1, Math.round(units * 0.5));
-      }
-
       units = Math.max(1, units);
 
       // Pre-check balance

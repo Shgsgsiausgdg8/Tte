@@ -225,6 +225,16 @@ export class Strategy {
     const scalpMode = scalpCfg.mode || 'NORMAL';
     
     const rsi = this.calculateRSI(closes, scalpCfg.rsiPeriod || 14);
+    
+    // RSI History for Divergence
+    const rsiHistory: number[] = [];
+    if (scalpCfg.useDivergenceFilter) {
+      for (let i = closes.length - 20; i <= closes.length; i++) {
+        const r = this.calculateRSI(closes.slice(0, i), scalpCfg.rsiPeriod || 14);
+        rsiHistory.push(r);
+      }
+    }
+
     const emaFast = this.calculateEMA(closes, scalpCfg.emaFast || 9);
     const emaSlow = this.calculateEMA(closes, scalpCfg.emaSlow || 21);
     const atr = this.calculateATR(highs, lows, closes, 14);
@@ -287,6 +297,11 @@ export class Strategy {
     const macd = this.indicators.macd;
     const bb = this.indicators.bb;
     
+    // New Advanced Filters
+    const divergence = scalpCfg.useDivergenceFilter ? this.calculateDivergence(closes, rsiHistory) : null;
+    const orderBlock = scalpCfg.useOrderBlockFilter ? this.detectOrderBlocks(priceHistory) : null;
+    const inSession = scalpCfg.useSessionFilter ? this.isWithinSession(scalpCfg.sessionStart || '11:00', scalpCfg.sessionEnd || '19:00') : true;
+
     // 1. Volume Confirmation (Volume should be higher than average)
     const volumeConfirmed = currentVol > volSMA * (scalpCfg.volMultiplier || 1.1);
     
@@ -355,6 +370,11 @@ export class Strategy {
         if (scalpCfg.useBbFilter && bbBuy) { score += 1; reasons.push('BB Lower Half'); }
         if (scalpCfg.useCandleFilter && bullishPattern) { score += 1; reasons.push('Bullish Candle Pattern'); }
         
+        // Advanced scores
+        if (scalpCfg.useDivergenceFilter && divergence === 'BULLISH') { score += 3; reasons.push('Bullish RSI Divergence'); }
+        if (scalpCfg.useOrderBlockFilter && orderBlock === 'DEMAND') { score += 2; reasons.push('Demand Zone (Order Block)'); }
+        if (scalpCfg.useSessionFilter && !inSession) { score -= 5; reasons.push('Outside Trading Session'); }
+
         if (scalpCfg.useMomentumFilter) {
           if (explosiveUp) { score += 2; reasons.push('Explosive Momentum Up'); }
           else { score -= 1; reasons.push('Weak Momentum'); }
@@ -399,6 +419,11 @@ export class Strategy {
         if (scalpCfg.useBbFilter && bbSell) { score += 1; reasons.push('BB Upper Half'); }
         if (scalpCfg.useCandleFilter && bearishPattern) { score += 1; reasons.push('Bearish Candle Pattern'); }
 
+        // Advanced scores
+        if (scalpCfg.useDivergenceFilter && divergence === 'BEARISH') { score += 3; reasons.push('Bearish RSI Divergence'); }
+        if (scalpCfg.useOrderBlockFilter && orderBlock === 'SUPPLY') { score += 2; reasons.push('Supply Zone (Order Block)'); }
+        if (scalpCfg.useSessionFilter && !inSession) { score -= 5; reasons.push('Outside Trading Session'); }
+
         if (scalpCfg.useMomentumFilter) {
           if (explosiveDown) { score += 2; reasons.push('Explosive Momentum Down'); }
           else { score -= 1; reasons.push('Weak Momentum'); }
@@ -411,42 +436,21 @@ export class Strategy {
       }
     }
 
-    // Stricter filtering: If volume is very low and trend is weak, reject
-    if (type && !volumeConfirmed && !trendStrong && score < requiredScore + 2) {
-      if (scalpMode !== 'AGGRESSIVE') {
-        return { signal: null, reason: 'Low volume and weak trend' };
-      }
+    if (type && score >= requiredScore) {
+      return {
+        signal: {
+          type,
+          price,
+          score,
+          reasons,
+          strategy: 'SCALP',
+          timestamp: Date.now()
+        },
+        reason: reasons.join(', ')
+      };
     }
 
-    if (scalpMode === 'PRECISION') {
-      if (!volumeConfirmed) return { signal: null, reason: 'PRECISION Mode: Volume not confirming' };
-      if (!trendStrong) return { signal: null, reason: 'PRECISION Mode: Trend not strong enough' };
-      if (type === 'BUY' && !macdBuy) return { signal: null, reason: 'PRECISION Mode: MACD not confirming BUY' };
-      if (type === 'SELL' && !macdSell) return { signal: null, reason: 'PRECISION Mode: MACD not confirming SELL' };
-      if (!mtfConfirmed) return { signal: null, reason: 'PRECISION Mode: MTF Trend not aligned' };
-    }
-
-    if (!type || score < requiredScore) return { signal: null, reason: `Score too low (${score}/${requiredScore})` };
-
-    // Additional High Quality Filters
-    if (this.highQualityMode) {
-      const rsi = this.indicators.rsi || 50;
-      const adx = this.indicators.adx || 0;
-      
-      // 1. Trend Strength Filter (ADX > 25)
-      if (adx < 25) return { signal: null, reason: 'HQ Mode: Trend too weak (ADX < 25)' };
-      
-      // 2. RSI Extreme Filter
-      if (type === 'BUY' && rsi > 45) return { signal: null, reason: 'HQ Mode: RSI not oversold enough for BUY' };
-      if (type === 'SELL' && rsi < 55) return { signal: null, reason: 'HQ Mode: RSI not overbought enough for SELL' };
-      
-      // 3. Volatility Filter (ATR must be significant)
-      const atr = this.indicators.atr || 0;
-      const atrPercent = (atr / currentPrice) * 100;
-      if (atrPercent < 0.015) return { signal: null, reason: 'HQ Mode: Volatility too low' };
-    }
-
-    return { signal: this.createSignal(type, price, score, reasons, atr, 'SCALP'), reason: 'Signal OK' };
+    return { signal: null, reason: 'No clear signal or low score' };
   }
 
   // ==========================================
@@ -1469,6 +1473,91 @@ export class Strategy {
     const d = this.calculateSMA(dValues, dPeriod);
     
     return { k, d };
+  }
+
+  isWithinSession(start: string, end: string) {
+    try {
+      const now = new Date();
+      const [startH, startM] = start.split(':').map(Number);
+      const [endH, endM] = end.split(':').map(Number);
+      
+      const startTime = new Date(now);
+      startTime.setHours(startH, startM, 0);
+      
+      const endTime = new Date(now);
+      endTime.setHours(endH, endM, 0);
+      
+      return now >= startTime && now <= endTime;
+    } catch (e) {
+      return true; // Default to true if error
+    }
+  }
+
+  calculateDivergence(prices: number[], rsiValues: number[]) {
+    if (prices.length < 10 || rsiValues.length < 10) return null;
+    
+    const lastPrice = prices[prices.length - 1];
+    const lastRsi = rsiValues[rsiValues.length - 1];
+    
+    // Find previous peak/trough (simple version)
+    let prevPricePeak = -1;
+    let prevRsiPeak = -1;
+    let prevPriceTrough = Infinity;
+    let prevRsiTrough = Infinity;
+    
+    for (let i = prices.length - 10; i < prices.length - 2; i++) {
+      if (prices[i] > prices[i-1] && prices[i] > prices[i+1]) {
+        prevPricePeak = prices[i];
+        prevRsiPeak = rsiValues[i];
+      }
+      if (prices[i] < prices[i-1] && prices[i] < prices[i+1]) {
+        prevPriceTrough = prices[i];
+        prevRsiTrough = rsiValues[i];
+      }
+    }
+    
+    // Bearish Divergence: Price higher high, RSI lower high
+    if (prevPricePeak !== -1 && lastPrice > prevPricePeak && lastRsi < prevRsiPeak) {
+      return 'BEARISH';
+    }
+    
+    // Bullish Divergence: Price lower low, RSI higher low
+    if (prevPriceTrough !== Infinity && lastPrice < prevPriceTrough && lastRsi > prevRsiTrough) {
+      return 'BULLISH';
+    }
+    
+    return null;
+  }
+
+  detectOrderBlocks(history: any[]) {
+    if (history.length < 20) return null;
+    
+    // Simplified OB: Large candle followed by consolidation or reversal
+    // We look for "Supply" and "Demand" zones
+    const lastCandle = history[history.length - 1];
+    const price = lastCandle.price;
+    
+    for (let i = history.length - 20; i < history.length - 5; i++) {
+      const candle = history[i];
+      const bodySize = Math.abs(candle.open - candle.close);
+      const prevCandle = history[i-1];
+      
+      // Demand Zone (Bullish OB): Strong green candle after red
+      if (candle.close > candle.open && bodySize > (candle.high - candle.low) * 0.6) {
+        if (price <= candle.low * 1.001 && price >= candle.low * 0.999) {
+          return 'DEMAND';
+        }
+      }
+      
+      // Supply Zone (Bearish OB): Strong red candle after green
+      if (candle.close < candle.open && bodySize > (candle.high - candle.low) * 0.6) {
+        if (price >= candle.high * 0.999 && price <= candle.high * 1.001) {
+          return 'SUPPLY';
+        }
+      }
+    }
+    
+    return null;
   }
 
   calculateRSI(prices: number[], period: number = 14) {
