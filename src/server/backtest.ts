@@ -222,7 +222,7 @@ export function runBacktest(cfg: any, bars: any[], opts: any = {}) {
   for (const t of trades) {
     // FarazGold often uses seconds. If timestamp is too small, assume seconds.
     const timestamp = t.time < 10000000000 ? t.time * 1000 : t.time;
-    const hour = new Date(timestamp).getHours();
+    const hour = new Date(timestamp).getUTCHours();
     hourlyStats[hour].netTicks += t.pnlTicks;
     hourlyStats[hour].trades += 1;
   }
@@ -233,6 +233,8 @@ export function runBacktest(cfg: any, bars: any[], opts: any = {}) {
   const winRate = trades.length ? (trades.filter(t=>t.pnlTicks>0).length / trades.length) : 0;
   const avg = trades.length ? (trades.reduce((a,b)=>a+b.pnlTicks,0)/trades.length) : 0;
   const maxWin = trades.length ? Math.max(...trades.map(t => t.pnlTicks)) : 0;
+  const avgMAE = trades.length ? (trades.reduce((a,b)=>a+(b.maeTicks || 0),0)/trades.length) : 0;
+  const avgMFE = trades.length ? (trades.reduce((a,b)=>a+(b.mfeTicks || 0),0)/trades.length) : 0;
 
   return {
     trades,
@@ -244,6 +246,8 @@ export function runBacktest(cfg: any, bars: any[], opts: any = {}) {
       avgTicks: avg,
       maxWinTicks: maxWin,
       maxDrawdownTicks: maxDrawdown(equityCurve),
+      avgMAE,
+      avgMFE,
       hourlyStats
     }
   };

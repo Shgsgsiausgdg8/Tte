@@ -374,7 +374,9 @@ export const config = {
     bestParamsFile: './logs/best_params.json',
     runOnStart: false,
     autoApply: true,
-    maximizeBigWins: false
+    maximizeBigWins: false,
+    optimizeDrawdownQuality: true,
+    surgicalOptimization: true
   },
 
   // ==========================================
@@ -419,7 +421,8 @@ export const config = {
     enabled: false,
     botToken: '',
     chatId: '', // Single or comma-separated
-    logEnabled: false
+    logEnabled: false,
+    drawdownReportEnabled: true
   },
 
   // ==========================================

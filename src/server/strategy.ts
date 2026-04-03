@@ -219,19 +219,23 @@ export class Strategy {
     const lows = priceHistory.map(p => p.low ?? p.price);
     const price = currentPrice || closes[closes.length - 1];
 
-    if (closes.length < 60) return { signal: null, reason: 'Not enough data for Hull/SuperTrend' };
+    const cfg = this.config.strategy?.hullSuperTrend || {};
+    const hullLength = cfg.hullLength || 55;
+    const stPeriod = cfg.stPeriod || 10;
+    const stMultiplier = cfg.stMultiplier || 3;
 
-    // 1. Calculate SuperTrend (Default 10, 3)
-    const stResultArray = this.calculateSuperTrend(highs, lows, closes, 10, 3);
+    if (closes.length < Math.max(60, hullLength + 5)) return { signal: null, reason: 'Not enough data for Hull/SuperTrend' };
+
+    // 1. Calculate SuperTrend
+    const stResultArray = this.calculateSuperTrend(highs, lows, closes, stPeriod, stMultiplier);
     if (!stResultArray || stResultArray.length === 0) return { signal: null, reason: 'SuperTrend not ready' };
     const stResult = stResultArray[stResultArray.length - 1];
     const st = stResult.value;
     const stDir = stResult.direction; // 1 for BUY (Green), -1 for SELL (Red)
 
-    // 2. Calculate Hull Suite (Length 55)
-    const length = 55;
-    const hmaArray = this.calculateHMA(closes, length); // Orange Line
-    const ehmaArray = this.calculateEHMA(closes, length); // Blue Line
+    // 2. Calculate Hull Suite
+    const hmaArray = this.calculateHMA(closes, hullLength); // Orange Line
+    const ehmaArray = this.calculateEHMA(closes, hullLength); // Blue Line
 
     if (!hmaArray || hmaArray.length < 2 || !ehmaArray || ehmaArray.length < 2 || !stDir) return { signal: null, reason: 'Indicators not ready' };
 

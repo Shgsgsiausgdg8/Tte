@@ -1710,6 +1710,21 @@ ${analysisText}
 
     const result = this.strategy.analyze(history, this.openPositions.size, this.price, false, mtfHistory);
     
+    // Anti-Arbitrage & Real Account Safety Guards
+    const antiArb = this.settings.strategy?.antiArbitrage || { enabled: true, maxLatencyMs: 500, maxSpreadTicks: 15 };
+    if (antiArb.enabled && result.signal) {
+      if (this.latency > antiArb.maxLatencyMs) {
+        this.log(`Latency too high (${this.latency}ms > ${antiArb.maxLatencyMs}ms). Skipping entry for safety.`, "INFO");
+        return;
+      }
+      const tickSize = this.settings.market?.tickSize || 1;
+      const spreadTicks = this.currentSpread / tickSize;
+      if (spreadTicks > antiArb.maxSpreadTicks) {
+        this.log(`Spread too high (${spreadTicks.toFixed(1)} ticks > ${antiArb.maxSpreadTicks} ticks). Skipping entry.`, "INFO");
+        return;
+      }
+    }
+    
     if (result.signal) {
       // Generate unique signal ID
       this.signalCounter++;
@@ -1896,7 +1911,9 @@ ${analysisText}
           tp2: Math.round(signal.tp2 || tp + (tp - this.price)),
           tp3: Math.round(signal.tp3 || tp + 2 * (tp - this.price)),
           slEnforced: false,
-          lastEnforceAttempt: Date.now()
+          lastEnforceAttempt: Date.now(),
+          maxAdverseTicks: 0,
+          maxFavorableTicks: 0
         });
         this.saveState();
 
@@ -1998,7 +2015,9 @@ ${analysisText}
           tp1: tp,
           tp2: Math.round(signal.tp2 || tp + (tp - this.price)),
           tp3: Math.round(signal.tp3 || tp + 2 * (tp - this.price)),
-          slEnforced: true
+          slEnforced: true,
+          maxAdverseTicks: 0,
+          maxFavorableTicks: 0
         });
         this.log(`Trade Executed (SIM): ${signal.type} at ${this.price}`, "SUCCESS");
       }
@@ -2022,6 +2041,24 @@ ${analysisText}
       const isBuy = position.type === 'BUY';
       const entryPrice = position.entry || position.price;
       const now = Date.now();
+
+      // Track Drawdown (MAE) and Max Profit (MFE)
+      const currentDiff = currentPrice - entryPrice;
+      const currentTicks = Math.abs(currentDiff / tickSize);
+      
+      if (isBuy) {
+        if (currentPrice < entryPrice) {
+          position.maxAdverseTicks = Math.max(position.maxAdverseTicks || 0, currentTicks);
+        } else {
+          position.maxFavorableTicks = Math.max(position.maxFavorableTicks || 0, currentTicks);
+        }
+      } else {
+        if (currentPrice > entryPrice) {
+          position.maxAdverseTicks = Math.max(position.maxAdverseTicks || 0, currentTicks);
+        } else {
+          position.maxFavorableTicks = Math.max(position.maxFavorableTicks || 0, currentTicks);
+        }
+      }
 
       // Periodic SL/TP Enforcement Retry
       const isPending = !position.transactionId || position.transactionId === 'PENDING' || String(position.transactionId).includes('PENDING');
@@ -2477,6 +2514,31 @@ ${analysisText}
     this.totalTrades++;
     if (pnl > 0) this.winningTrades++;
     else if (pnl < 0) this.losingTrades++;
+
+    // Send Drawdown Report to Rubika if enabled
+    if (this.settings.rubika?.enabled && this.settings.rubika?.drawdownReportEnabled) {
+      const mae = Math.round(pos.maxAdverseTicks || 0);
+      const mfe = Math.round(pos.maxFavorableTicks || 0);
+      const pnlEmoji = pnl > 0 ? '✅' : '❌';
+      const typeLabel = isBuy ? 'خرید (BUY)' : 'فروش (SELL)';
+      
+      const report = `📊 گزارش تحلیل درادان (Drawdown)
+----------------------------------
+${pnlEmoji} معامله ${typeLabel} #${pos.signalId || '---'}
+💰 سود/ضرر: ${pnl.toLocaleString('fa-IR')} تومان
+📈 قیمت ورود: ${entryPrice.toLocaleString('fa-IR')}
+📉 قیمت خروج: ${closePrice.toLocaleString('fa-IR')}
+
+⚠️ بیشترین درادان (MAE): ${mae.toLocaleString('fa-IR')} خط
+🚀 بیشترین پیشروی (MFE): ${mfe.toLocaleString('fa-IR')} خط
+
+💡 ${pnl > 0 
+        ? (mae > 5 ? `قیمت قبل از سوددهی ${mae} خط در ضرر رفته بود.` : 'نقطه ورود بسیار دقیق بود.') 
+        : (mfe > 5 ? `قیمت قبل از استاپ، ${mfe} خط در سود رفته بود.` : 'معامله سریعاً به استاپ رسید.')}
+----------------------------------`;
+      
+      this.sendRubikaMessage(report, pos.rubikaMessageId);
+    }
     
     // First remove the position from local state to prevent infinite loops
     this.openPositions.delete(id);

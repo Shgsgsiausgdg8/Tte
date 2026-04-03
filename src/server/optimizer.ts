@@ -21,14 +21,55 @@ function clamp(n: number, a: number, b: number){ return Math.max(a, Math.min(b, 
 
 function randInt(a: number, b: number){ return Math.floor(Math.random()*(b-a+1))+a; }
 
-function propose(base: any) {
+function propose(base: any, metrics: any = null) {
   const cfg = deepClone(base);
   const activeStrategy = cfg.activeStrategy || 'SCALP';
+  const surgical = !!baseConfig.autoTune?.surgicalOptimization;
 
-  // Common parameters
-  cfg.targetsTicks.stopTicks = clamp(randInt((cfg.targetsTicks.stopTicks ?? 12)-4, (cfg.targetsTicks.stopTicks ?? 12)+6), 6, 40);
-  cfg.targetsTicks.tpTicks = clamp(randInt((cfg.targetsTicks.tpTicks ?? 18)-6, (cfg.targetsTicks.tpTicks ?? 18)+10), 8, 80);
+  // Surgical Optimization Logic:
+  // If we have metrics from the previous best run, use them to guide the next proposal.
+  if (surgical && metrics && metrics.trades > 5) {
+    const avgMAE = metrics.avgMAE || 0;
+    const avgMFE = metrics.avgMFE || 0;
+    const currentSL = cfg.targetsTicks.stopTicks || 12;
+    const currentTP = cfg.targetsTicks.tpTicks || 18;
 
+    // 1. Optimize Stop Loss (SL) based on MAE
+    // If average MAE is much lower than current SL, try to tighten SL.
+    if (avgMAE < currentSL * 0.6) {
+      cfg.targetsTicks.stopTicks = Math.max(6, Math.round(avgMAE * 1.5)); // Add 50% buffer to avgMAE
+    } else {
+      // Normal mutation
+      cfg.targetsTicks.stopTicks = clamp(randInt(currentSL - 2, currentSL + 4), 6, 40);
+    }
+
+    // 2. Optimize Take Profit (TP) based on MFE
+    // If average MFE is much higher than current TP, try to increase TP.
+    if (avgMFE > currentTP * 1.2) {
+      cfg.targetsTicks.tpTicks = Math.min(80, Math.round(avgMFE * 0.9)); // Set TP to 90% of avgMFE
+    } else {
+      // Normal mutation
+      cfg.targetsTicks.tpTicks = clamp(randInt(currentTP - 4, currentTP + 8), 8, 80);
+    }
+
+    // 3. Optimize Entry (Indicators) based on MAE
+    // If MAE is high, it means we are entering too early. Tighten indicators.
+    if (avgMAE > currentSL * 0.4) {
+      if (activeStrategy === 'SCALP') {
+        const rsi = cfg.strategy.indicators.rsi;
+        if (rsi) {
+          rsi.oversold = Math.max(15, rsi.oversold - 2); // Tighten BUY entry
+          rsi.overbought = Math.min(85, rsi.overbought + 2); // Tighten SELL entry
+        }
+      }
+    }
+  } else {
+    // Standard Random Mutation (Scenario 1)
+    cfg.targetsTicks.stopTicks = clamp(randInt((cfg.targetsTicks.stopTicks ?? 12)-4, (cfg.targetsTicks.stopTicks ?? 12)+6), 6, 40);
+    cfg.targetsTicks.tpTicks = clamp(randInt((cfg.targetsTicks.tpTicks ?? 18)-6, (cfg.targetsTicks.tpTicks ?? 18)+10), 8, 80);
+  }
+
+  // Common parameters (always mutated slightly)
   cfg.targetsTicks.trailing.activateAfterTicks = clamp(randInt((cfg.targetsTicks.trailing.activateAfterTicks ?? 12)-4, (cfg.targetsTicks.trailing.activateAfterTicks ?? 12)+8), 4, 80);
   cfg.targetsTicks.trailing.trailTicks = clamp(randInt((cfg.targetsTicks.trailing.trailTicks ?? 10)-4, (cfg.targetsTicks.trailing.trailTicks ?? 10)+8), 4, 80);
 
@@ -61,6 +102,12 @@ function propose(base: any) {
     hmamacd.macdFast = clamp(randInt(hmamacd.macdFast - 3, hmamacd.macdFast + 3), 5, 30);
     hmamacd.macdSlow = clamp(randInt(hmamacd.macdSlow - 5, hmamacd.macdSlow + 5), 15, 60);
     cfg.strategy.hmamacd = hmamacd;
+  } else if (activeStrategy === 'HULL_SUPERTREND') {
+    const hst = cfg.strategy.hullSuperTrend || { hullLength: 55, stPeriod: 10, stMultiplier: 3 };
+    hst.hullLength = clamp(randInt(hst.hullLength - 10, hst.hullLength + 10), 10, 200);
+    hst.stPeriod = clamp(randInt(hst.stPeriod - 3, hst.stPeriod + 3), 5, 50);
+    hst.stMultiplier = clamp(Number((hst.stMultiplier + (Math.random() * 1 - 0.5)).toFixed(1)), 1, 10);
+    cfg.strategy.hullSuperTrend = hst;
   } else {
     if (!cfg.strategy.indicators) cfg.strategy.indicators = {};
     if (!cfg.strategy.indicators.ema) cfg.strategy.indicators.ema = { fast: 8, slow: 21 };
@@ -91,9 +138,9 @@ function propose(base: any) {
   return cfg;
 }
 
-function score(metrics: any, maximizeBigWins: boolean = false) {
+function score(metrics: any, maximizeBigWins: boolean = false, optimizeDrawdownQuality: boolean = true) {
   const t = metrics.trades;
-  if (t < 10) return -1e12; // Need at least some trades
+  if (t < 3) return -1e12; // Still need at least 3 trades to avoid noise
   
   const net = metrics.netTicks;
   const dd = metrics.maxDrawdownTicks || 1;
@@ -101,6 +148,8 @@ function score(metrics: any, maximizeBigWins: boolean = false) {
   const wr = metrics.winRate || 0;
   const maxWin = metrics.maxWinTicks || 0;
   const avg = metrics.avgTicks || 0;
+  const avgMAE = metrics.avgMAE || 0;
+  const avgMFE = metrics.avgMFE || 0;
 
   // Scoring formula:
   // 1. Net profit is king
@@ -109,21 +158,37 @@ function score(metrics: any, maximizeBigWins: boolean = false) {
   // 4. Reward "Big Wins" (maxWin)
   // 5. Reward high average profit per trade
   // 6. Win rate is secondary but should be > 40%
+  // 7. Reward Drawdown Quality (MAE/MFE)
   
   let s = net * 1.0;
-  s -= dd * 2.0; // Heavy drawdown penalty
-  s += pf * 100; // Reward efficiency
+  s -= dd * 1.5; // Drawdown penalty
+  s += pf * 50; // Reward efficiency
+  
+  // Drawdown Quality (MAE/MFE)
+  // We want low MAE (less pain) and high MFE (more potential)
+  if (optimizeDrawdownQuality) {
+    s -= avgMAE * 10.0; // Heavier penalty for high average drawdown per trade
+    s += avgMFE * 4.0; // Reward high potential excursion
+  } else {
+    s -= avgMAE * 2.0; // Standard penalty
+    s += avgMFE * 1.0; // Standard reward
+  }
   
   if (maximizeBigWins) {
-    s += maxWin * 10.0; // Heavy reward for big wins (user request)
-    s += avg * 100; // Reward quality even more
+    s += maxWin * 5.0; // Reward for big wins
+    s += avg * 100; // Reward quality
   } else {
-    s += maxWin * 2.0; // Standard reward for big wins
+    s += maxWin * 1.0; // Standard reward for big wins
     s += avg * 50; // Standard reward for quality
   }
   
-  if (wr < 0.4) s -= 500; // Penalty for low win rate
-  if (t > 50) s += 100; // Reward consistency
+  if (wr < 0.45) s -= 200; // Penalty for low win rate
+  if (t > 30) s += 50; // Reward consistency
+  
+  // Penalty for too few trades (linear penalty from 3 to 10 trades)
+  if (t < 10) {
+    s -= (10 - t) * 100;
+  }
   
   return s;
 }
@@ -191,6 +256,12 @@ function toPatch(bestCfg: any) {
     patch.strategy.trend = bestCfg.strategy.trend;
   } else if (bestCfg.activeStrategy === 'HMAMACD') {
     patch.strategy.hmamacd = bestCfg.strategy.hmamacd;
+  } else if (bestCfg.activeStrategy === 'HULL_SUPERTREND' && bestCfg.strategy.hullSuperTrend) {
+    patch.strategy.hullSuperTrend = {
+      hullLength: bestCfg.strategy.hullSuperTrend.hullLength,
+      stPeriod: bestCfg.strategy.hullSuperTrend.stPeriod,
+      stMultiplier: bestCfg.strategy.hullSuperTrend.stMultiplier
+    };
   } else {
     patch.strategy.indicators = {
       ema: { fast: bestCfg.strategy.indicators.ema.fast, slow: bestCfg.strategy.indicators.ema.slow },
@@ -211,9 +282,10 @@ export async function runOptimization(inFile: string, outFile: string, iters: nu
     throw new Error(`Not enough data in ${inFile}. Need at least ~300 bars. Have ${bars.length}.`);
   }
 
-  const strategies = ['SCALP', 'HST', 'QUANT', 'TREND', 'HMAMACD'];
+  const strategies = ['SCALP', 'HST', 'QUANT', 'TREND', 'HMAMACD', 'HULL_SUPERTREND'];
   const splits = pickSplits();
   const maximizeBigWins = !!baseConfig.autoTune?.maximizeBigWins;
+  const optimizeDrawdownQuality = !!baseConfig.autoTune?.optimizeDrawdownQuality;
   
   let absoluteBestCfg = null;
   let absoluteBestScore = -1e18;
@@ -231,16 +303,16 @@ export async function runOptimization(inFile: string, outFile: string, iters: nu
     // Initial evaluation
     {
       const wf = walkForward(base, bars, splits);
-      currentBestScore = score(wf.agg, maximizeBigWins);
+      currentBestScore = score(wf.agg, maximizeBigWins, optimizeDrawdownQuality);
       currentBestAgg = wf.agg;
     }
 
     // Optimize this strategy
     const stratIters = Math.floor(iters / strategies.length);
     for (let n=0; n < stratIters; n++) {
-      const cand = propose(currentBestCfg);
+      const cand = propose(currentBestCfg, currentBestAgg);
       const wf = walkForward(cand, bars, splits);
-      const sc = score(wf.agg, maximizeBigWins);
+      const sc = score(wf.agg, maximizeBigWins, optimizeDrawdownQuality);
       if (sc > currentBestScore) {
         currentBestScore = sc;
         currentBestCfg = cand;
@@ -266,8 +338,9 @@ export async function runOptimization(inFile: string, outFile: string, iters: nu
   const hourlyStats = fullBacktest.metrics.hourlyStats;
   const bestHours = Object.entries(hourlyStats)
     .map(([h, s]: [any, any]) => ({ hour: parseInt(h), ...s }))
+    .filter(h => h.trades > 0) // Only show hours that actually had trades
     .sort((a, b) => b.netTicks - a.netTicks)
-    .slice(0, 5);
+    .slice(0, 8); // Show up to 8 best hours
 
   const payload = {
     generatedAt: new Date().toISOString(),
