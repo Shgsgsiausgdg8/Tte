@@ -148,6 +148,8 @@ export class Strategy {
       result = this.analyzeTrend(priceHistory, currentPrice, effectiveMinScore);
     } else if (activeStrategy === 'FAST') {
       result = this.analyzeFast(priceHistory, currentPrice, effectiveMinScore);
+    } else if (activeStrategy === 'HULL_SUPERTREND') {
+      result = this.analyzeHullSuperTrend(priceHistory, currentPrice);
     } else if (activeStrategy === 'NUMERICAL') {
       result = this.analyzeNumerical(currentPrice);
     } else if (activeStrategy === 'HST') {
@@ -206,6 +208,104 @@ export class Strategy {
     }
 
     return result || { signal: null, reason: 'No signal' };
+  }
+
+  // ==========================================
+  // HULL + SUPERTREND STRATEGY
+  // ==========================================
+  analyzeHullSuperTrend(priceHistory: any[], currentPrice: number) {
+    const closes = priceHistory.map(p => p.price);
+    const highs = priceHistory.map(p => p.high ?? p.price);
+    const lows = priceHistory.map(p => p.low ?? p.price);
+    const price = currentPrice || closes[closes.length - 1];
+
+    if (closes.length < 60) return { signal: null, reason: 'Not enough data for Hull/SuperTrend' };
+
+    // 1. Calculate SuperTrend (Default 10, 3)
+    const stResultArray = this.calculateSuperTrend(highs, lows, closes, 10, 3);
+    if (!stResultArray || stResultArray.length === 0) return { signal: null, reason: 'SuperTrend not ready' };
+    const stResult = stResultArray[stResultArray.length - 1];
+    const st = stResult.value;
+    const stDir = stResult.direction; // 1 for BUY (Green), -1 for SELL (Red)
+
+    // 2. Calculate Hull Suite (Length 55)
+    const length = 55;
+    const hmaArray = this.calculateHMA(closes, length); // Orange Line
+    const ehmaArray = this.calculateEHMA(closes, length); // Blue Line
+
+    if (!hmaArray || hmaArray.length < 2 || !ehmaArray || ehmaArray.length < 2 || !stDir) return { signal: null, reason: 'Indicators not ready' };
+
+    const hma = hmaArray[hmaArray.length - 1];
+    const ehma = ehmaArray[ehmaArray.length - 1];
+
+    // Store for UI
+    this.indicators.hma = hma;
+    this.indicators.hmaFast = ehma;
+    this.indicators.st = st;
+    this.indicators.stDir = stDir;
+
+    let type: 'BUY' | 'SELL' | null = null;
+    let reasons: string[] = [];
+    let score = 0;
+
+    // Previous values for cross detection
+    const prevHma = hmaArray[hmaArray.length - 2];
+    const prevEhma = ehmaArray[ehmaArray.length - 2];
+
+    // Detect Cross
+    const isGoldenCross = prevEhma <= prevHma && ehma > hma; // Blue crosses Orange upwards
+    const isDeathCross = prevEhma >= prevHma && ehma < hma; // Blue crosses Orange downwards
+
+    // BUY LOGIC
+    if (stDir === 1 && isGoldenCross) {
+      type = 'BUY';
+      score = 5; // High confidence signal
+      reasons.push('SuperTrend is GREEN');
+      reasons.push('EHMA (Blue) crossed HMA (Orange) UP');
+    }
+    // SELL LOGIC
+    else if (stDir === -1 && isDeathCross) {
+      type = 'SELL';
+      score = 5; // High confidence signal
+      reasons.push('SuperTrend is RED');
+      reasons.push('EHMA (Blue) crossed HMA (Orange) DOWN');
+    }
+
+    if (!type) return { signal: null, reason: 'No Hull/SuperTrend signal' };
+
+    // Invalidation: Check if cross contradicts SuperTrend
+    if (isGoldenCross && stDir === -1) return { signal: null, reason: 'Invalid: Golden Cross but SuperTrend is RED' };
+    if (isDeathCross && stDir === 1) return { signal: null, reason: 'Invalid: Death Cross but SuperTrend is GREEN' };
+
+    // Stop Loss and Take Profit (Fixed 25 ticks as requested)
+    const tickSize = this.config.market?.tickSize || 1;
+    const slDistance = 25 * tickSize;
+    const tpDistance = 25 * tickSize; // 1:1 R:R initially
+
+    const sl = type === 'BUY' ? price - slDistance : price + slDistance;
+    const tp1 = type === 'BUY' ? price + tpDistance : price - tpDistance;
+    const tp2 = type === 'BUY' ? price + (tpDistance * 2) : price - (tpDistance * 2);
+    const tp3 = type === 'BUY' ? price + (tpDistance * 3) : price - (tpDistance * 3);
+
+    const signal = {
+      type,
+      entry: price,
+      sl,
+      tp1,
+      tp2,
+      tp3,
+      score,
+      reasons,
+      timestamp: Date.now(),
+      strategy: 'HULL_SUPERTREND'
+    };
+
+    this.signals.push(signal);
+    if (this.signals.length > 100) this.signals.shift();
+    this.lastSignalTime = Date.now();
+    this.lastSignalType = type;
+
+    return { signal, reason: 'Hull/SuperTrend signal generated' };
   }
 
   // ==========================================
@@ -1677,6 +1777,51 @@ export class Strategy {
     }
     
     return hma;
+  }
+
+  calculateEMAArray(prices: number[], period: number): number[] {
+    if (!prices || prices.length === 0) return [];
+    if (prices.length < period) return prices;
+    
+    const k = 2 / (period + 1);
+    let ema = prices.slice(0, period).reduce((a, b) => a + b, 0) / period;
+    const emaArray: number[] = new Array(period - 1).fill(ema);
+    emaArray.push(ema);
+    
+    for (let i = period; i < prices.length; i++) {
+      ema = prices[i] * k + ema * (1 - k);
+      emaArray.push(ema);
+    }
+    return emaArray;
+  }
+
+  calculateEHMA(prices: number[], period: number): number[] {
+    if (prices.length < period) return [];
+    
+    const halfPeriod = Math.floor(period / 2);
+    const sqrtPeriod = Math.floor(Math.sqrt(period));
+    
+    const rawEHMA: number[] = [];
+    for (let i = prices.length - sqrtPeriod * 2; i <= prices.length; i++) {
+      if (i < period) continue;
+      const currentSlice = prices.slice(0, i);
+      const emaHalf = this.calculateEMAArray(currentSlice, halfPeriod);
+      const emaFull = this.calculateEMAArray(currentSlice, period);
+      
+      if (emaHalf.length > 0 && emaFull.length > 0) {
+          rawEHMA.push(2 * emaHalf[emaHalf.length - 1] - emaFull[emaFull.length - 1]);
+      }
+    }
+    
+    const ehma: number[] = [];
+    for (let i = sqrtPeriod; i <= rawEHMA.length; i++) {
+      const emaSqrt = this.calculateEMAArray(rawEHMA.slice(0, i), sqrtPeriod);
+      if (emaSqrt.length > 0) {
+          ehma.push(emaSqrt[emaSqrt.length - 1]);
+      }
+    }
+    
+    return ehma;
   }
 
   calculateSuperTrend(highs: number[], lows: number[], closes: number[], period: number, multiplier: number) {

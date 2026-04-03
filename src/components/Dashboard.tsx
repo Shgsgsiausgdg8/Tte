@@ -459,6 +459,7 @@ export default function Dashboard() {
               <option value="TREND">استراتژی ترند</option>
               <option value="NUMERICAL">نوسان‌گیری عددی (مظنه)</option>
               <option value="HST">استراتژی HST</option>
+              <option value="HULL_SUPERTREND">هال + سوپرترند (جدید)</option>
               <option value="PINBAR">پین بار (پرایس اکشن)</option>
               <option value="MTF_PATTERN">الگوهای MTF</option>
               <option value="ICHIMOKU_MTF">ایچیموکو MTF</option>
@@ -2623,6 +2624,7 @@ export default function Dashboard() {
                       { id: 'TREND', label: 'ترند فالووینگ', desc: 'کراس MA و MACD' },
                       { id: 'NUMERICAL', label: 'نوسان‌گیری عددی', desc: 'مومنتوم و اعداد رند' },
                       { id: 'HST', label: 'استراتژی HST', desc: 'تایید دوگانه Hull+SuperTrend' },
+                      { id: 'HULL_SUPERTREND', label: 'هال + سوپرترند', desc: 'استراتژی جدید ترکیبی' },
                       { id: 'PINBAR', label: 'پین بار', desc: 'پرایس اکشن و سایه‌ها' },
                       { id: 'MTF_PATTERN', label: 'الگوهای MTF', desc: 'سطوح و الگوهای چندزمانی' },
                       { id: 'ICHIMOKU_MTF', label: 'ایچیموکو MTF', desc: 'ایچیموکو و سطوح کلاسیک' },
@@ -2715,6 +2717,7 @@ export default function Dashboard() {
                         settings.activeStrategy === 'QUANT' ? 'کوانت' : 
                         settings.activeStrategy === 'NUMERICAL' ? 'نوسان‌گیری عددی' : 
                         settings.activeStrategy === 'HST' ? 'استراتژی HST' : 
+                        settings.activeStrategy === 'HULL_SUPERTREND' ? 'هال + سوپرترند' : 
                         settings.activeStrategy === 'PINBAR' ? 'پین بار' : 
                         settings.activeStrategy === 'MTF_PATTERN' ? 'الگوهای MTF' : 
                         settings.activeStrategy === 'ICHIMOKU_MTF' ? 'ایچیموکو MTF' : 
@@ -2948,6 +2951,21 @@ export default function Dashboard() {
                               <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all ${settings.strategy?.hst?.requireCloseAboveHMA ? 'left-4.5' : 'left-0.5'}`} />
                             </button>
                           </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {settings.activeStrategy === 'HULL_SUPERTREND' && (
+                      <div className="space-y-4">
+                        <div className="bg-emerald-500/5 p-3 rounded-xl border border-emerald-500/20">
+                          <p className="text-[10px] text-emerald-500 font-bold mb-1 flex items-center gap-2">
+                            <ShieldCheck className="w-3 h-3" />
+                            راهنمای استراتژی هال + سوپرترند (جدید)
+                          </p>
+                          <p className="text-[8px] text-slate-400 leading-relaxed font-medium">
+                            استراتژی ترکیبی بر اساس تقاطع خطوط HMA و EHMA با تاییدیه جهت از SuperTrend.
+                            <br/>**نکته:** این استراتژی دارای حد ضرر و حد سود ثابت ۲۵ خطی است و برای تایم فریم ۵ دقیقه بهینه شده است.
+                          </p>
                         </div>
                       </div>
                     )}
