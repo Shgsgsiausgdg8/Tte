@@ -99,9 +99,9 @@ export class Strategy {
     let effectiveCooldown = this.cooldown;
 
     if (this.highQualityMode) {
-      // Significantly increase requirements
-      effectiveMinScore = Math.max(effectiveMinScore + 3, 5); // Require at least score 5
-      effectiveCooldown = Math.max(effectiveCooldown, 60 * 60 * 1000); // At least 1 hour cooldown between signals
+      // Slightly increase requirements
+      effectiveMinScore = Math.max(effectiveMinScore + 1, 3); // Require at least score 3
+      effectiveCooldown = Math.max(effectiveCooldown, 15 * 60 * 1000); // At least 15 mins cooldown between signals
     }
 
     if (!dryRun && now - this.lastSignalTime < effectiveCooldown) {
@@ -576,9 +576,9 @@ export class Strategy {
     // Additional High Quality Filters
     if (this.highQualityMode) {
       const adx = this.indicators.adx || 0;
-      if (adx < 25) return { signal: null, reason: 'HQ Mode: Trend too weak (ADX < 25)' };
-      if (type === 'BUY' && rsi > 45) return { signal: null, reason: 'HQ Mode: RSI not oversold enough' };
-      if (type === 'SELL' && rsi < 55) return { signal: null, reason: 'HQ Mode: RSI not overbought enough' };
+      if (adx < 20) return { signal: null, reason: 'HQ Mode: Trend too weak (ADX < 20)' };
+      if (type === 'BUY' && rsi > 50) return { signal: null, reason: 'HQ Mode: RSI not oversold enough' };
+      if (type === 'SELL' && rsi < 50) return { signal: null, reason: 'HQ Mode: RSI not overbought enough' };
     }
 
     const signal = {
@@ -655,10 +655,10 @@ export class Strategy {
     // Additional High Quality Filters
     if (this.highQualityMode) {
       const adx = this.indicators.adx || 0;
-      if (adx < 30) return { signal: null, reason: 'HQ Mode: Trend too weak for Trend Strategy (ADX < 30)' };
+      if (adx < 25) return { signal: null, reason: 'HQ Mode: Trend too weak for Trend Strategy (ADX < 25)' };
       const rsi = this.indicators.rsi || 50;
-      if (type === 'BUY' && rsi > 50) return { signal: null, reason: 'HQ Mode: RSI too high for Trend BUY' };
-      if (type === 'SELL' && rsi < 50) return { signal: null, reason: 'HQ Mode: RSI too low for Trend SELL' };
+      if (type === 'BUY' && rsi > 55) return { signal: null, reason: 'HQ Mode: RSI too high for Trend BUY' };
+      if (type === 'SELL' && rsi < 45) return { signal: null, reason: 'HQ Mode: RSI too low for Trend SELL' };
     }
 
     const atr = this.calculateATR(priceHistory.map(p=>p.high), priceHistory.map(p=>p.low), closes, 14);
@@ -748,9 +748,9 @@ export class Strategy {
     // Additional High Quality Filters
     if (this.highQualityMode) {
       const adx = this.indicators.adx || 0;
-      if (adx < 20) return { signal: null, reason: 'HQ Mode: Trend too weak for Fast Strategy (ADX < 20)' };
-      if (type === 'BUY' && rsi > 40) return { signal: null, reason: 'HQ Mode: RSI too high for Fast BUY' };
-      if (type === 'SELL' && rsi < 60) return { signal: null, reason: 'HQ Mode: RSI too low for Fast SELL' };
+      if (adx < 15) return { signal: null, reason: 'HQ Mode: Trend too weak for Fast Strategy (ADX < 15)' };
+      if (type === 'BUY' && rsi > 50) return { signal: null, reason: 'HQ Mode: RSI too high for Fast BUY' };
+      if (type === 'SELL' && rsi < 50) return { signal: null, reason: 'HQ Mode: RSI too low for Fast SELL' };
     }
 
     const atr = this.calculateATR(highs, lows, closes, 7);
@@ -1308,12 +1308,12 @@ export class Strategy {
     const atr = this.indicators.atr || 0;
     const atrPercent = (atr / currentPrice) * 100;
 
-    // 1. Trend Strength Filter (ADX > 25)
-    if (adx < 25) return { filtered: true, reason: 'HQ Mode: Trend too weak (ADX < 25)' };
+    // 1. Trend Strength Filter (ADX > 20)
+    if (adx < 20) return { filtered: true, reason: 'HQ Mode: Trend too weak (ADX < 20)' };
 
     // 2. RSI Extreme Filter
-    if (type === 'BUY' && rsi > 45) return { filtered: true, reason: 'HQ Mode: RSI not oversold enough for BUY' };
-    if (type === 'SELL' && rsi < 55) return { filtered: true, reason: 'HQ Mode: RSI not overbought enough for SELL' };
+    if (type === 'BUY' && rsi > 50) return { filtered: true, reason: 'HQ Mode: RSI not oversold enough for BUY' };
+    if (type === 'SELL' && rsi < 50) return { filtered: true, reason: 'HQ Mode: RSI not overbought enough for SELL' };
 
     // 3. Volatility Filter (ATR must be significant)
     if (atrPercent < 0.015) return { filtered: true, reason: 'HQ Mode: Volatility too low (ATR < 1.5%)' };

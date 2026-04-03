@@ -366,42 +366,31 @@ export default function Dashboard() {
               <h1 className="text-base sm:text-xl font-black tracking-tighter text-white uppercase">FARAZ <span className="text-emerald-500">GOLD</span></h1>
               <p className="text-[7px] sm:text-[9px] text-slate-500 font-mono uppercase tracking-[0.1em]">ربات اسکالپر الگوریتمیک - نسخه ۴.۳</p>
             </div>
+            <a href="https://farazgold.com" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 rounded-lg text-[9px] sm:text-[10px] font-bold transition-colors border border-emerald-500/20 mr-2 sm:mr-4">
+              <Globe className="w-3 h-3" />
+              <span className="hidden sm:inline">ورود به سایت فراز گلد</span>
+              <span className="sm:hidden">فراز گلد</span>
+            </a>
           </div>
           
-          <div className="flex sm:hidden items-center gap-3">
+          <div className="flex sm:hidden items-center gap-2">
             <button 
               onClick={() => setShowSettings(true)}
               className="p-2 bg-white/5 rounded-xl text-slate-400 hover:text-white transition-colors"
             >
-              <Settings className="w-5 h-5" />
+              <Settings className="w-4 h-4" />
             </button>
             <button 
               onClick={toggleTrading}
               className={`p-2 rounded-xl transition-all ${botState.isTrading ? 'bg-rose-500/20 text-rose-500' : 'bg-emerald-500/20 text-emerald-500'}`}
             >
-              <Power className="w-5 h-5" />
+              <Power className="w-4 h-4" />
             </button>
           </div>
         </div>
         
         <div className="flex items-center gap-4 sm:gap-6 w-full sm:w-auto justify-center sm:justify-end">
           <div className="hidden sm:flex items-center gap-4 border-r border-white/10 pr-6 mr-2">
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] text-slate-500 font-mono uppercase">اتصال</span>
-              <div className="flex gap-0.5">
-                {[1, 2, 3].map(i => (
-                  <div 
-                    key={i} 
-                    className={`w-1 h-3 rounded-full ${
-                      !botState.isConnected ? 'bg-slate-700' :
-                      botState.latency < 500 ? 'bg-emerald-500' :
-                      botState.latency < 1500 ? (i <= 2 ? 'bg-amber-500' : 'bg-slate-700') :
-                      (i <= 1 ? 'bg-rose-500' : 'bg-slate-700')
-                    }`} 
-                  />
-                ))}
-              </div>
-            </div>
             <div className="flex items-center gap-2">
               <span className="text-[10px] text-slate-500 font-mono uppercase">امنیت</span>
               <button 
@@ -548,8 +537,8 @@ export default function Dashboard() {
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 sm:gap-4">
             {[
               { label: 'قیمت لحظه‌ای', value: formatPrice(botState.price), icon: TrendingUp, color: 'text-white' },
-              { label: 'تاخیر قیمت (ms)', value: botState.latency ? `${botState.latency}ms` : '---', icon: Activity, color: botState.latency > 1000 ? 'text-rose-500' : botState.latency > 500 ? 'text-amber-500' : 'text-emerald-500' },
-              { label: 'وضعیت بازار', value: botState.indicators?.regime || '---', icon: Activity, color: botState.indicators?.regime === 'TRENDING' ? 'text-emerald-500' : botState.indicators?.regime === 'RANGING' ? 'text-amber-500' : 'text-white' },
+              { label: 'کل سرمایه', value: botState.portfolio ? formatPrice(botState.portfolio.equity) : '---', icon: Target, color: 'text-emerald-500' },
+              { label: 'موجودی درگیر (مارجین)', value: botState.portfolio ? formatPrice(botState.portfolio.margin) : '---', icon: Layers, color: 'text-amber-500' },
               { label: 'معاملات فعال', value: botState.openPositions.length, icon: ShieldCheck, color: 'text-emerald-500' }
             ].map((stat, i) => (
               <motion.div 
@@ -580,22 +569,6 @@ export default function Dashboard() {
                 {botState.marketStatus === 'OPEN' ? 'تغییرات قیمت در لحظه (زنده)' : 'بازار در حال حاضر بسته است'}
               </h2>
               <div className="flex items-center gap-4">
-                {botState.marketAnalysis && (
-                  <div className="hidden sm:flex items-center gap-4">
-                    <div className="flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-xl border border-white/5">
-                      <span className="text-[9px] text-slate-500">وضعیت بازار:</span>
-                      <span className={`text-[10px] font-bold ${botState.marketAnalysis.color}`}>{botState.marketAnalysis.trend}</span>
-                    </div>
-                    {botState.mtfStatus && (
-                      <div className="flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-xl border border-white/5">
-                        <span className="text-[9px] text-slate-500">تاییدیه MTF:</span>
-                        <span className={`text-[10px] font-bold ${botState.mtfStatus.status === 'CONFIRMED' ? (botState.mtfStatus.trend === 'BUY' ? 'text-emerald-500' : 'text-rose-500') : 'text-slate-500'}`}>
-                          {botState.mtfStatus.status === 'CONFIRMED' ? (botState.mtfStatus.trend === 'BUY' ? 'صعودی (5m)' : 'نزولی (5m)') : 'در حال تحلیل...'}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                )}
                 <div className="flex gap-2 w-full sm:w-auto justify-end" dir="ltr">
                   {['1M', '5M', '15M'].map(t => (
                     <button key={t} className={`px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-[9px] sm:text-[10px] font-bold transition-all ${t === '1M' ? 'bg-emerald-500 text-white' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}>{t}</button>
@@ -678,7 +651,7 @@ export default function Dashboard() {
                         </span>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-2 gap-4 mb-4">
                       <div>
                         <p className="text-[8px] sm:text-[9px] text-slate-500 uppercase font-mono mb-1">ورود</p>
                         <p className="text-xs sm:text-sm font-bold font-mono text-white">{formatPrice(pos.entry)}</p>
@@ -697,7 +670,30 @@ export default function Dashboard() {
                       </div>
                     </div>
 
-                    <div className="mt-4 pt-3 border-t border-white/5 grid grid-cols-3 gap-2">
+                    {/* Graphical Progress Bar */}
+                    <div className="mb-4 relative pt-4 pb-2">
+                      <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden flex">
+                        <div 
+                          className={`h-full transition-all duration-500 ${pos.type === 'BUY' ? (botState.price > pos.entry ? 'bg-emerald-500' : 'bg-rose-500') : (botState.price < pos.entry ? 'bg-emerald-500' : 'bg-rose-500')}`}
+                          style={{ 
+                            width: `${Math.max(0, Math.min(100, ((pos.type === 'BUY' ? botState.price - pos.sl : pos.sl - botState.price) / Math.abs(pos.tp3 - pos.sl)) * 100))}%` 
+                          }}
+                        />
+                      </div>
+                      <div className="flex justify-between mt-1.5">
+                        <span className="text-[7px] text-rose-500 font-mono">SL: {formatPrice(pos.sl)}</span>
+                        <span className="text-[7px] text-emerald-500 font-mono">TP3: {formatPrice(pos.tp3)}</span>
+                      </div>
+                      {/* Current Price Marker */}
+                      <div 
+                        className="absolute top-2 w-2 h-2 rounded-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.8)] -ml-1 transition-all duration-500"
+                        style={{ 
+                          left: `${Math.max(0, Math.min(100, ((pos.type === 'BUY' ? botState.price - pos.sl : pos.sl - botState.price) / Math.abs(pos.tp3 - pos.sl)) * 100))}%` 
+                        }}
+                      />
+                    </div>
+
+                    <div className="pt-3 border-t border-white/5 grid grid-cols-3 gap-2">
                       <div className="text-center">
                         <p className="text-[7px] text-slate-500 uppercase mb-1">TP1</p>
                         <p className={`text-[9px] font-bold ${pos.tp1Hit ? 'text-emerald-500' : 'text-slate-400'}`}>{formatPrice(pos.tp1)}</p>
@@ -771,7 +767,7 @@ export default function Dashboard() {
 
             {/* Auto-Tune & Backtest Results */}
             <div className="mb-6 p-4 sm:p-5 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
+              <div className="flex flex-col gap-4 mb-5">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
                     <Zap className="w-4 h-4 text-emerald-500" />
@@ -819,7 +815,7 @@ export default function Dashboard() {
                         }
                       }
                     }}
-                    className="px-3 py-2 rounded-xl text-[9px] font-bold transition-all bg-white/5 text-slate-400 hover:bg-white/10 border border-white/5 flex items-center gap-2"
+                    className="flex-1 sm:flex-none justify-center px-3 py-2 rounded-xl text-[9px] font-bold transition-all bg-white/5 text-slate-400 hover:bg-white/10 border border-white/5 flex items-center gap-2"
                   >
                     <RefreshCw className="w-3 h-3" />
                     بازگشت به قبل
@@ -828,7 +824,7 @@ export default function Dashboard() {
                     type="button"
                     onClick={runAutoTune}
                     disabled={isAutoTuning}
-                    className={`px-4 py-2 rounded-xl text-[9px] font-bold transition-all flex items-center gap-2 ${isAutoTuning ? 'bg-slate-800 text-slate-500 cursor-not-allowed' : 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-lg shadow-emerald-500/20'}`}
+                    className={`flex-1 sm:flex-none justify-center px-4 py-2 rounded-xl text-[9px] font-bold transition-all flex items-center gap-2 ${isAutoTuning ? 'bg-slate-800 text-slate-500 cursor-not-allowed' : 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-lg shadow-emerald-500/20'}`}
                   >
                     {isAutoTuning ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
                     {isAutoTuning ? 'در حال بهینه‌سازی...' : 'شروع بهینه‌سازی'}
@@ -895,6 +891,53 @@ export default function Dashboard() {
                   <p className="text-[8px] text-slate-600 mt-1">برای پیدا کردن بهترین تنظیمات، دکمه بالا را بزنید.</p>
                 </div>
               )}
+            </div>
+
+            {/* System Status (Moved from top) */}
+            <div className="mb-6 p-4 sm:p-5 bg-[#0f0f0f] border border-white/5 rounded-2xl">
+              <h3 className="text-[11px] font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-2">
+                <Globe className="w-4 h-4 text-slate-400" />
+                وضعیت سیستم و بازار
+              </h3>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between bg-black/20 p-2.5 rounded-xl border border-white/5">
+                  <span className="text-[9px] text-slate-500 font-bold uppercase tracking-tight">تأخیر شبکه (پینگ):</span>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[10px] font-bold font-mono ${botState.latency < 500 ? 'text-emerald-500' : botState.latency < 1500 ? 'text-amber-500' : 'text-rose-500'}`}>
+                      {botState.latency}ms
+                    </span>
+                    <div className="flex gap-0.5">
+                      {[1, 2, 3].map(i => (
+                        <div 
+                          key={i} 
+                          className={`w-1 h-2.5 rounded-full ${
+                            !botState.isConnected ? 'bg-slate-700' :
+                            botState.latency < 500 ? 'bg-emerald-500' :
+                            botState.latency < 1500 ? (i <= 2 ? 'bg-amber-500' : 'bg-slate-700') :
+                            (i <= 1 ? 'bg-rose-500' : 'bg-slate-700')
+                          }`} 
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                
+                {botState.marketAnalysis && (
+                  <div className="flex items-center justify-between bg-black/20 p-2.5 rounded-xl border border-white/5">
+                    <span className="text-[9px] text-slate-500 font-bold uppercase tracking-tight">وضعیت بازار:</span>
+                    <span className={`text-[10px] font-bold ${botState.marketAnalysis.color}`}>{botState.marketAnalysis.trend}</span>
+                  </div>
+                )}
+                
+                {botState.mtfStatus && (
+                  <div className="flex items-center justify-between bg-black/20 p-2.5 rounded-xl border border-white/5">
+                    <span className="text-[9px] text-slate-500 font-bold uppercase tracking-tight">تاییدیه MTF:</span>
+                    <span className={`text-[10px] font-bold ${botState.mtfStatus.status === 'CONFIRMED' ? (botState.mtfStatus.trend === 'BUY' ? 'text-emerald-500' : 'text-rose-500') : 'text-slate-500'}`}>
+                      {botState.mtfStatus.status === 'CONFIRMED' ? (botState.mtfStatus.trend === 'BUY' ? 'صعودی (5m)' : 'نزولی (5m)') : 'در حال تحلیل...'}
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Statistics */}
@@ -1060,7 +1103,7 @@ export default function Dashboard() {
       {/* Settings Modal */}
       <AnimatePresence>
         {showSettings && settings && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1944,18 +1987,20 @@ export default function Dashboard() {
                       <input 
                         type="number" 
                         value={settings.risk?.maxRiskTomanPerTrade || 1000000}
-                        onChange={(e) => setSettings({ ...settings, risk: { ...settings.risk, maxRiskTomanPerTrade: parseInt(e.target.value) } })}
+                        onChange={(e) => setSettings({ ...settings, risk: { ...settings.risk, maxRiskTomanPerTrade: parseInt(e.target.value) || 0 } })}
                         className="w-full bg-white/5 border border-white/5 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-emerald-500/50 font-bold"
                       />
+                      <p className="text-[9px] text-emerald-500 mt-1 font-bold">{(settings.risk?.maxRiskTomanPerTrade || 1000000).toLocaleString('fa-IR')} تومان</p>
                     </div>
                     <div>
                       <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">حداکثر ضرر روزانه (تومان)</label>
                       <input 
                         type="number" 
                         value={settings.risk?.maxDailyLossToman || 5000000}
-                        onChange={(e) => setSettings({ ...settings, risk: { ...settings.risk, maxDailyLossToman: parseInt(e.target.value) } })}
+                        onChange={(e) => setSettings({ ...settings, risk: { ...settings.risk, maxDailyLossToman: parseInt(e.target.value) || 0 } })}
                         className="w-full bg-white/5 border border-white/5 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-rose-500/50 font-bold"
                       />
+                      <p className="text-[9px] text-rose-500 mt-1 font-bold">{(settings.risk?.maxDailyLossToman || 5000000).toLocaleString('fa-IR')} تومان</p>
                     </div>
                     <div>
                       <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">حداکثر پوزیشن همزمان</label>

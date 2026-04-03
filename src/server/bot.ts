@@ -144,15 +144,30 @@ export class FarazGoldBot {
     }
   }
 
-  log(message: string, type: 'INFO' | 'SUCCESS' | 'ERROR' | 'SIGNAL' | 'WS' = 'INFO') {
+  log(message: string, type: 'INFO' | 'SUCCESS' | 'ERROR' | 'SIGNAL' | 'WS' = 'INFO', hidden: boolean = false) {
     const logEntry = {
       id: Date.now() + Math.random(),
       time: new Date().toLocaleTimeString('fa-IR'),
       message,
       type
     };
-    this.logs.unshift(logEntry);
-    if (this.logs.length > 500) this.logs.pop();
+    
+    // Hide spammy or overly technical logs from the UI
+    const isSpammy = message.includes('Received array of') || 
+                     message.includes('Received bars:') || 
+                     message.includes('Received history:') ||
+                     message.includes('Unknown data:') ||
+                     message.includes('HTML Response') ||
+                     message.includes('Endpoint') ||
+                     message.includes('Retrying historical bars') ||
+                     message.includes('Fetching MTF bars') ||
+                     message.includes('API Price Sync') ||
+                     message.includes('WS unexpected-response');
+
+    if (!hidden && !isSpammy) {
+      this.logs.unshift(logEntry);
+      if (this.logs.length > 500) this.logs.pop();
+    }
 
     // ANSI Colors for terminal
     const colors = {
@@ -2037,6 +2052,26 @@ ${analysisText}
         continue;
       }
 
+      // Max Loss Per Trade & Max Daily Loss Enforcement
+      const tickValue = Number(this.settings.market?.tickValueToman ?? 23000);
+      const priceDiff = isBuy ? currentPrice - entryPrice : entryPrice - currentPrice;
+      const currentPnlToman = Math.round((priceDiff / tickSize) * tickValue * (position.units || 1));
+      
+      const maxLossPerTrade = this.settings.risk?.maxRiskTomanPerTrade;
+      if (maxLossPerTrade && currentPnlToman <= -Math.abs(maxLossPerTrade)) {
+        this.log(`🚨 Maximum Loss Per Trade Reached! Closing position ${id}. PnL: ${currentPnlToman}`, "ERROR");
+        this.closeTrade(id, 'max_loss_per_trade');
+        continue;
+      }
+
+      const maxDailyLoss = this.settings.risk?.maxDailyLossToman;
+      if (maxDailyLoss && (this.dailyPnL + currentPnlToman) <= -Math.abs(maxDailyLoss)) {
+        this.log(`🚨 Maximum Daily Loss Reached! Closing position ${id} and stopping bot. Daily PnL: ${this.dailyPnL + currentPnlToman}`, "ERROR");
+        this.closeTrade(id, 'max_daily_loss');
+        this.isTrading = false; // Stop trading
+        continue;
+      }
+
       if (!position.tp1Hit) {
         if ((isBuy && currentPrice >= position.tp1) || (!isBuy && currentPrice <= position.tp1)) {
           position.tp1Hit = true;
@@ -2446,9 +2481,9 @@ ${analysisText}
     // First remove the position from local state to prevent infinite loops
     this.openPositions.delete(id);
     
-    // Daily Loss Limit Check (5% of balance)
-    const maxDailyLoss = (this.portfolio?.balance || 100000000) * 0.05;
-    if (this.dailyPnL <= -maxDailyLoss && this.isTrading) {
+    // Daily Loss Limit Check
+    const maxDailyLoss = this.settings.risk?.maxDailyLossToman || 5000000;
+    if (this.dailyPnL <= -Math.abs(maxDailyLoss) && this.isTrading) {
       this.log(`Daily Loss Limit Reached! (PnL: ${this.dailyPnL} <= -${maxDailyLoss}). Stopping bot.`, "ERROR");
       this.isTrading = false;
       this.sendTelegramMessage(`🚨 *حد ضرر روزانه فعال شد*
