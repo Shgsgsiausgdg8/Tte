@@ -1552,6 +1552,10 @@ ${analysisText}
       });
 
       this.ws.on('error', (err) => {
+        // Suppress common connection-closing errors that are already handled by 'close' or 'unexpected-response'
+        if (err.message.includes('closed before the connection was established')) {
+          return;
+        }
         this.log(`WS Error: ${err.message}`, "ERROR");
       });
 
@@ -1637,14 +1641,18 @@ ${analysisText}
     
     // If we got a 504, it means the server is overloaded. We should wait longer.
     // Exponential backoff with max 10 minutes to prevent spamming
-    const baseDelay = (isGatewayError || this.reconnectAttempts > 3) ? 30000 : 15000;
+    const baseDelay = isGatewayError ? 60000 : (this.reconnectAttempts > 3 ? 30000 : 15000);
     const delay = Math.min(600000, baseDelay * Math.pow(1.5, this.reconnectAttempts - 1));
     
-    this.log(`Scheduling WS reconnect in ${Math.round(delay/1000)}s (Attempt ${this.reconnectAttempts})`, "WS");
+    // Add jitter (±10%) to avoid thundering herd
+    const jitter = (Math.random() * 0.2) + 0.9; // 0.9 to 1.1
+    const finalDelay = Math.round(delay * jitter);
+    
+    this.log(`Scheduling WS reconnect in ${Math.round(finalDelay/1000)}s (Attempt ${this.reconnectAttempts})`, "WS");
     this.wsReconnectTimer = setTimeout(() => {
       this.wsReconnectTimer = null;
       this.connectToExternalWS();
-    }, delay);
+    }, finalDelay);
   }
 
   processCandle(candle: any, skipSignalCheck: boolean = false) {
