@@ -19,7 +19,9 @@ export default function Dashboard() {
   const [showSettings, setShowSettings] = useState(false);
   const [showStrategySettings, setShowStrategySettings] = useState(false);
   const [showCreatePortfolio, setShowCreatePortfolio] = useState(false);
+  const [showIncreasePortfolio, setShowIncreasePortfolio] = useState(false);
   const [portfolioUnits, setPortfolioUnits] = useState(1);
+  const [increaseAmount, setIncreaseAmount] = useState(0);
   const [isCreatingPortfolio, setIsCreatingPortfolio] = useState(false);
   const [showLogs, setShowLogs] = useState(true);
   const [settings, setSettings] = useState<any>(null);
@@ -168,13 +170,41 @@ export default function Dashboard() {
       const res = await fetch('/api/bot/create-portfolio', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ units: portfolioUnits })
+        body: JSON.stringify({
+          portfolio_type: "isolated",
+          mode: "hedge",
+          initial_balance: portfolioUnits * 2300000,
+          line_value_per_khat: 23000
+        })
       });
       const data = await res.json();
       if (data.success) {
         setShowCreatePortfolio(false);
       } else {
         alert(data.message || 'خطا در ایجاد پرتفو');
+      }
+    } catch (e) {
+      alert('خطا در ارتباط با سرور');
+    } finally {
+      setIsCreatingPortfolio(false);
+    }
+  };
+
+  const handleIncreasePortfolio = async () => {
+    if (increaseAmount <= 0) return;
+    setIsCreatingPortfolio(true);
+    try {
+      const res = await fetch('/api/bot/increase-portfolio', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: increaseAmount })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setShowIncreasePortfolio(false);
+        setIncreaseAmount(0);
+      } else {
+        alert(data.message || 'خطا در افزایش سرمایه');
       }
     } catch (e) {
       alert('خطا در ارتباط با سرور');
@@ -366,10 +396,15 @@ export default function Dashboard() {
               <h1 className="text-base sm:text-xl font-black tracking-tighter text-white uppercase">FARAZ <span className="text-emerald-500">GOLD</span></h1>
               <p className="text-[7px] sm:text-[9px] text-slate-500 font-mono uppercase tracking-[0.1em]">ربات اسکالپر الگوریتمیک - نسخه ۴.۳</p>
             </div>
-            <a href="https://farazgold.com" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 rounded-lg text-[9px] sm:text-[10px] font-bold transition-colors border border-emerald-500/20 mr-2 sm:mr-4">
+            <a 
+              href={settings?.api?.accounts?.[settings?.api?.activeAccountId]?.type === 'real' ? "https://farazgold.com/room" : "https://demo.farazgold.com/room"} 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 rounded-lg text-[9px] sm:text-[10px] font-bold transition-colors border border-emerald-500/20 mr-2 sm:mr-4"
+            >
               <Globe className="w-3 h-3" />
-              <span className="hidden sm:inline">ورود به سایت فراز گلد</span>
-              <span className="sm:hidden">فراز گلد</span>
+              <span className="hidden sm:inline">ورود به {settings?.api?.accounts?.[settings?.api?.activeAccountId]?.type === 'real' ? 'پنل ریل' : 'پنل دمو'}</span>
+              <span className="sm:hidden">{settings?.api?.accounts?.[settings?.api?.activeAccountId]?.type === 'real' ? 'ریل' : 'دمو'}</span>
             </a>
           </div>
           
@@ -467,17 +502,32 @@ export default function Dashboard() {
             </select>
           </div>
           <div className="hidden lg:block text-right bg-white/5 px-4 py-2 rounded-2xl border border-white/5">
-            <p className="text-[9px] text-slate-500 font-mono uppercase tracking-wider mb-0.5">موجودی حساب</p>
+            <p className="text-[9px] text-slate-500 font-mono uppercase tracking-wider mb-0.5">موجودی کل</p>
             <div className="flex items-center gap-3">
               <p className="text-lg font-black font-mono text-white">
+                {botState.userInfo ? formatPrice(botState.userInfo.balance) : '---'}
+              </p>
+            </div>
+          </div>
+          <div className="hidden lg:block text-right bg-white/5 px-4 py-2 rounded-2xl border border-white/5">
+            <p className="text-[9px] text-slate-500 font-mono uppercase tracking-wider mb-0.5">موجودی درگیر (پرتفو)</p>
+            <div className="flex items-center gap-3">
+              <p className="text-lg font-black font-mono text-emerald-500">
                 {botState.portfolio ? formatPrice(botState.portfolio.balance) : '---'}
               </p>
-              {(!botState.portfolio || !botState.portfolio.has_portfolio) && (
+              {(!botState.portfolio || !botState.portfolio.has_portfolio) ? (
                 <button 
                   onClick={() => setShowCreatePortfolio(true)}
                   className="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 text-xs font-bold px-2 py-1 rounded-lg transition-colors"
                 >
                   ایجاد پرتفو
+                </button>
+              ) : (
+                <button 
+                  onClick={() => setShowIncreasePortfolio(true)}
+                  className="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 text-xs font-bold px-2 py-1 rounded-lg transition-colors"
+                >
+                  ویرایش / افزایش
                 </button>
               )}
             </div>
@@ -3129,6 +3179,70 @@ export default function Dashboard() {
                   </button>
                   <button 
                     onClick={() => setShowCreatePortfolio(false)}
+                    className="flex-1 bg-white/5 hover:bg-white/10 text-slate-400 py-4 rounded-2xl transition-all"
+                  >
+                    انصراف
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {showIncreasePortfolio && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" dir="rtl">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-[#0a0a0a] border border-white/10 rounded-3xl p-6 sm:p-8 w-full max-w-md shadow-2xl relative max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-emerald-500/10 rounded-2xl text-emerald-500">
+                    <TrendingUp className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl sm:text-2xl font-black text-white">افزایش سرمایه</h2>
+                    <p className="text-xs text-slate-400 mt-1">افزایش موجودی پرتفوی فعلی</p>
+                  </div>
+                </div>
+                <button onClick={() => setShowIncreasePortfolio(false)} className="p-2 hover:bg-white/5 rounded-full transition-colors">
+                  <X className="w-5 h-5 text-slate-400" />
+                </button>
+              </div>
+
+              <div className="space-y-6">
+                <div>
+                  <label className="text-sm text-slate-400 mb-3 block">مبلغ افزایش (تومان)</label>
+                  <input 
+                    type="number" 
+                    value={increaseAmount}
+                    onChange={(e) => setIncreaseAmount(parseInt(e.target.value) || 0)}
+                    className="w-full bg-white/5 border border-white/5 rounded-2xl px-4 py-4 text-center text-2xl font-black text-emerald-500 outline-none focus:border-emerald-500/50"
+                    placeholder="مثلاً ۵,۰۰۰,۰۰۰"
+                  />
+                  <p className="text-[10px] text-slate-500 mt-2 text-center">موجودی فعلی پرتفو: {botState.portfolio ? formatPrice(botState.portfolio.balance) : '---'}</p>
+                </div>
+
+                <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-emerald-500/80">موجودی جدید پس از افزایش:</span>
+                    <span className="font-bold text-emerald-500">{formatPrice((botState.portfolio?.balance || 0) + increaseAmount)}</span>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <button 
+                    onClick={handleIncreasePortfolio}
+                    disabled={isCreatingPortfolio || increaseAmount <= 0}
+                    className="flex-[2] bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-black py-4 rounded-2xl transition-all flex items-center justify-center gap-2 shadow-xl shadow-emerald-500/20"
+                  >
+                    {isCreatingPortfolio ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5" />}
+                    تایید و افزایش سرمایه
+                  </button>
+                  <button 
+                    onClick={() => setShowIncreasePortfolio(false)}
                     className="flex-1 bg-white/5 hover:bg-white/10 text-slate-400 py-4 rounded-2xl transition-all"
                   >
                     انصراف

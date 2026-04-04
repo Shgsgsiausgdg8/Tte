@@ -64,6 +64,7 @@ export class FarazGoldBot {
   lastPongTime: number = Date.now();
   lastMessageTime: number = Date.now();
   portfolio: any = null;
+  userInfo: any = null;
   dailyStartBalance: number = 0;
   dailyDateKey: string = '';
   
@@ -935,6 +936,9 @@ ${analysisText}
       this.portfolio = response.data;
       this.isMarketClosed = false; // Successfully reached API
       
+      // Also fetch user info for total balance
+      await this.getUserInfo();
+      
       // Auto-create portfolio if it doesn't exist
       if (this.portfolio && this.portfolio.has_portfolio === false && autoCreate && !this.hasAttemptedAutoCreate) {
         this.hasAttemptedAutoCreate = true;
@@ -992,22 +996,42 @@ ${analysisText}
     }
   }
 
-  async createPortfolio(units: number) {
+  async getUserInfo() {
+    if (!this.api) return;
+    try {
+      const response = await this.api.get('/api/room/api/user-info/');
+      if (response.data && response.data.status) {
+        this.userInfo = response.data;
+      }
+    } catch (error: any) {
+      // Log only occasionally
+      if (Math.random() < 0.1) {
+        this.log(`User Info Fetch Error: ${error.message}`, "ERROR");
+      }
+    }
+  }
+
+  async createPortfolio(configOrUnits: any) {
     if (!this.api) return { success: false, message: 'API not connected' };
     try {
-      const initialBalance = units * 2300000;
-      const lineValuePerKhat = 23000;
+      let params;
+      if (typeof configOrUnits === 'number') {
+        params = {
+          portfolio_type: "isolated",
+          mode: "hedge",
+          initial_balance: configOrUnits * 2300000,
+          line_value_per_khat: 23000
+        };
+      } else {
+        params = configOrUnits;
+      }
       
-      const response = await this.api.post('/api/room/api/create-portfolio/', {
-        portfolio_type: "isolated",
-        mode: "hedge",
-        initial_balance: initialBalance,
-        line_value_per_khat: lineValuePerKhat
-      });
+      const response = await this.api.post('/api/room/api/create-portfolio/', params);
       
       if (response.data?.status === true || response.data?.status === 'true') {
-        this.log(`Portfolio created successfully with ${units} units (${initialBalance} Toman)`, "SUCCESS");
+        this.log(`Portfolio created successfully: ${params.initial_balance} Toman`, "SUCCESS");
         await this.updatePortfolio(0, false);
+        await this.getUserInfo();
         return { success: true, message: response.data?.message || 'پرتفو با موفقیت ایجاد شد.' };
       } else {
         this.log(`Failed to create portfolio: ${JSON.stringify(response.data)}`, "ERROR");
@@ -1019,6 +1043,25 @@ ${analysisText}
       } else {
         this.log(`Create Portfolio Error: ${error.message}`, "ERROR");
       }
+      return { success: false, message: error.response?.data?.message || error.message };
+    }
+  }
+
+  async increasePortfolio(amount: number) {
+    if (!this.api) return { success: false, message: 'API not connected' };
+    try {
+      const response = await this.api.post('/api/room/api/increase-portfolio/', {
+        increase_amount: amount
+      });
+      if (response.data?.status === true) {
+        this.log(`Portfolio increased by ${amount} Toman`, "SUCCESS");
+        await this.updatePortfolio(0, false);
+        await this.getUserInfo();
+        return { success: true, message: response.data?.message || 'سرمایه با موفقیت افزایش یافت.' };
+      } else {
+        return { success: false, message: response.data?.message || 'خطا در افزایش سرمایه' };
+      }
+    } catch (error: any) {
       return { success: false, message: error.response?.data?.message || error.message };
     }
   }
@@ -2974,6 +3017,7 @@ ${pnlEmoji} معامله ${typeLabel} #${pos.signalId || '---'}
       indicators: this.strategy.indicators,
       settings: this.settings,
       portfolio: this.portfolio,
+      userInfo: this.userInfo,
       candles: candles,
       hmaLine: hmaLine,
       stLine: stLine,
