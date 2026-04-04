@@ -501,42 +501,19 @@ export default function Dashboard() {
               <option value="ICHIMOKU_HARAMI">ایچیموکو هارامی</option>
             </select>
           </div>
-          <div className="hidden lg:block text-right bg-white/5 px-4 py-2 rounded-2xl border border-white/5">
-            <p className="text-[9px] text-slate-500 font-mono uppercase tracking-wider mb-0.5">موجودی کل</p>
-            <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 sm:gap-6 ml-auto">
+            <div className="text-right bg-white/5 px-4 py-2 rounded-2xl border border-white/5">
+              <p className="text-[9px] text-slate-500 font-mono uppercase tracking-wider mb-0.5">موجودی کل</p>
               <p className="text-lg font-black font-mono text-white">
-                {botState.userInfo ? formatPrice(botState.userInfo.balance) : '---'}
+                {botState.userInfo ? formatPrice(botState.userInfo.balance) : <span className="animate-pulse opacity-50">---</span>}
               </p>
             </div>
-          </div>
-          <div className="hidden lg:block text-right bg-white/5 px-4 py-2 rounded-2xl border border-white/5">
-            <p className="text-[9px] text-slate-500 font-mono uppercase tracking-wider mb-0.5">موجودی درگیر (پرتفو)</p>
-            <div className="flex items-center gap-3">
-              <p className="text-lg font-black font-mono text-emerald-500">
-                {botState.portfolio ? formatPrice(botState.portfolio.balance) : '---'}
+            <div className="hidden sm:block text-right bg-white/5 px-4 py-2 rounded-2xl border border-white/5">
+              <p className="text-[9px] text-slate-500 font-mono uppercase tracking-wider mb-0.5">عملکرد امروز</p>
+              <p className={`text-lg font-black font-mono ${botState.dailyPnL >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                {botState.dailyPnL > 0 ? '+' : ''}{formatPrice(botState.dailyPnL)}
               </p>
-              {(!botState.portfolio || !botState.portfolio.has_portfolio) ? (
-                <button 
-                  onClick={() => setShowCreatePortfolio(true)}
-                  className="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 text-xs font-bold px-2 py-1 rounded-lg transition-colors"
-                >
-                  ایجاد پرتفو
-                </button>
-              ) : (
-                <button 
-                  onClick={() => setShowIncreasePortfolio(true)}
-                  className="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 text-xs font-bold px-2 py-1 rounded-lg transition-colors"
-                >
-                  ویرایش / افزایش
-                </button>
-              )}
             </div>
-          </div>
-          <div className="hidden lg:block text-right bg-white/5 px-4 py-2 rounded-2xl border border-white/5">
-            <p className="text-[9px] text-slate-500 font-mono uppercase tracking-wider mb-0.5">عملکرد امروز</p>
-            <p className={`text-lg font-black font-mono ${botState.dailyPnL >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-              {botState.dailyPnL > 0 ? '+' : ''}{formatPrice(botState.dailyPnL)}
-            </p>
           </div>
           
           <div className="flex items-center gap-2 bg-white/5 p-1 rounded-xl border border-white/5">
@@ -566,107 +543,27 @@ export default function Dashboard() {
       </header>
 
       <main className="p-4 sm:p-6 max-w-[1800px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6" dir="rtl">
-        {/* Main Chart Section */}
+        {/* Main Column Section */}
         <div className="lg:col-span-8 space-y-4 sm:space-y-6">
-          <div className="lg:hidden flex items-center justify-between bg-[#0f0f0f] border border-white/5 rounded-xl p-4">
-            <div>
-              <p className="text-[8px] text-slate-500 font-mono uppercase tracking-wider mb-0.5">موجودی حساب</p>
-              <p className="text-base font-black font-mono text-white">
-                {botState.portfolio ? formatPrice(botState.portfolio.balance) : '---'}
-              </p>
-            </div>
-            {(!botState.portfolio || !botState.portfolio.has_portfolio) && (
-              <button 
-                onClick={() => setShowCreatePortfolio(true)}
-                className="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 text-[10px] font-bold px-3 py-1.5 rounded-lg transition-colors"
-              >
-                ایجاد پرتفو
-              </button>
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 sm:gap-4">
-            {[
-              { label: 'قیمت لحظه‌ای', value: formatPrice(botState.price), icon: TrendingUp, color: 'text-white' },
-              { label: 'کل سرمایه', value: botState.portfolio ? formatPrice(botState.portfolio.equity) : '---', icon: Target, color: 'text-emerald-500' },
-              { label: 'موجودی درگیر (مارجین)', value: botState.portfolio ? formatPrice(botState.portfolio.margin) : '---', icon: Layers, color: 'text-amber-500' },
-              { label: 'معاملات فعال', value: botState.openPositions.length, icon: ShieldCheck, color: 'text-emerald-500' }
-            ].map((stat, i) => (
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.1 }}
-                key={i} 
-                className="bg-[#0f0f0f] border border-white/5 rounded-xl sm:rounded-2xl p-4 sm:p-5 hover:border-emerald-500/30 transition-colors group"
-              >
-                <div className="flex items-center justify-between mb-2 sm:mb-3">
-                  <p className="text-[8px] sm:text-[9px] text-slate-500 font-mono uppercase tracking-widest">{stat.label}</p>
-                  <stat.icon className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-600 group-hover:text-emerald-500 transition-colors" />
-                </div>
-                <p className={`text-xl sm:text-2xl font-black font-mono tracking-tighter ${stat.color}`}>{stat.value}</p>
-              </motion.div>
-            ))}
-          </div>
-
+          {/* Open Positions Section (Moved above chart) */}
           <motion.div 
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-[#0f0f0f] border border-white/5 rounded-xl sm:rounded-3xl p-4 sm:p-6 h-[400px] sm:h-[500px] shadow-2xl relative overflow-hidden"
-          >
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-emerald-500/50 to-transparent" />
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 sm:mb-8 gap-4 sm:gap-0">
-              <h2 className="text-[10px] sm:text-xs font-bold text-white uppercase tracking-[0.2em] sm:tracking-[0.3em] flex items-center gap-3">
-                <div className={`w-2 h-2 rounded-full ${botState.marketStatus === 'OPEN' ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
-                {botState.marketStatus === 'OPEN' ? 'تغییرات قیمت در لحظه (زنده)' : 'بازار در حال حاضر بسته است'}
-              </h2>
-              <div className="flex items-center gap-4">
-                <div className="flex gap-2 w-full sm:w-auto justify-end" dir="ltr">
-                  {['1M', '5M', '15M'].map(t => (
-                    <button key={t} className={`px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-[9px] sm:text-[10px] font-bold transition-all ${t === '1M' ? 'bg-emerald-500 text-white' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}>{t}</button>
-                  ))}
-                </div>
-              </div>
-            </div>
-            
-            {botState.marketAnalysis && (
-              <div className="sm:hidden mb-4 bg-white/5 p-3 rounded-xl border border-white/5 text-[10px] text-slate-400">
-                <span className="font-bold text-slate-300">تحلیل:</span> {botState.marketAnalysis.analysis}
-              </div>
-            )}
-            
-            <div className="h-[280px] sm:h-[400px] w-full" dir="ltr">
-              <Chart
-                options={chartOptions}
-                series={seriesData}
-                type="candlestick"
-                height="100%"
-                width="100%"
-              />
-            </div>
-            {botState.marketAnalysis && (
-              <div className="hidden sm:block absolute bottom-6 left-8 bg-[#0a0a0a]/80 backdrop-blur-md p-4 rounded-2xl border border-white/10 max-w-md shadow-2xl">
-                <div className="flex items-center gap-2 mb-2">
-                  <Activity className="w-4 h-4 text-emerald-500" />
-                  <span className="text-[10px] font-bold text-white uppercase tracking-widest">تحلیل هوشمند بازار</span>
-                </div>
-                <p className="text-xs text-slate-300 leading-relaxed">{botState.marketAnalysis.analysis}</p>
-              </div>
-            )}
-          </motion.div>
-        </div>
-
-        {/* Sidebar Section */}
-        <div className="lg:col-span-4 space-y-6 sm:space-y-8">
-          <motion.div 
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
             className="bg-[#0f0f0f] border border-white/5 rounded-xl sm:rounded-2xl p-5 sm:p-6 shadow-2xl"
           >
-            <h2 className="text-[10px] sm:text-xs font-bold text-white uppercase tracking-[0.2em] sm:tracking-[0.3em] mb-6 sm:mb-8 flex items-center gap-3">
-              <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-500" />
-              پوزیشن‌های باز
-            </h2>
-            <div className="space-y-4">
+            <div className="flex items-center justify-between mb-6 sm:mb-8">
+              <h2 className="text-[10px] sm:text-xs font-bold text-white uppercase tracking-[0.2em] sm:tracking-[0.3em] flex items-center gap-3">
+                <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-500" />
+                پوزیشن‌های باز
+              </h2>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold text-slate-500 bg-white/5 px-2 py-1 rounded-lg">
+                  تعداد: {botState.openPositions.length}
+                </span>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <AnimatePresence>
                 {botState.openPositions.map((pos: any) => (
                   <motion.div 
@@ -714,9 +611,9 @@ export default function Dashboard() {
                             ? 'text-emerald-500' 
                             : 'text-rose-500'
                         }`}>
-                          {formatPrice(
+                          {botState.price > 0 ? formatPrice(
                             ((pos.type === 'BUY' ? botState.price - pos.entry : pos.entry - botState.price) / (botState.settings?.market?.tickSize || 1)) * (botState.settings?.market?.tickValueToman || 23000) * (pos.units || 1)
-                          )}
+                          ) : '---'}
                         </p>
                       </div>
                     </div>
@@ -761,14 +658,140 @@ export default function Dashboard() {
                   </motion.div>
                 ))}
               </AnimatePresence>
-              {botState.openPositions.length === 0 && (
-                <div className="text-center py-8 sm:py-12">
-                  <div className="w-12 h-12 sm:w-16 sm:h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Clock className="w-5 h-5 sm:w-6 sm:h-6 text-slate-600" />
-                  </div>
-                  <p className="text-slate-500 text-[10px] sm:text-xs font-mono italic">در انتظار سیگنال بازار...</p>
+            </div>
+
+            {botState.openPositions.length === 0 && (
+              <div className="text-center py-8 sm:py-12">
+                <div className="w-12 h-12 sm:w-16 sm:h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Clock className="w-5 h-5 sm:w-6 sm:h-6 text-slate-600" />
                 </div>
+                <p className="text-[10px] sm:text-xs text-slate-500 font-bold">در حال حاضر پوزیشن باز ندارید</p>
+              </div>
+            )}
+          </motion.div>
+
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-[#0f0f0f] border border-white/5 rounded-xl sm:rounded-3xl p-4 sm:p-6 h-[400px] sm:h-[500px] shadow-2xl relative overflow-hidden"
+          >
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-emerald-500/50 to-transparent" />
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 sm:mb-8 gap-4 sm:gap-0">
+              <h2 className="text-[10px] sm:text-xs font-bold text-white uppercase tracking-[0.2em] sm:tracking-[0.3em] flex items-center gap-3">
+                <div className={`w-2 h-2 rounded-full ${botState.marketStatus === 'OPEN' ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
+                {botState.marketStatus === 'OPEN' ? 'تغییرات قیمت در لحظه (زنده)' : 'بازار در حال حاضر بسته است'}
+              </h2>
+              <div className="flex items-center gap-4">
+                <div className="flex gap-2 w-full sm:w-auto justify-end" dir="ltr">
+                  {['1M', '5M', '15M'].map(t => (
+                    <button key={t} className={`px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-[9px] sm:text-[10px] font-bold transition-all ${t === '1M' ? 'bg-emerald-500 text-white' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}>{t}</button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            
+            {botState.marketAnalysis && (
+              <div className="sm:hidden mb-4 bg-white/5 p-3 rounded-xl border border-white/5 text-[10px] text-slate-400">
+                <span className="font-bold text-slate-300">تحلیل:</span> {botState.marketAnalysis.analysis}
+              </div>
+            )}
+            
+            <div className="h-[280px] sm:h-[400px] w-full" dir="ltr">
+              <Chart
+                options={chartOptions}
+                series={seriesData}
+                type="candlestick"
+                height="100%"
+                width="100%"
+              />
+            </div>
+            {botState.marketAnalysis && (
+              <div className="hidden sm:block absolute bottom-6 left-8 bg-[#0a0a0a]/80 backdrop-blur-md p-4 rounded-2xl border border-white/10 max-w-md shadow-2xl">
+                <div className="flex items-center gap-2 mb-2">
+                  <Activity className="w-4 h-4 text-emerald-500" />
+                  <span className="text-[10px] font-bold text-white uppercase tracking-widest">تحلیل هوشمند بازار</span>
+                </div>
+                <p className="text-[10px] sm:text-xs text-slate-300 leading-relaxed text-justify">{botState.marketAnalysis.analysis}</p>
+              </div>
+            )}
+          </motion.div>
+        </div>
+
+        {/* Sidebar Section */}
+        <div className="lg:col-span-4 space-y-6 sm:space-y-8">
+          {/* Portfolio Summary Card */}
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-[#0f0f0f] border border-white/5 rounded-2xl p-6 shadow-2xl relative overflow-hidden group"
+          >
+            <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 blur-3xl rounded-full -mr-16 -mt-16" />
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xs font-bold text-white uppercase tracking-widest flex items-center gap-2">
+                <Layout className="w-4 h-4 text-emerald-500" />
+                خلاصه وضعیت سرمایه
+              </h2>
+              {botState.portfolio?.has_portfolio && (
+                <span className="text-[10px] font-bold text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded-lg">پرتفو فعال</span>
               )}
+            </div>
+
+            <div className="space-y-5">
+              <div className="flex justify-between items-center border-b border-white/5 pb-5">
+                <div>
+                  <p className="text-[10px] text-slate-500 font-mono uppercase mb-1">کل سرمایه (تومان)</p>
+                  <p className="text-2xl font-black text-white font-mono tracking-tight">
+                    {botState.userInfo || botState.portfolio ? formatPrice((botState.userInfo?.balance || 0) + (botState.portfolio?.balance || 0)) : <span className="animate-pulse opacity-50">---</span>}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] text-slate-500 font-mono uppercase mb-1">قیمت لحظه‌ای</p>
+                  <p className="text-base font-bold text-amber-500 font-mono">
+                    {botState.price > 0 ? formatPrice(botState.price) : <span className="text-[10px] text-slate-600 animate-pulse">در حال دریافت...</span>}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-white/5 p-4 rounded-2xl border border-white/5 group-hover:bg-white/[0.07] transition-colors">
+                  <p className="text-[9px] text-slate-500 uppercase font-mono mb-1.5 flex items-center gap-1.5">
+                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    مارجین درگیر
+                  </p>
+                  <p className="text-base font-black text-emerald-500 font-mono">
+                    {botState.portfolio?.has_portfolio ? `${(botState.portfolio.balance / 2300000).toFixed(1)} واحد` : '۰ واحد'}
+                  </p>
+                </div>
+                <div className="bg-white/5 p-4 rounded-2xl border border-white/5 group-hover:bg-white/[0.07] transition-colors">
+                  <p className="text-[9px] text-slate-500 uppercase font-mono mb-1.5 flex items-center gap-1.5">
+                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                    موجودی آزاد
+                  </p>
+                  <p className="text-base font-black text-white font-mono">
+                    {botState.userInfo ? formatPrice(botState.userInfo.balance) : <span className="opacity-50">---</span>}
+                  </p>
+                </div>
+              </div>
+
+              <div className="pt-2">
+                {(!botState.portfolio || !botState.portfolio.has_portfolio) ? (
+                  <button 
+                    onClick={() => setShowCreatePortfolio(true)}
+                    className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-black py-3 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20"
+                  >
+                    <Plus className="w-4 h-4" />
+                    ایجاد پرتفوی جدید
+                  </button>
+                ) : (
+                  <button 
+                    onClick={() => setShowIncreasePortfolio(true)}
+                    className="w-full bg-white/5 hover:bg-white/10 text-emerald-500 border border-emerald-500/20 font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2"
+                  >
+                    <TrendingUp className="w-4 h-4" />
+                    افزایش سرمایه / ویرایش
+                  </button>
+                )}
+              </div>
             </div>
           </motion.div>
 

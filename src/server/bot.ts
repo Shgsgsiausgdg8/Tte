@@ -576,7 +576,7 @@ ${emoji} سیگنال ${type} جدید #${signalId}
   async sendRubikaMessage(text: string, replyToMessageId?: string): Promise<string | undefined> {
     if (!this.settings.rubika?.enabled || !this.settings.rubika?.botToken || !this.settings.rubika?.chatId) return undefined;
     
-    const chatIds = this.settings.rubika.chatId.split(',').map((id: string) => id.trim()).filter(Boolean);
+    const chatIds = String(this.settings.rubika.chatId).split(',').map((id: string) => id.trim()).filter(Boolean);
     const url = `https://botapi.rubika.ir/v3/${this.settings.rubika.botToken}/sendMessage`;
     
     let lastMessageId: string | undefined;
@@ -591,12 +591,19 @@ ${emoji} سیگنال ${type} جدید #${signalId}
           payload.reply_to_message_id = replyToMessageId;
         }
 
-        const res = await axios.post(url, payload, { timeout: 10000 });
-        if (res.data?.data?.message_id) {
-          lastMessageId = res.data.data.message_id;
+        const res = await axios.post(url, payload, { 
+          timeout: 15000,
+          headers: { 'Content-Type': 'application/json' }
+        });
+        
+        if (res.data?.status === 'OK' || res.data?.ok || res.data?.data?.message_id) {
+          lastMessageId = res.data?.data?.message_id || 'SENT';
+          this.log(`Rubika message sent to ${chatId}`, "INFO");
+        } else {
+          this.log(`Rubika API returned error for ${chatId}: ${JSON.stringify(res.data)}`, "ERROR");
         }
       } catch (e: any) {
-        console.error(`Rubika Error (${chatId}): ${e.message}`);
+        this.log(`Rubika Error (${chatId}): ${e.response?.data ? JSON.stringify(e.response.data) : e.message}`, "ERROR");
       }
     }
     return lastMessageId;
@@ -721,6 +728,7 @@ ${analysisText}
     this.settings.source = 'API';
     
     await this.updatePortfolio();
+    await this.getUserInfo();
     await this.fetchHistoricalBars();
     this.connectToExternalWS();
     
@@ -2569,11 +2577,11 @@ ${analysisText}
 ----------------------------------
 ${pnlEmoji} معامله ${typeLabel} #${pos.signalId || '---'}
 💰 سود/ضرر: ${pnl.toLocaleString('fa-IR')} تومان
-📈 قیمت ورود: ${entryPrice.toLocaleString('fa-IR')}
-📉 قیمت خروج: ${closePrice.toLocaleString('fa-IR')}
+📈 ورود: ${entryPrice.toLocaleString('fa-IR')}
+📉 خروج: ${closePrice.toLocaleString('fa-IR')}
 
-⚠️ بیشترین درادان (MAE): ${mae.toLocaleString('fa-IR')} خط
-🚀 بیشترین پیشروی (MFE): ${mfe.toLocaleString('fa-IR')} خط
+⚠️ درادان (MAE): ${mae.toLocaleString('fa-IR')} خط
+🚀 پیشروی (MFE): ${mfe.toLocaleString('fa-IR')} خط
 
 💡 ${pnl > 0 
         ? (mae > 5 ? `قیمت قبل از سوددهی ${mae} خط در ضرر رفته بود.` : 'نقطه ورود بسیار دقیق بود.') 
