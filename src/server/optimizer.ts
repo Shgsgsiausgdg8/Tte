@@ -276,13 +276,13 @@ function toPatch(bestCfg: any) {
   return patch;
 }
 
-export async function runOptimization(inFile: string, outFile: string, iters: number = 80) {
+export async function runOptimization(inFile: string, outFile: string, iters: number = 80, strategyToOptimize?: string) {
   const bars = readJsonl(inFile);
   if (bars.length < 300) {
     throw new Error(`Not enough data in ${inFile}. Need at least ~300 bars. Have ${bars.length}.`);
   }
 
-  const strategies = ['SCALP', 'HST', 'QUANT', 'TREND', 'HMAMACD', 'HULL_SUPERTREND'];
+  const strategies = strategyToOptimize ? [strategyToOptimize] : ['SCALP', 'HST', 'QUANT', 'TREND', 'HMAMACD', 'HULL_SUPERTREND'];
   const splits = pickSplits();
   const maximizeBigWins = !!baseConfig.autoTune?.maximizeBigWins;
   const optimizeDrawdownQuality = !!baseConfig.autoTune?.optimizeDrawdownQuality;

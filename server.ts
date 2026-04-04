@@ -159,9 +159,10 @@ async function startServer() {
       const inFile = at.marketFile || path.join(process.cwd(), 'logs/market.jsonl');
       const outFile = at.bestParamsFile || path.join(process.cwd(), 'logs/best_params.json');
       const iters = Number(at.iterations || 80);
+      const strategyToOptimize = req.body.strategy;
 
       const { runOptimization } = await import('./src/server/optimizer');
-      const result = await runOptimization(inFile, outFile, iters);
+      const result = await runOptimization(inFile, outFile, iters, strategyToOptimize);
 
       if (at.autoApply) {
         const { loadBestParams } = await import('./src/server/autotuneManager');

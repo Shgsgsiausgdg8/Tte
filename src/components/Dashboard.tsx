@@ -28,6 +28,7 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [isAutoTuning, setIsAutoTuning] = useState(false);
   const [autoTuneResults, setAutoTuneResults] = useState<any>(null);
+  const [autoTuneStrategy, setAutoTuneStrategy] = useState<string>('');
   const [showAddAccount, setShowAddAccount] = useState(false);
   const [newAccountType, setNewAccountType] = useState<'real' | 'demo'>('demo');
 
@@ -148,7 +149,11 @@ export default function Dashboard() {
     if (isAutoTuning) return;
     setIsAutoTuning(true);
     try {
-      const res = await fetch('/api/bot/autotune', { method: 'POST' });
+      const res = await fetch('/api/bot/autotune', { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ strategy: autoTuneStrategy || undefined })
+      });
       const data = await res.json();
       if (data.success) {
         setAutoTuneResults(data.result);
@@ -754,19 +759,19 @@ export default function Dashboard() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-white/5 p-4 rounded-2xl border border-white/5 group-hover:bg-white/[0.07] transition-colors">
-                  <p className="text-[9px] text-slate-500 uppercase font-mono mb-1.5 flex items-center gap-1.5">
+                  <div className="text-[9px] text-slate-500 uppercase font-mono mb-1.5 flex items-center gap-1.5">
                     <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                     مارجین درگیر
-                  </p>
+                  </div>
                   <p className="text-base font-black text-emerald-500 font-mono">
                     {botState.portfolio?.has_portfolio ? `${(botState.portfolio.balance / 2300000).toFixed(1)} واحد` : '۰ واحد'}
                   </p>
                 </div>
                 <div className="bg-white/5 p-4 rounded-2xl border border-white/5 group-hover:bg-white/[0.07] transition-colors">
-                  <p className="text-[9px] text-slate-500 uppercase font-mono mb-1.5 flex items-center gap-1.5">
+                  <div className="text-[9px] text-slate-500 uppercase font-mono mb-1.5 flex items-center gap-1.5">
                     <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
                     موجودی آزاد
-                  </p>
+                  </div>
                   <p className="text-base font-black text-white font-mono">
                     {botState.userInfo ? formatPrice(botState.userInfo.balance) : <span className="opacity-50">---</span>}
                   </p>
@@ -942,6 +947,18 @@ export default function Dashboard() {
                     <RefreshCw className="w-3 h-3" />
                     بازگشت به قبل
                   </button>
+                  <select
+                    value={autoTuneStrategy}
+                    onChange={(e) => setAutoTuneStrategy(e.target.value)}
+                    className="flex-1 sm:flex-none px-3 py-2 rounded-xl text-[9px] font-bold bg-white/5 text-white border border-white/10 outline-none focus:border-emerald-500/50"
+                  >
+                    <option value="">همه استراتژی‌ها (جستجوی کامل)</option>
+                    <option value="SCALP">SCALP (اسکالپ سریع)</option>
+                    <option value="HST">HST (هال سوپرترند)</option>
+                    <option value="QUANT">QUANT (کوانت)</option>
+                    <option value="TREND">TREND (ترند)</option>
+                    <option value="HMAMACD">HMAMACD (هال مکدی)</option>
+                  </select>
                   <button 
                     type="button"
                     onClick={runAutoTune}

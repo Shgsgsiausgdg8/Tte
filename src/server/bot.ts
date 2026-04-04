@@ -1007,7 +1007,7 @@ ${analysisText}
   async getUserInfo() {
     if (!this.api) return;
     try {
-      const response = await this.api.get('/api/room/api/user-info/');
+      const response = await this.api.post('/api/room/api/user-info/');
       if (response.data && response.data.status) {
         this.userInfo = response.data;
       }
@@ -2632,14 +2632,16 @@ ${pnlEmoji} معامله ${typeLabel} #${pos.signalId || '---'}
     this.saveState();
     
     this.recorder.recordTrade({
-      tOpen: pos.entryTime.getTime(),
+      tOpen: new Date(pos.entryTime).getTime(),
       tClose: Date.now(),
       side: pos.type,
       entry: pos.entry || pos.price,
       exit: closePrice,
       units: pos.units || 1,
       pnl: pnl || 0,
-      reason: reason
+      reason: reason,
+      maeTicks: pos.maxAdverseTicks || 0,
+      mfeTicks: pos.maxFavorableTicks || 0
     });
 
     const signalId = pos.signalId || '---';
