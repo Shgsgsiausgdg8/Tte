@@ -543,11 +543,17 @@ export class FarazGoldBot {
     const signalId = signal.signalId || '---';
     const type = signal.type === 'BUY' ? 'خرید (BUY)' : 'فروش (SELL)';
     const emoji = signal.type === 'BUY' ? '🚀' : '🔻';
-    const entry = signal.entry?.toLocaleString('fa-IR') || '---';
-    const tp1 = signal.tp1?.toLocaleString('fa-IR') || '---';
-    const tp2 = signal.tp2?.toLocaleString('fa-IR') || '---';
-    const tp3 = signal.tp3?.toLocaleString('fa-IR') || '---';
-    const sl = signal.sl?.toLocaleString('fa-IR') || '---';
+    
+    const safeFormat = (val: any) => {
+      if (val === undefined || val === null || isNaN(val)) return '---';
+      return val.toLocaleString('fa-IR');
+    };
+
+    const entry = safeFormat(signal.entry);
+    const tp1 = safeFormat(signal.tp1);
+    const tp2 = safeFormat(signal.tp2);
+    const tp3 = safeFormat(signal.tp3);
+    const sl = safeFormat(signal.sl);
     
     const riskPercent = this.settings.risk?.riskPerTrade || 2;
     const randomTip = PSYCHOLOGY_TIPS[Math.floor(Math.random() * PSYCHOLOGY_TIPS.length)];
@@ -576,6 +582,11 @@ ${emoji} سیگنال ${type} جدید #${signalId}
   async sendRubikaMessage(text: string, replyToMessageId?: string): Promise<string | undefined> {
     if (!this.settings.rubika?.enabled || !this.settings.rubika?.botToken || !this.settings.rubika?.chatId) return undefined;
     
+    // Prevent INVALID_INPUT from Rubika by sanitizing NaN
+    if (text.includes('NaN')) {
+      text = text.replace(/NaN/g, '---');
+    }
+
     const chatIds = String(this.settings.rubika.chatId).split(',').map((id: string) => id.trim()).filter(Boolean);
     const url = `https://botapi.rubika.ir/v3/${this.settings.rubika.botToken}/sendMessage`;
     
@@ -1921,8 +1932,20 @@ ${analysisText}
         }
       }
       
-      let sl = Math.round(signal.sl);
-      let tp = Math.round(signal.tp1 || signal.tp);
+      let sl = signal.sl !== undefined && !isNaN(signal.sl) ? Math.round(signal.sl) : NaN;
+      let tp = (signal.tp1 !== undefined && !isNaN(signal.tp1)) ? Math.round(signal.tp1) : 
+               (signal.tp !== undefined && !isNaN(signal.tp) ? Math.round(signal.tp) : NaN);
+
+      const defaultTpTicks = this.settings.targetsTicks?.tpTicks || 15;
+      const defaultSlTicks = this.settings.targetsTicks?.stopTicks || 10;
+
+      if (isNaN(sl)) {
+        sl = signal.type === 'BUY' ? this.price - (defaultSlTicks * tickSize) : this.price + (defaultSlTicks * tickSize);
+      }
+      if (isNaN(tp)) {
+        tp = signal.type === 'BUY' ? this.price + (defaultTpTicks * tickSize) : this.price - (defaultTpTicks * tickSize);
+      }
+
       const id = Date.now();
 
       // SL/TP Safety Check (Ensure not too close to market)
@@ -2462,7 +2485,7 @@ ${analysisText}
             try {
               const res = await this.api.post(url, {}, {
                 headers: { 'Accept': '*/*', 'X-Requested-With': 'XMLHttpRequest' },
-                timeout: 5000
+                timeout: 20000
               });
               apiResponse = res?.data;
               ok = apiResponse?.status === true || 
@@ -2724,7 +2747,7 @@ ${pnlEmoji} معامله ${typeLabel} #${pos.signalId || '---'}
               take_profit: String(Math.round(newTp))
             }, {
               headers: { 'Accept': '*/*', 'X-Requested-With': 'XMLHttpRequest' },
-              timeout: 5000
+              timeout: 20000
             });
             
             const apiResponse = res?.data;
@@ -2814,7 +2837,7 @@ ${pnlEmoji} معامله ${typeLabel} #${pos.signalId || '---'}
                 'Accept': 'application/json',
                 'X-Requested-With': 'XMLHttpRequest' 
               },
-              timeout: 5000
+              timeout: 20000
             });
             
             const apiResponse = res?.data;
@@ -2873,7 +2896,7 @@ ${pnlEmoji} معامله ${typeLabel} #${pos.signalId || '---'}
                 stop_loss: String(Math.round(adjustedSl))
               }, {
                 headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-                timeout: 5000
+                timeout: 20000
               }).then(r => {
                 const s = r?.data?.status;
                 return s === true || s === 'true' || s === 1 || s === 'success';

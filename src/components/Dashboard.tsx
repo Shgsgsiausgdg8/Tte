@@ -607,17 +607,17 @@ export default function Dashboard() {
                     <div className="grid grid-cols-2 gap-4 mb-4">
                       <div>
                         <p className="text-[8px] sm:text-[9px] text-slate-500 uppercase font-mono mb-1">ورود</p>
-                        <p className="text-xs sm:text-sm font-bold font-mono text-white">{formatPrice(pos.entry)}</p>
+                        <p className="text-xs sm:text-sm font-bold font-mono text-white">{formatPrice(pos.entry || pos.price)}</p>
                       </div>
                       <div className="text-right">
                         <p className="text-[8px] sm:text-[9px] text-slate-500 uppercase font-mono mb-1">سود/ضرر لحظه‌ای</p>
                         <p className={`text-[10px] sm:text-xs font-bold font-mono ${
-                          ((pos.type === 'BUY' ? botState.price - pos.entry : pos.entry - botState.price) / (botState.settings?.market?.tickSize || 1)) * (botState.settings?.market?.tickValueToman || 23000) * (pos.units || 1) >= 0 
+                          ((pos.type === 'BUY' ? botState.price - (pos.entry || pos.price) : (pos.entry || pos.price) - botState.price) / (botState.settings?.market?.tickSize || 1)) * (botState.settings?.market?.tickValueToman || 23000) * (pos.units || 1) >= 0 
                             ? 'text-emerald-500' 
                             : 'text-rose-500'
                         }`}>
                           {botState.price > 0 ? formatPrice(
-                            ((pos.type === 'BUY' ? botState.price - pos.entry : pos.entry - botState.price) / (botState.settings?.market?.tickSize || 1)) * (botState.settings?.market?.tickValueToman || 23000) * (pos.units || 1)
+                            ((pos.type === 'BUY' ? botState.price - (pos.entry || pos.price) : (pos.entry || pos.price) - botState.price) / (botState.settings?.market?.tickSize || 1)) * (botState.settings?.market?.tickValueToman || 23000) * (pos.units || 1)
                           ) : '---'}
                         </p>
                       </div>
@@ -627,7 +627,7 @@ export default function Dashboard() {
                     <div className="mb-4 relative pt-4 pb-2">
                       <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden flex">
                         <div 
-                          className={`h-full transition-all duration-500 ${pos.type === 'BUY' ? (botState.price > pos.entry ? 'bg-emerald-500' : 'bg-rose-500') : (botState.price < pos.entry ? 'bg-emerald-500' : 'bg-rose-500')}`}
+                          className={`h-full transition-all duration-500 ${pos.type === 'BUY' ? (botState.price > (pos.entry || pos.price) ? 'bg-emerald-500' : 'bg-rose-500') : (botState.price < (pos.entry || pos.price) ? 'bg-emerald-500' : 'bg-rose-500')}`}
                           style={{ 
                             width: `${Math.max(0, Math.min(100, ((pos.type === 'BUY' ? botState.price - pos.sl : pos.sl - botState.price) / Math.abs(pos.tp3 - pos.sl)) * 100))}%` 
                           }}
@@ -1220,7 +1220,7 @@ export default function Dashboard() {
                   )}
                   
                   <div className="flex justify-between items-center mt-2 text-[8px] text-slate-600 font-mono">
-                    <span>ورود: {formatPrice(pos.entry)}</span>
+                    <span>ورود: {formatPrice(pos.entry || pos.price)}</span>
                     <span>خروج: {formatPrice(pos.exitPrice)}</span>
                   </div>
                 </div>

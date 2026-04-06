@@ -214,12 +214,16 @@ function walkForward(cfg: any, bars: any[], splits: any[]) {
     acc.maxDrawdownTicks = Math.max(acc.maxDrawdownTicks, r.test.maxDrawdownTicks);
     acc.profitFactor += r.test.profitFactor;
     acc.winRate += r.test.winRate;
+    acc.avgMAE += r.test.avgMAE || 0;
+    acc.avgMFE += r.test.avgMFE || 0;
     return acc;
-  }, { trades:0, netTicks:0, maxDrawdownTicks:0, profitFactor:0, winRate:0 });
+  }, { trades:0, netTicks:0, maxDrawdownTicks:0, profitFactor:0, winRate:0, avgMAE:0, avgMFE:0 });
 
   if (results.length) {
     agg.profitFactor /= results.length;
     agg.winRate /= results.length;
+    agg.avgMAE /= results.length;
+    agg.avgMFE /= results.length;
   }
   return { agg, results };
 }
