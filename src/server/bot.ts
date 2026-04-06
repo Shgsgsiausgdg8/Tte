@@ -2875,18 +2875,17 @@ ${pnlEmoji} معامله ${typeLabel} #${pos.signalId || '---'}
             // Handle "SL too close" error by adjusting and retrying once with a safe distance
             if (errorMsg.includes('بالا') || errorMsg.includes('پایین') || errorMsg.includes('فاصله')) {
               const tickSize = this.settings.market?.tickSize || 1;
-              const safeDistance = tickSize * 20;
               let adjustedSl = newSl;
               
               if (errorMsg.includes('بالا')) {
                 // Must be higher than current price (likely a SELL trade)
-                adjustedSl = Math.round(this.price + safeDistance);
+                adjustedSl = Math.max(newSl + tickSize * 2, this.price + tickSize * 5);
               } else if (errorMsg.includes('پایین')) {
                 // Must be lower than current price (likely a BUY trade)
-                adjustedSl = Math.round(this.price - safeDistance);
+                adjustedSl = Math.min(newSl - tickSize * 2, this.price - tickSize * 5);
               } else {
                 // Generic distance error, try both ways based on current price
-                adjustedSl = newSl > this.price ? Math.round(this.price + safeDistance) : Math.round(this.price - safeDistance);
+                adjustedSl = newSl > this.price ? this.price + tickSize * 5 : this.price - tickSize * 5;
               }
 
               this.log(`SL too close to market. Retrying with safe SL: ${adjustedSl} (Price: ${this.price})`, "INFO");
@@ -2899,7 +2898,18 @@ ${pnlEmoji} معامله ${typeLabel} #${pos.signalId || '---'}
                 timeout: 20000
               }).then(r => {
                 const s = r?.data?.status;
-                return s === true || s === 'true' || s === 1 || s === 'success';
+                if (s === true || s === 'true' || s === 1 || s === 'success') {
+                  // Update memory so bot knows the real SL
+                  for (const [id, pos] of this.openPositions.entries()) {
+                    if (pos.transactionId === transactionId) {
+                      pos.sl = Math.round(adjustedSl);
+                      this.saveState();
+                      break;
+                    }
+                  }
+                  return true;
+                }
+                return false;
               }).catch(() => false);
             }
 

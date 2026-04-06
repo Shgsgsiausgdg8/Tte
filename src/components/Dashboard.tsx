@@ -2388,6 +2388,18 @@ export default function Dashboard() {
                             <option value="PRECISION">دقت بسیار بالا (Precision) 💎</option>
                           </select>
                         </div>
+
+                        {/* Minimum Signal Score */}
+                        <div className="bg-white/5 p-3 rounded-xl border border-white/5 mb-4">
+                          <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">حداقل امتیاز تاییدیه (۱-۱۰)</label>
+                          <input 
+                            type="number" 
+                            value={settings.strategy?.minSignalScore || 1}
+                            onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, minSignalScore: parseInt(e.target.value) } })}
+                            className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-[10px] text-white outline-none focus:border-emerald-500/50 font-bold"
+                          />
+                          <p className="text-[7px] text-slate-500 mt-1.5 font-mono uppercase tracking-tight">بالاتر = امنیت بیشتر، تعداد معامله کمتر (پیش‌فرض: ۱)</p>
+                        </div>
                         
                         {/* Advanced Filters Section */}
                         <div className="mt-6">
