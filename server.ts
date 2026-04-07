@@ -24,10 +24,10 @@ async function startServer() {
   const wss = new WebSocketServer({ server });
 
   wss.on("connection", (ws) => {
-    ws.send(JSON.stringify({ type: 'INIT', data: bot.getState() }));
+    ws.send(JSON.stringify({ type: 'INIT', data: bot.getStats() }));
     const interval = setInterval(() => {
       if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'UPDATE', data: bot.getState() }));
+        ws.send(JSON.stringify({ type: 'UPDATE', data: bot.getStats() }));
       }
     }, 500);
     ws.on("close", () => clearInterval(interval));
@@ -47,11 +47,27 @@ async function startServer() {
           'Origin': type === 'real' ? 'https://farazgold.com' : 'https://demo.farazgold.com',
         }
       });
-      const imageUrl = response.data.image_url;
-      const fullImageUrl = imageUrl.startsWith('http') 
-        ? imageUrl 
-        : `${type === 'real' ? 'https://farazgold.com' : 'https://demo.farazgold.com'}${imageUrl.startsWith('/') ? '' : '/'}${imageUrl}`;
       
+      const imageUrl = response.data.image_url;
+      const domain = type === 'real' ? 'https://farazgold.com' : 'https://demo.farazgold.com';
+      
+      let fullImageUrl = imageUrl;
+      if (imageUrl.startsWith('http')) {
+        fullImageUrl = imageUrl;
+      } else if (imageUrl.startsWith('/')) {
+        fullImageUrl = `${domain}${imageUrl}`;
+      } else {
+        fullImageUrl = `${domain}/${imageUrl}`;
+      }
+
+      // Fix potential double domain issue reported by user
+      if (fullImageUrl.includes('https://farazgold.comhttps://farazgold.com')) {
+        fullImageUrl = fullImageUrl.replace('https://farazgold.comhttps://farazgold.com', 'https://farazgold.com');
+      }
+      if (fullImageUrl.includes('https://demo.farazgold.comhttps://demo.farazgold.com')) {
+        fullImageUrl = fullImageUrl.replace('https://demo.farazgold.comhttps://demo.farazgold.com', 'https://demo.farazgold.com');
+      }
+
       res.json({
         key: response.data.key,
         image_url: fullImageUrl
@@ -114,7 +130,7 @@ async function startServer() {
     }
   });
 
-  app.get("/api/bot/status", (req, res) => res.json(bot.getState()));
+  app.get("/api/bot/status", (req, res) => res.json(bot.getStats()));
   app.post("/api/bot/toggle", (req, res) => {
     bot.isTrading = !bot.isTrading;
     res.json({ status: bot.isTrading });
