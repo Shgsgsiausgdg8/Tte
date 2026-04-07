@@ -2130,226 +2130,760 @@ ${analysisText}
     }
   }
 
-  async enforceStopLossTakeProfit(transId: any, sl: number, tp: number, localId: any) {
-    if (!this.api || !transId || String(transId).includes('PENDING')) return false;
+  async enforceStopLossTakeProfit(transactionId: any, sl: number, tp: number, localId: any): Promise<boolean> {
+    this.log(`Enforcing SL/TP for transaction ${transactionId}: SL=${sl}, TP=${tp}`, "INFO");
     
-    try {
-      this.log(`Enforcing SL/TP for transaction ${transId}: SL=${sl}, TP=${tp}`, "INFO");
-      
-      const editData = {
-        transaction_id: String(transId),
-        stop_loss: String(Math.round(sl)),
-        take_profit: String(Math.round(tp))
-      };
+    let slSuccess = sl === 0 || isNaN(sl);
+    let tpSuccess = tp === 0 || isNaN(tp);
 
-      // Try multiple endpoints for robustness
-      const endpoints = ['/api/room/api/edit-order/', '/api/room/api/edit-transaction/'];
-      let success = false;
-      let lastError = '';
+    const maxAttempts = 3;
+    let attempt = 0;
 
-      for (const endpoint of endpoints) {
-        try {
-          const response = await this.api.post(endpoint, editData);
-          if (response.data?.status === true || response.data?.status === 'true' || response.data?.status === 'success') {
-            success = true;
-            break;
-          } else {
-            lastError = response.data?.message || JSON.stringify(response.data);
-          }
-        } catch (e: any) {
-          lastError = e.message;
-        }
+    while (attempt < maxAttempts) {
+      if (!slSuccess && sl > 0 && !isNaN(sl)) {
+        slSuccess = await this.editStopLoss(transactionId, sl);
+      }
+      if (!tpSuccess && tp > 0 && !isNaN(tp)) {
+        tpSuccess = await this.editTakeProfit(transactionId, tp);
       }
 
-      if (success) {
-        this.log(`SL/TP Enforced successfully for ${transId}`, "SUCCESS");
-        return true;
-      } else {
-        this.log(`Failed to enforce SL/TP for ${transId}: ${lastError}`, "ERROR");
-        return false;
+      if (slSuccess && tpSuccess) break;
+
+      attempt++;
+      if (attempt < maxAttempts) {
+        this.log(`SL/TP Enforcement attempt ${attempt} failed for ${transactionId}. Retrying in 2s...`, "INFO");
+        await new Promise(r => setTimeout(r, 2000));
       }
-    } catch (error: any) {
-      this.log(`Enforce SL/TP Error: ${error.message}`, "ERROR");
-      return false;
     }
+
+    return slSuccess && tpSuccess;
   }
 
-  async closeTrade(id: any, reason: string = 'manual') {
+  async editTakeProfit(transactionId: any, newTp: number) {
+    if (!transactionId || String(transactionId).includes('PENDING')) return false;
+    if (this.settings.source === 'API' && this.api && transactionId) {
+      try {
+        this.log(`Updating TP for transaction ${transactionId} to ${newTp}...`, "INFO");
+        
+        const endpoints = [
+          `/api/room/api/edit-take-profit/${transactionId}/`
+        ];
+
+        let ok = false;
+        let primaryNotFound = false;
+
+        for (let i = 0; i < endpoints.length; i++) {
+          const url = endpoints[i];
+          if (ok) break;
+          try {
+            const res = await this.api.post(url, {
+              take_profit: String(Math.round(newTp))
+            }, {
+              headers: { 'Accept': '*/*', 'X-Requested-With': 'XMLHttpRequest' },
+              timeout: 20000
+            });
+            
+            const apiResponse = res?.data;
+            ok = apiResponse?.status === true || 
+                 apiResponse?.status === 'true' || 
+                 apiResponse?.status === 1 || 
+                 apiResponse?.status === 'success' ||
+                 (res.status === 200 && (Object.keys(apiResponse || {}).length === 0 || apiResponse?.message?.includes('ویرایش')));
+            
+            if (ok) {
+              this.log(`Take Profit updated successfully for ${transactionId} via ${url}`, "SUCCESS");
+              return true;
+            }
+          } catch (e: any) {
+            const status = e.response?.status;
+            const data = e.response?.data;
+            const errorMsg = (typeof data === 'object' ? data?.message : null) || e.message || "";
+
+            this.log(`Edit TP API Error (${url}): Status ${status} | Data: ${typeof data === 'string' ? 'HTML Response' : JSON.stringify(data || e.message)}`, "ERROR");
+            
+            if (errorMsg.includes('بسته شده') || errorMsg.includes('باز نیست')) {
+              this.log(`TP Edit skipped: Trade is closed (${transactionId})`, "INFO");
+              return true; 
+            }
+
+            if (status === 404 || errorMsg.includes('یافت نشد') || errorMsg.includes('نامعتبر')) {
+              if (i === 0) primaryNotFound = true;
+              continue;
+            }
+
+            if (errorMsg.includes('بالا') || errorMsg.includes('پایین') || errorMsg.includes('فاصله')) {
+              this.log(`TP too close to market for ${transactionId}. Skipping TP for now.`, "INFO");
+              return true;
+            }
+          }
+        }
+
+        if (!ok && primaryNotFound) return true;
+        return ok;
+      } catch (e: any) {
+        this.log(`Edit TP API Error for ${transactionId}: ${e.message}`, "ERROR");
+        return false;
+      }
+    }
+    return false;
+  }
+
+  async editStopLoss(transactionId: any, newSl: number) {
+    if (!transactionId || String(transactionId).includes('PENDING')) return false;
+    if (this.settings.source === 'API' && this.api && transactionId) {
+      try {
+        this.log(`Updating SL for transaction ${transactionId} to ${newSl}...`, "INFO");
+        
+        const endpoints = [
+          `/api/room/api/edit-stop-loss/${transactionId}/`
+        ];
+
+        let ok = false;
+        let primaryNotFound = false;
+
+        for (let i = 0; i < endpoints.length; i++) {
+          const url = endpoints[i];
+          if (ok) break;
+          try {
+            const res = await this.api.post(url, {
+              stop_loss: String(Math.round(newSl))
+            }, {
+              headers: { 
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest' 
+              },
+              timeout: 20000
+            });
+            
+            const apiResponse = res?.data;
+            ok = apiResponse?.status === true || 
+                 apiResponse?.status === 'true' || 
+                 apiResponse?.status === 1 || 
+                 apiResponse?.status === 'success' ||
+                 (res.status === 200 && (Object.keys(apiResponse || {}).length === 0 || apiResponse?.message?.includes('ویرایش')));
+            
+            if (ok) {
+              this.log(`Stop Loss updated successfully for ${transactionId} via ${url}`, "SUCCESS");
+              return true;
+            }
+          } catch (e: any) {
+            const status = e.response?.status;
+            const data = e.response?.data;
+            const errorMsg = (typeof data === 'object' ? data?.message : null) || e.message || "";
+
+            this.log(`Edit SL API Error (${url}): Status ${status} | Data: ${typeof data === 'string' ? 'HTML Response' : JSON.stringify(data || e.message)}`, "ERROR");
+            
+            if (errorMsg.includes('بسته شده') || errorMsg.includes('باز نیست')) {
+              this.log(`SL Edit skipped: Trade is closed (${transactionId})`, "INFO");
+              return true; 
+            }
+
+            if (status === 404 || errorMsg.includes('یافت نشد') || errorMsg.includes('نامعتبر')) {
+              if (i === 0) primaryNotFound = true;
+              continue;
+            }
+
+            if (errorMsg.includes('بالا') || errorMsg.includes('پایین') || errorMsg.includes('فاصله')) {
+              const tickSize = this.settings.market?.tickSize || 1;
+              let adjustedSl = newSl;
+              
+              if (errorMsg.includes('بالا')) {
+                adjustedSl = Math.max(newSl + tickSize * 2, this.price + tickSize * 5);
+              } else if (errorMsg.includes('پایین')) {
+                adjustedSl = Math.min(newSl - tickSize * 2, this.price - tickSize * 5);
+              } else {
+                adjustedSl = newSl > this.price ? this.price + tickSize * 5 : this.price - tickSize * 5;
+              }
+
+              this.log(`SL too close to market. Retrying with safe SL: ${adjustedSl}`, "INFO");
+              
+              const retryRes = await this.api.post(url, {
+                stop_loss: String(Math.round(adjustedSl))
+              }, {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                timeout: 20000
+              });
+              
+              if (retryRes?.data?.status === true || retryRes?.data?.status === 'true' || retryRes?.data?.status === 1) {
+                for (const [id, pos] of this.openPositions.entries()) {
+                  if (pos.transactionId === transactionId) {
+                    pos.sl = Math.round(adjustedSl);
+                    this.saveState();
+                    break;
+                  }
+                }
+                return true;
+              }
+              return false;
+            }
+          }
+        }
+
+        if (!ok && primaryNotFound) return true;
+        return ok;
+      } catch (e: any) {
+        this.log(`Edit SL API Error for ${transactionId}: ${e.message}`, "ERROR");
+        return false;
+      }
+    }
+    return false;
+  }
+
+  async closeTrade(id: number, reason: string = 'manual') {
     const pos = this.openPositions.get(id);
     if (!pos) return;
 
-    try {
-      const isBuy = pos.type === 'BUY';
-      const closePrice = this.price;
-      const entryPrice = pos.entry || pos.price;
-      const priceDiff = isBuy ? (closePrice - entryPrice) : (entryPrice - closePrice);
-      
-      const tickSize = Number(this.settings.market?.tickSize ?? 1);
-      const tickValue = Number(this.settings.market?.tickValueToman ?? 23000);
-      const pnl = Math.round((priceDiff / tickSize) * tickValue * (pos.units || 1));
+    this.log(`Closing Trade ${id} (${reason}) at ${this.price}`, "INFO");
 
-      if (this.settings.source === 'API' && this.api && pos.transactionId && !String(pos.transactionId).includes('PENDING')) {
-        this.log(`Attempting API Close: ${pos.type} (ID: ${pos.transactionId}) at ${closePrice}`, "INFO");
-        
-        const closeData = {
-          transaction_id: String(pos.transactionId),
-          price: String(closePrice)
-        };
+    const isBuy = pos.type === 'BUY';
+    const closePrice = this.price;
+    const entryPrice = pos.entry || pos.price;
+    const priceDiff = isBuy ? (closePrice - entryPrice) : (entryPrice - closePrice);
+    
+    const tickSize = Number(this.settings.market?.tickSize ?? 1);
+    const tickValue = Number(this.settings.market?.tickValueToman ?? 23000);
+    const pnl = Math.round((priceDiff / tickSize) * tickValue * (pos.units || 1));
 
-        const response = await this.api.post('/api/room/api/close-transaction/', closeData);
-        
-        const ok = response.data?.status === true || 
-                   response.data?.status === 'true' || 
-                   response.data?.status === 'success' ||
-                   (response.status === 200 && response.data?.message?.includes('بسته شد'));
-
-        if (!ok) {
-          this.log(`API Close Failed: ${JSON.stringify(response.data)}`, "ERROR");
-          // If it's already closed on server, we should sync
-          if (response.data?.message?.includes('یافت نشد') || response.data?.message?.includes('بسته شده')) {
-            this.log("Position already closed on server. Syncing state...", "INFO");
-            this.updatePortfolio(0, false);
-          }
-          return;
+    if (this.settings.source === 'API' && this.api) {
+      // Anti-Arbitrage: Minimum hold time
+      const antiArb = this.settings.risk?.antiArbitrage || { enabled: false, minHoldTimeSeconds: 30 };
+      if (antiArb.enabled) {
+        const minHoldTime = (antiArb.minHoldTimeSeconds || 30) * 1000;
+        const timeOpen = Date.now() - new Date(pos.entryTime).getTime();
+        if (reason !== 'stop_loss' && reason !== 'daily_loss_limit' && timeOpen < minHoldTime) {
+          this.log(`Anti-Arbitrage: Trade hold time too short (${Math.round(timeOpen/1000)}s < ${antiArb.minHoldTimeSeconds}s). Delaying close...`, "INFO");
         }
+        
+        // Random Jitter to avoid HFT detection
+        const jitter = Math.floor(Math.random() * 1500) + 500; // 0.5s to 2s
+        await new Promise(resolve => setTimeout(resolve, jitter));
       }
 
-      this.log(`Trade Closed (${reason}): ${pos.type} at ${closePrice} PnL: ${pnl.toLocaleString('fa-IR')} Toman`, "SUCCESS");
-      
-      const closedPos = {
-        ...pos,
-        exitPrice: closePrice,
-        exitTime: new Date(),
-        pnl,
-        reason,
-        details: {
-          breakEven: pos.breakEvenHit ? 'فعال شده' : 'خیر',
-          tp1: pos.tp1Hit ? 'تاچ شده' : 'خیر',
-          pyramid: pos.pyramidTriggered ? 'پله دوم فعال' : 'تک پله'
+      try {
+        let ok = false;
+        let apiResponse: any = null;
+
+        const isPending = !pos.transactionId || pos.transactionId === 'PENDING' || String(pos.transactionId).includes('PENDING');
+
+        if (pos.transactionId && !isPending) {
+          const endpoints = [
+            `/api/room/api/close-futures-transaction/${pos.transactionId}/`,
+            `/api/room/api/close-transaction/${pos.transactionId}/`
+          ];
+
+          for (const url of endpoints) {
+            if (ok) break;
+            try {
+              const res = await this.api.post(url, {}, {
+                headers: { 'Accept': '*/*', 'X-Requested-With': 'XMLHttpRequest' },
+                timeout: 20000
+              });
+              apiResponse = res?.data;
+              ok = apiResponse?.status === true || 
+                   apiResponse?.status === 'true' || 
+                   apiResponse?.status === 1 || 
+                   apiResponse?.status === 'success' ||
+                   (res.status === 200 && (Object.keys(apiResponse || {}).length === 0 || apiResponse?.message?.includes('بسته')));
+              
+              if (ok) {
+                this.log(`Closed via ${url}`, "SUCCESS");
+              }
+            } catch (e: any) {
+              const status = e.response?.status;
+              const data = e.response?.data;
+              apiResponse = data; 
+              
+              if (status === 500) {
+                this.log(`Close Trade: Received 500 on ${url}. Treating as SUCCESS per user experience.`, "SUCCESS");
+                ok = true;
+                break;
+              }
+
+              this.log(`Close Trade API Error (${url}): Status ${status} | Data: ${typeof data === 'string' ? 'HTML Response' : JSON.stringify(data || e.message)}`, "ERROR");
+              
+              if (status === 404) {
+                this.log(`Trade ${pos.transactionId} not found on ${url}. It might be already closed.`, "INFO");
+                ok = true; 
+                break;
+              }
+            }
+          }
+        } 
+        
+        if (!ok) {
+          const closeAction = isBuy ? 'sell' : 'buy';
+          const orderData: any = {
+            action: closeAction,
+            order_type: 'verbal',
+            units: String(pos.units || 1),
+            price: -1,
+            signal_token: ""
+          };
+          
+          await this.sleepWithJitter(200, 600);
+          
+          try {
+            const res = await this.api.post('/api/room/api/submit-order/', orderData, {
+              headers: { 'Accept': 'application/json, text/plain, */*', 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            apiResponse = res?.data;
+          } catch (e: any) {
+            apiResponse = e.response?.data;
+            this.log(`Fallback close error: ${e.message}`, "ERROR");
+          }
+          
+          const rawStatus = apiResponse?.status;
+          ok = rawStatus === true || rawStatus === 'true' || rawStatus === 1 || rawStatus === '1' || rawStatus === 'success' || Boolean(apiResponse?.order_id) || Boolean(apiResponse?.id) || (typeof apiResponse?.message === 'string' && apiResponse.message.includes('ثبت'));
+          
+          if (!ok) {
+            const msg = String(apiResponse?.message || "");
+            if (msg.includes('موجودی کافی نیست') || msg.includes('یافت نشد') || msg.includes('وضعیت باز نیست')) {
+               this.log(`Could not submit opposite order. Position might be closed.`, "INFO");
+               ok = true;
+            }
+          }
         }
-      };
-
-      this.closedPositions.push(closedPos);
-      if (this.closedPositions.length > 50) this.closedPositions.shift();
-
-      this.dailyPnL += pnl;
-      this.totalTrades++;
-      if (pnl > 0) this.winningTrades++;
-      else if (pnl < 0) this.losingTrades++;
-
-      const signalId = pos.signalId || '---';
-      const telegramMsg = `🏁 *معامله بسته شد (${reason === 'manual' ? 'دستی' : reason})*
-#${signalId}
-نوع: ${pos.type === 'BUY' ? 'خرید 🟢' : 'فروش 🔴'}
-قیمت ورود: ${entryPrice.toLocaleString('fa-IR')}
-قیمت خروج: ${closePrice.toLocaleString('fa-IR')}
-سود/ضرر: ${pnl.toLocaleString('fa-IR')} تومان`;
-
-      this.sendTelegramMessage(telegramMsg, pos.telegramMessageId);
-      
-      const rubikaMsg = `🏁 معامله بسته شد (${reason === 'manual' ? 'دستی' : reason})
-#${signalId}
-نوع: ${pos.type === 'BUY' ? 'خرید 🟢' : 'فروش 🔴'}
-قیمت ورود: ${entryPrice.toLocaleString('fa-IR')}
-قیمت خروج: ${closePrice.toLocaleString('fa-IR')}
-سود/ضرر: ${pnl.toLocaleString('fa-IR')} تومان`;
-      this.sendRubikaMessage(rubikaMsg, pos.rubikaMessageId);
-
-      this.recorder.recordTrade({
-        tOpen: new Date(pos.entryTime).getTime(),
-        tClose: Date.now(),
-        side: pos.type,
-        entry: entryPrice,
-        exit: closePrice,
-        units: pos.units || 1,
-        pnl: pnl || 0,
-        reason: reason
-      });
-
-      this.openPositions.delete(id);
-      this.saveState();
-    } catch (e: any) {
-      this.log(`Trade Close Error: ${e.message}`, "ERROR");
+        
+        if (!ok) {
+          this.log(`Close Trade Failed: API returned false status`, "ERROR");
+          return; 
+        }
+      } catch (e: any) {
+        this.log(`Close Trade API Error: ${e.message}`, "ERROR");
+        return; 
+      }
+    } else {
+      this.log(`Close Trade Skipped: API not configured or not connected`, "ERROR");
+      return; 
     }
+
+    this.dailyPnL += pnl;
+    this.totalTrades++;
+    if (pnl > 0) this.winningTrades++;
+    else if (pnl < 0) this.losingTrades++;
+
+    if (this.settings.rubika?.enabled && this.settings.rubika?.drawdownReportEnabled) {
+      const mae = Math.round(pos.maxAdverseTicks || 0);
+      const mfe = Math.round(pos.maxFavorableTicks || 0);
+      const pnlEmoji = pnl > 0 ? '✅' : '❌';
+      const typeLabel = isBuy ? 'خرید (BUY)' : 'فروش (SELL)';
+      
+      const report = `📊 گزارش تحلیل درادان (Drawdown)
+----------------------------------
+${pnlEmoji} معامله ${typeLabel} #${pos.signalId || '---'}
+💰 سود/ضرر: ${pnl.toLocaleString('fa-IR')} تومان
+📈 ورود: ${entryPrice.toLocaleString('fa-IR')}
+📉 خروج: ${closePrice.toLocaleString('fa-IR')}
+
+⚠️ درادان (MAE): ${mae.toLocaleString('fa-IR')} خط
+🚀 پیشروی (MFE): ${mfe.toLocaleString('fa-IR')} خط
+
+💡 ${pnl > 0 
+        ? (mae > 5 ? `قیمت قبل از سوددهی ${mae} خط در ضرر رفته بود.` : 'نقطه ورود بسیار دقیق بود.') 
+        : (mfe > 5 ? `قیمت قبل از استاپ، ${mfe} خط در سود رفته بود.` : 'معامله سریعاً به استاپ رسید.')}
+----------------------------------`;
+      
+      this.sendRubikaMessage(report, pos.rubikaMessageId);
+    }
+    
+    this.openPositions.delete(id);
+    
+    const maxDailyLoss = this.settings.risk?.maxDailyLossToman || 5000000;
+    if (this.dailyPnL <= -Math.abs(maxDailyLoss) && this.isTrading) {
+      this.log(`Daily Loss Limit Reached! (PnL: ${this.dailyPnL} <= -${maxDailyLoss}). Stopping bot.`, "ERROR");
+      this.isTrading = false;
+      this.sendTelegramMessage(`🚨 *حد ضرر روزانه فعال شد*
+ربات متوقف شد و تمام پوزیشن‌ها بسته خواهند شد.`);
+      const remainingPositions = Array.from(this.openPositions.keys());
+      for (const otherId of remainingPositions) {
+        if (otherId !== id) { 
+          this.closeTrade(otherId, 'daily_loss_limit');
+        }
+      }
+    }
+
+    const closedPos = {
+      ...pos,
+      exitPrice: closePrice,
+      exitTime: new Date(),
+      pnl,
+      reason,
+      details: {
+        breakEven: pos.breakEvenHit ? 'فعال شده' : 'خیر',
+        tp1: pos.tp1Hit ? 'تاچ شده' : 'خیر',
+        tp2: pos.tp2Hit ? 'تاچ شده' : 'خیر',
+        tp3: pos.tp3Hit ? 'تاچ شده' : 'خیر',
+        strength: pos.strength || 'NORMAL',
+        pyramid: pos.pyramidTriggered ? 'پله دوم فعال' : 'تک پله'
+      }
+    };
+    this.closedPositions.push(closedPos);
+    if (this.closedPositions.length > 50) this.closedPositions.shift();
+
+    this.openPositions.delete(id);
+    this.saveState();
+    
+    this.recorder.recordTrade({
+      tOpen: new Date(pos.entryTime).getTime(),
+      tClose: Date.now(),
+      side: pos.type,
+      entry: pos.entry || pos.price,
+      exit: closePrice,
+      units: pos.units || 1,
+      pnl: pnl || 0,
+      reason: reason,
+      maeTicks: pos.maxAdverseTicks || 0,
+      mfeTicks: pos.maxFavorableTicks || 0
+    });
+
+    const signalId = pos.signalId || '---';
+    const profitEmoji = pnl >= 0 ? '✅' : '❌';
+    const profitText = pnl >= 0 ? 'سود' : 'ضرر';
+    const reasonText = reason === 'take_profit_final' ? 'تارگت نهایی' : (reason === 'stop_loss' ? 'حد ضرر' : 'خروج دستی');
+
+    this.sendTelegramMessage(`${profitEmoji} *معامله بسته شد* ${profitEmoji}
+#${signalId}
+📌 نوع: ${pos.type === 'BUY' ? 'خرید' : 'فروش'}
+💰 ${profitText}: ${pnl.toLocaleString('fa-IR')} تومان
+📝 علت: ${reasonText}
+🏁 قیمت خروج: ${closePrice.toLocaleString('fa-IR')}
+📈 سود کل امروز: ${this.dailyPnL.toLocaleString('fa-IR')}`, pos.telegramMessageId);
+
+    this.sendRubikaMessage(`${profitEmoji} معامله بسته شد ${profitEmoji}
+#${signalId}
+📌 نوع: ${pos.type === 'BUY' ? 'خرید' : 'فروش'}
+💰 ${profitText}: ${pnl.toLocaleString('fa-IR')} تومان
+📝 علت: ${reasonText}
+🏁 قیمت خروج: ${closePrice.toLocaleString('fa-IR')}`, pos.rubikaMessageId);
   }
 
   async monitorTrades() {
     if (this.openPositions.size === 0) return;
+    const currentPrice = this.price;
+    if (currentPrice <= 0) return;
 
-    const now = Date.now();
     const tickSize = Number(this.settings.market?.tickSize ?? 1);
     const tickValue = Number(this.settings.market?.tickValueToman ?? 23000);
 
-    for (const [id, pos] of this.openPositions.entries()) {
-      const isBuy = pos.type === 'BUY';
-      const entryPrice = pos.entry || pos.price;
-      const currentPrice = this.price;
-      const priceDiff = isBuy ? (currentPrice - entryPrice) : (entryPrice - currentPrice);
-      const profitTicks = priceDiff / tickSize;
-      const pnl = Math.round(profitTicks * tickValue * (pos.units || 1));
+    for (const [id, position] of this.openPositions) {
+      if (position.status !== 'open') continue;
+
+      const isBuy = position.type === 'BUY';
+      const entryPrice = position.entry || position.price;
+      const now = Date.now();
+
+      // Track Drawdown (MAE) and Max Profit (MFE)
+      const currentDiff = currentPrice - entryPrice;
+      const currentTicks = Math.abs(currentDiff / tickSize);
       
-      // Track MFE/MAE
-      pos.maxFavorableTicks = Math.max(pos.maxFavorableTicks || 0, profitTicks);
-      pos.maxAdverseTicks = Math.min(pos.maxAdverseTicks || 0, profitTicks);
-
-      // 1. Max Loss Protection (Safety Net)
-      const maxRisk = Number(this.settings.risk?.maxRiskTomanPerTrade || 420000);
-      if (pnl <= -maxRisk) {
-        this.log(`🚨 RISK LIMIT: Position ${id} reached max loss (${pnl} Toman). Closing!`, "ERROR");
-        this.closeTrade(id, 'max_loss_limit');
-        continue;
-      }
-
-      // 2. Trailing Stop & Break-Even Logic
-      const trailing = this.settings.targetsTicks?.trailing || { enabled: false, activationTicks: 15, callbackTicks: 5 };
-      const breakEven = this.settings.targetsTicks?.breakEven || { enabled: true, activationTicks: 10, offsetTicks: 2 };
-
-      if (breakEven.enabled && !pos.breakEvenHit && profitTicks >= breakEven.activationTicks) {
-        const newSl = isBuy ? entryPrice + (breakEven.offsetTicks * tickSize) : entryPrice - (breakEven.offsetTicks * tickSize);
-        this.log(`🛡️ Break-Even Activated for ${id} (+${profitTicks.toFixed(1)} ticks). New SL: ${newSl}`, "SUCCESS");
-        pos.sl = newSl;
-        pos.breakEvenHit = true;
-        
-        if (this.settings.source === 'API' && pos.transactionId && !String(pos.transactionId).includes('PENDING')) {
-           this.enforceStopLossTakeProfit(pos.transactionId, pos.sl, pos.tp1, id);
+      if (isBuy) {
+        if (currentPrice < entryPrice) {
+          position.maxAdverseTicks = Math.max(position.maxAdverseTicks || 0, currentTicks);
+        } else {
+          position.maxFavorableTicks = Math.max(position.maxFavorableTicks || 0, currentTicks);
+        }
+      } else {
+        if (currentPrice > entryPrice) {
+          position.maxAdverseTicks = Math.max(position.maxAdverseTicks || 0, currentTicks);
+        } else {
+          position.maxFavorableTicks = Math.max(position.maxFavorableTicks || 0, currentTicks);
         }
       }
 
-      if (trailing.enabled && profitTicks >= trailing.activationTicks) {
-        const currentSl = pos.sl;
-        const newSl = isBuy ? currentPrice - (trailing.callbackTicks * tickSize) : currentPrice + (trailing.callbackTicks * tickSize);
+      // Periodic SL/TP Enforcement Retry
+      const isPending = !position.transactionId || position.transactionId === 'PENDING' || String(position.transactionId).includes('PENDING');
+      if (this.settings.source === 'API' && !isPending && position.slEnforced === false) {
+        const lastAttempt = position.lastEnforceAttempt || 0;
+        const attemptCount = position.enforceAttempts || 0;
+        const retryInterval = attemptCount < 5 ? 3000 : 15000; // Fast retry for first 5 attempts
         
-        const isImprovement = isBuy ? newSl > currentSl : newSl < currentSl;
-        if (isImprovement) {
-          pos.sl = newSl;
-          if (this.settings.source === 'API' && pos.transactionId && !String(pos.transactionId).includes('PENDING')) {
-             if (now - (pos.lastTrailingUpdate || 0) > 5000) { // Throttle trailing updates
-                this.enforceStopLossTakeProfit(pos.transactionId, pos.sl, pos.tp1, id);
-                pos.lastTrailingUpdate = now;
-             }
+        if (now - lastAttempt > retryInterval) {
+          position.lastEnforceAttempt = now;
+          position.enforceAttempts = attemptCount + 1;
+          this.log(`Retrying SL/TP Enforcement for ${position.transactionId} (Attempt ${position.enforceAttempts})...`, "INFO");
+          this.enforceStopLossTakeProfit(position.transactionId, position.sl, position.tp1, id).then(success => {
+            if (success) {
+              position.slEnforced = true;
+              this.log(`SL/TP Enforced on retry for ${position.transactionId}`, "SUCCESS");
+            }
+          }).catch(() => {});
+        }
+      }
+
+      if (isBuy && currentPrice <= position.sl) {
+        this.closeTrade(id, 'stop_loss');
+        continue;
+      }
+      if (!isBuy && currentPrice >= position.sl) {
+        this.closeTrade(id, 'stop_loss');
+        continue;
+      }
+
+      // Max Loss Per Trade & Max Daily Loss Enforcement
+      const priceDiff = isBuy ? currentPrice - entryPrice : entryPrice - currentPrice;
+      const currentPnlToman = Math.round((priceDiff / tickSize) * tickValue * (position.units || 1));
+      
+      const maxLossPerTrade = this.settings.risk?.maxRiskTomanPerTrade;
+      if (maxLossPerTrade && currentPnlToman <= -Math.abs(maxLossPerTrade)) {
+        this.log(`🚨 Maximum Loss Per Trade Reached! Closing position ${id}. PnL: ${currentPnlToman}`, "ERROR");
+        this.closeTrade(id, 'max_loss_per_trade');
+        continue;
+      }
+
+      const maxDailyLoss = this.settings.risk?.maxDailyLossToman;
+      if (maxDailyLoss && (this.dailyPnL + currentPnlToman) <= -Math.abs(maxDailyLoss)) {
+        this.log(`🚨 Maximum Daily Loss Reached! Closing position ${id} and stopping bot. Daily PnL: ${this.dailyPnL + currentPnlToman}`, "ERROR");
+        this.closeTrade(id, 'max_daily_loss');
+        this.isTrading = false; // Stop trading
+        continue;
+      }
+
+      if (!position.tp1Hit) {
+        if ((isBuy && currentPrice >= position.tp1) || (!isBuy && currentPrice <= position.tp1)) {
+          position.tp1Hit = true;
+          this.log(`🎯 Target 1 Hit at ${currentPrice}! Moving SL to Entry and targeting TP2: ${position.tp2}`, "SUCCESS");
+          
+          // Smart Profit Saving: Move SL to Entry + small buffer
+          const buffer = 2 * tickSize;
+          const newSl = isBuy ? entryPrice + buffer : entryPrice - buffer;
+          position.sl = newSl;
+          
+          if (position.transactionId) {
+            this.editStopLoss(position.transactionId, newSl);
+            this.editTakeProfit(position.transactionId, position.tp2);
+          }
+          
+          this.sendTelegramMessage(`🎯 *تارگت اول لمس شد!*
+#${position.signalId || '---'}
+💰 قیمت: ${currentPrice.toLocaleString('fa-IR')}
+🛡️ حد ضرر به نقطه ورود منتقل شد (ریسک فری).
+🚀 در حال حرکت به سمت تارگت دوم: ${position.tp2.toLocaleString('fa-IR')}`, position.telegramMessageId);
+          
+          this.sendRubikaMessage(`🎯 تارگت اول لمس شد! #${position.signalId || '---'}
+💰 قیمت: ${currentPrice.toLocaleString('fa-IR')}
+🛡️ حد ضرر به نقطه ورود منتقل شد.
+🚀 هدف بعدی: ${position.tp2.toLocaleString('fa-IR')}`, position.rubikaMessageId);
+          
+          continue;
+        }
+      } else if (!position.tp2Hit) {
+        if ((isBuy && currentPrice >= position.tp2) || (!isBuy && currentPrice <= position.tp2)) {
+          position.tp2Hit = true;
+          this.log(`🎯 Target 2 Hit at ${currentPrice}! Moving SL to TP1 and targeting TP3: ${position.tp3}`, "SUCCESS");
+          
+          // Lock more profit: Move SL to TP1
+          const newSl = position.tp1;
+          position.sl = newSl;
+          
+          if (position.transactionId) {
+            this.editStopLoss(position.transactionId, newSl);
+            this.editTakeProfit(position.transactionId, position.tp3);
+          }
+          
+          this.sendTelegramMessage(`🎯 *تارگت دوم لمس شد!*
+#${position.signalId || '---'}
+💰 قیمت: ${currentPrice.toLocaleString('fa-IR')}
+🔒 سود قفل شد (حد ضرر به تارگت اول منتقل شد).
+🚀 در حال حرکت به سمت تارگت نهایی: ${position.tp3.toLocaleString('fa-IR')}`, position.telegramMessageId);
+          
+          this.sendRubikaMessage(`🎯 تارگت دوم لمس شد! #${position.signalId || '---'}
+💰 قیمت: ${currentPrice.toLocaleString('fa-IR')}
+🔒 سود قفل شد (حد ضرر به تارگت اول منتقل شد).
+🚀 هدف نهایی: ${position.tp3.toLocaleString('fa-IR')}`, position.rubikaMessageId);
+          
+          continue;
+        }
+      } else if (!position.tp3Hit) {
+        if ((isBuy && currentPrice >= position.tp3) || (!isBuy && currentPrice <= position.tp3)) {
+          position.tp3Hit = true;
+          this.log(`🎯 Target 3 (Final) Hit at ${currentPrice}! Closing trade.`, "SUCCESS");
+          this.closeTrade(id, 'take_profit_final');
+          continue;
+        }
+      }
+
+      // Stepped Risk-Free Logic
+      const steppedCfg = this.settings.targets?.steppedRiskFree;
+      if (steppedCfg?.enabled) {
+        const tpDist = Math.abs(position.tp1 - entryPrice);
+        const slDist = Math.abs((position.originalSl || position.sl) - entryPrice);
+        const currentDist = isBuy ? currentPrice - entryPrice : entryPrice - currentPrice;
+        const currentProfitPct = (currentDist / tpDist) * 100;
+
+        const steps = [...(steppedCfg.steps || [])].sort((a, b) => a.triggerPct - b.triggerPct);
+        for (let i = steps.length - 1; i >= 0; i--) {
+          const step = steps[i];
+          const stepIndex = i + 1;
+          
+          if (currentProfitPct >= step.triggerPct) {
+            let newSl;
+            if (step.movePct === 0) {
+              newSl = entryPrice; // Break Even
+            } else if (step.movePct < 0) {
+              // Reduce risk
+              const reduction = slDist * (Math.abs(step.movePct) / 100);
+              newSl = isBuy ? (position.originalSl || position.sl) + reduction : (position.originalSl || position.sl) - reduction;
+            } else {
+              // Lock profit
+              const lock = tpDist * (step.movePct / 100);
+              newSl = isBuy ? entryPrice + lock : entryPrice - lock;
+            }
+
+            newSl = Math.round(newSl);
+            
+            // Only move SL if it's an improvement
+            const isImprovement = isBuy ? newSl > position.sl : newSl < position.sl;
+            
+            if (isImprovement) {
+              const now = Date.now();
+              // Throttle API calls to once every 5 seconds per position to avoid spamming if API fails
+              if (!position.lastSlUpdate || now - position.lastSlUpdate > 5000) {
+                position.sl = newSl;
+                position.currentStep = stepIndex;
+                position.lastSlUpdate = now;
+                this.log(`Stepped Risk-Free: Step ${stepIndex} triggered. SL moved to ${newSl} (Profit: ${currentProfitPct.toFixed(1)}%)`, "SUCCESS");
+                
+                if (position.transactionId) {
+                  this.editStopLoss(position.transactionId, newSl);
+                }
+              }
+            }
+            break; // Only process the highest reached step
+          }
+        }
+      } else {
+        // Standard Break Even Logic (Risk-Free)
+        const beCfg = this.settings.targets?.breakEven || { enabled: false, triggerPercent: 50 };
+        if (beCfg.enabled) {
+          const tpDist = Math.abs(position.tp1 - entryPrice);
+          const currentDist = isBuy ? currentPrice - entryPrice : entryPrice - currentPrice;
+          const triggerPercent = (beCfg.triggerPercent || 50) / 100;
+          
+          if (currentDist >= tpDist * triggerPercent) {
+            const buffer = (beCfg.bufferTicks || 0) * tickSize;
+            const newSl = isBuy ? entryPrice + buffer : entryPrice - buffer;
+            
+            const isImprovement = isBuy ? newSl > position.sl : newSl < position.sl;
+            
+            if (isImprovement) {
+              const now = Date.now();
+              if (!position.lastSlUpdate || now - position.lastSlUpdate > 5000) {
+                position.breakEvenHit = true;
+                position.sl = newSl; // Move SL to Entry (Risk-Free)
+                position.lastSlUpdate = now;
+                this.log(`Risk-Free (Break Even) triggered for trade ${id}. Moving SL to ${newSl}`, "SUCCESS");
+                
+                if (position.transactionId) {
+                  this.editStopLoss(position.transactionId, newSl);
+                }
+              }
+            }
           }
         }
       }
 
-      // 3. Take Profit Logic (Manual fallback if API fails)
-      const tpTicks = isBuy ? (pos.tp1 - entryPrice) / tickSize : (entryPrice - pos.tp1) / tickSize;
-      if (profitTicks >= tpTicks) {
-        this.log(`🎯 Take Profit reached for ${id} (+${profitTicks.toFixed(1)} ticks).`, "SUCCESS");
-        this.closeTrade(id, 'take_profit');
-        continue;
+      // Continuous Trailing Stop Logic (Tick-based)
+      const trailingCfg = this.settings.targetsTicks?.trailing;
+      const hqCfg = this.settings.strategy?.highQuality;
+      
+      // Use HQ Trailing if trade is HQ
+      const effectiveTrailing = (position.isHQ && hqCfg?.trailing?.enabled) ? hqCfg.trailing : trailingCfg;
+
+      if (effectiveTrailing?.enabled) {
+        const currentDist = isBuy ? currentPrice - entryPrice : entryPrice - currentPrice;
+        const activateDist = (effectiveTrailing.activateAfterTicks || 8) * tickSize;
+        
+        if (currentDist >= activateDist) {
+          const trailDist = (effectiveTrailing.trailTicks || 4) * tickSize;
+          const newSl = isBuy ? currentPrice - trailDist : currentPrice + trailDist;
+          
+          // Only move SL if it's an improvement
+          const isImprovement = isBuy ? newSl > position.sl : newSl < position.sl;
+          
+          if (isImprovement) {
+            const now = Date.now();
+            if (!position.lastSlUpdate || now - position.lastSlUpdate > 5000) {
+              position.sl = newSl;
+              position.lastSlUpdate = now;
+              this.log(`${position.isHQ ? 'HQ ' : ''}Trailing Stop moved to ${newSl} (Profit: ${currentDist/tickSize} ticks)`, "SUCCESS");
+              
+              if (position.transactionId) {
+                this.editStopLoss(position.transactionId, newSl);
+              }
+            }
+          }
+        }
       }
 
-      // 4. Stop Loss Logic (Manual fallback if API fails)
-      const slTicks = isBuy ? (entryPrice - pos.sl) / tickSize : (pos.sl - entryPrice) / tickSize;
-      if (profitTicks <= -slTicks) {
-        this.log(`🛑 Stop Loss reached for ${id} (${profitTicks.toFixed(1)} ticks).`, "ERROR");
-        this.closeTrade(id, 'stop_loss');
-        continue;
+      // HQ Mode: Early Break-Even (Save Profit)
+      if (position.isHQ && hqCfg?.breakEven?.enabled && !position.breakEvenHit) {
+        const tpDist = Math.abs(position.tp1 - entryPrice);
+        const currentDist = isBuy ? currentPrice - entryPrice : entryPrice - currentPrice;
+        const triggerPercent = (hqCfg.breakEven.triggerPercent || 40) / 100;
+
+        if (currentDist >= tpDist * triggerPercent) {
+          const buffer = (hqCfg.breakEven.bufferTicks || 1) * tickSize;
+          const newSl = isBuy ? entryPrice + buffer : entryPrice - buffer;
+          const isImprovement = isBuy ? newSl > position.sl : newSl < position.sl;
+
+          if (isImprovement) {
+            const now = Date.now();
+            if (!position.lastSlUpdate || now - position.lastSlUpdate > 5000) {
+              position.breakEvenHit = true;
+              position.sl = newSl;
+              position.lastSlUpdate = now;
+              this.log(`HQ Save Profit: Break-Even triggered. SL moved to ${newSl}`, "SUCCESS");
+              if (position.transactionId) this.editStopLoss(position.transactionId, newSl);
+            }
+          }
+        }
+      }
+
+      // Pyramiding Logic
+      const pyramidingCfg = this.settings.strategy?.pyramiding;
+      if (pyramidingCfg?.enabled && !position.pyramidTriggered) {
+        const currentDist = isBuy ? currentPrice - entryPrice : entryPrice - currentPrice;
+        const profitTicks = pyramidingCfg.profitTicksTrigger || 5;
+        
+        if (currentDist >= profitTicks * tickSize) {
+          position.pyramidTriggered = true;
+          
+          // Move SL of first step to entry (Break Even)
+          const isImprovement = isBuy ? entryPrice > position.sl : entryPrice < position.sl;
+          if (isImprovement) {
+            position.sl = entryPrice;
+            if (position.transactionId) {
+              this.editStopLoss(position.transactionId, entryPrice);
+            }
+          }
+          
+          // Calculate safe SL for second step
+          const stopDist = (this.settings.targetsTicks?.stopTicks || 12) * tickSize;
+          const secondStepSl = isBuy ? currentPrice - stopDist : currentPrice + stopDist;
+          
+          // Open second step
+          const signal = {
+            type: position.type,
+            entry: currentPrice,
+            sl: secondStepSl, // Safe SL for second step
+            tp1: position.tp1, // Same TP
+            tp2: position.tp2,
+            tp3: position.tp3,
+            score: position.score,
+            strength: position.strength,
+            reasons: ['Pyramiding Step 2'],
+            confidence: position.confidence,
+            timestamp: Date.now(),
+            pattern: 'Pyramiding',
+            strategy: this.settings.activeStrategy
+          };
+          this.enterTrade(signal);
+        }
       }
       
-      // 5. Time-based Exit
+      // Time-based Exit
       const maxAgeMinutes = this.settings.risk?.maxTradeAgeMinutes || 60;
-      const ageMinutes = (now - new Date(pos.entryTime).getTime()) / 60000;
+      const ageMinutes = (now - new Date(position.entryTime).getTime()) / 60000;
       if (ageMinutes > maxAgeMinutes) {
         this.log(`⏰ Time Limit: Position ${id} reached max age (${maxAgeMinutes}m). Closing.`, "INFO");
         this.closeTrade(id, 'time_limit');
