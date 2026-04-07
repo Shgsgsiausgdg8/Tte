@@ -101,6 +101,19 @@ export default function Dashboard() {
     };
   }, [botState === null]);
 
+  const openSettings = async () => {
+    if (!settings) {
+      try {
+        const res = await fetch('/api/bot/settings');
+        const data = await res.json();
+        setSettings(data);
+      } catch (e) {
+        console.error("Failed to fetch settings:", e);
+      }
+    }
+    setShowSettings(true);
+  };
+
   const toggleTrading = async () => {
     await fetch('/api/bot/toggle', { method: 'POST' });
   };
@@ -415,7 +428,7 @@ export default function Dashboard() {
           
           <div className="flex sm:hidden items-center gap-2">
             <button 
-              onClick={() => setShowSettings(true)}
+              onClick={openSettings}
               className="p-2 bg-white/5 rounded-xl text-slate-400 hover:text-white transition-colors"
             >
               <Settings className="w-4 h-4" />
@@ -531,7 +544,7 @@ export default function Dashboard() {
               <span className="hidden sm:inline">کیفیت بالا</span>
             </button>
             <button 
-              onClick={() => setShowSettings(true)}
+              onClick={openSettings}
               className="p-2 rounded-lg hover:bg-white/5 transition-colors text-slate-400 hover:text-white"
             >
               <Settings className="w-4 h-4" />
@@ -1323,10 +1336,10 @@ export default function Dashboard() {
                   
                   <div className="space-y-3">
                     {/* Account List */}
-                    {Object.values(settings.api?.accounts || {}).map((acc: any) => (
+                    {Object.values(settings?.api?.accounts || {}).map((acc: any) => (
                       <div 
                         key={acc.username}
-                        className={`p-3 rounded-xl border transition-all cursor-pointer relative group ${settings.api.activeAccountId === acc.username ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-white/5 border-white/5 hover:border-white/10'}`}
+                        className={`p-3 rounded-xl border transition-all cursor-pointer relative group ${settings?.api?.activeAccountId === acc.username ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-white/5 border-white/5 hover:border-white/10'}`}
                         onClick={() => setSettings({ ...settings, api: { ...settings.api, activeAccountId: acc.username } })}
                       >
                         <div className="flex items-center justify-between">
@@ -1340,7 +1353,7 @@ export default function Dashboard() {
                             </div>
                           </div>
                           <div className="flex items-center gap-3">
-                            {settings.api.activeAccountId === acc.username && (
+                            {settings?.api?.activeAccountId === acc.username && (
                               <div className="flex items-center gap-1.5 text-emerald-500 text-[9px] font-bold uppercase tracking-wider">
                                 <CheckCircle2 className="w-3.5 h-3.5" /> فعال
                               </div>
@@ -1348,9 +1361,9 @@ export default function Dashboard() {
                             <button 
                               onClick={(e) => {
                                 e.stopPropagation();
-                                const newAccounts = { ...settings.api.accounts };
+                                const newAccounts = { ...settings?.api?.accounts };
                                 delete newAccounts[acc.username];
-                                let newActive = settings.api.activeAccountId;
+                                let newActive = settings?.api?.activeAccountId;
                                 if (newActive === acc.username) {
                                   newActive = Object.keys(newAccounts)[0] || '';
                                 }

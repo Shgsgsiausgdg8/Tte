@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { readJsonl, runBacktest } from './backtest';
-import { config as baseConfig } from './config';
+import { defaultConfig as baseConfig } from './config';
 
 function deepClone(x: any){ return JSON.parse(JSON.stringify(x)); }
 

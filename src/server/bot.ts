@@ -236,7 +236,7 @@ export class FarazGoldBot {
     
     this.api = axios.create({
       baseURL: auth.baseUrl,
-      timeout: 60000, // Increased to 60s for slow server responses
+      timeout: 60000, 
       withCredentials: true,
       headers: {
         ...authHeader,
@@ -247,13 +247,7 @@ export class FarazGoldBot {
         'X-Requested-With': 'XMLHttpRequest',
         'Cookie': cookieString,
         'Referer': `${auth.baseUrl}/room/`,
-        'Origin': auth.baseUrl,
-        'sec-ch-ua': '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
-        'sec-ch-ua-mobile': '?0',
-        'sec-ch-ua-platform': '"Windows"',
-        'sec-fetch-dest': 'empty',
-        'sec-fetch-mode': 'cors',
-        'sec-fetch-site': 'same-origin'
+        'Origin': auth.baseUrl
       },
       httpsAgent: new https.Agent({ 
         keepAlive: true,
@@ -268,12 +262,12 @@ export class FarazGoldBot {
         const originalRequest = error.config;
         const status = error.response?.status;
 
-        // Auto-retry for Gateway Timeout (504) or Bad Gateway (502)
-        if ((status === 504 || status === 502) && !originalRequest._retryCount) {
+        // Auto-retry for Gateway Timeout (504) or Bad Gateway (502) or Service Unavailable (503)
+        if ((status === 504 || status === 502 || status === 503) && !originalRequest._retryCount) {
           originalRequest._retryCount = (originalRequest._retryCount || 0) + 1;
-          if (originalRequest._retryCount <= 3) {
-            const delay = 5000 * originalRequest._retryCount;
-            this.log(`Server Busy (${status}). Retrying request in ${delay/1000}s...`, "INFO");
+          if (originalRequest._retryCount <= 5) { // Increased to 5 retries
+            const delay = Math.min(30000, 5000 * Math.pow(1.5, originalRequest._retryCount - 1)) + (Math.random() * 2000);
+            this.log(`Server Busy (${status}). Retrying request in ${Math.round(delay/1000)}s (Attempt ${originalRequest._retryCount}/5)...`, "INFO");
             await new Promise(resolve => setTimeout(resolve, delay));
             return this.api!(originalRequest);
           }
@@ -738,9 +732,10 @@ ${analysisText}
     // Force API source
     this.settings.source = 'API';
     
-    await this.updatePortfolio();
-    await this.getUserInfo();
-    await this.fetchHistoricalBars();
+    // Initial data sync (non-blocking to allow WS to connect in parallel)
+    this.updatePortfolio().catch(() => {});
+    this.getUserInfo().catch(() => {});
+    this.fetchHistoricalBars().catch(() => {});
     this.connectToExternalWS();
     
     if (this.mainLoopTimer) clearInterval(this.mainLoopTimer);
@@ -769,7 +764,8 @@ ${analysisText}
       const now = Date.now();
       
       // Price Sync Fallback: If no WS message for 3s, try to get price via API
-      if (now - this.lastMessageTime > 3000 && this.isConnected) {
+      // Also sync if WS is disconnected to maintain a fresh price for trading
+      if (now - this.lastMessageTime > 3000 || !this.isConnected) {
         this.fetchCurrentPriceViaAPI();
       }
 
@@ -806,8 +802,8 @@ ${analysisText}
       const resolution = Math.floor((this.settings.timeframe?.value || 60) / 60);
       
       // If we keep getting 504, reduce the 'from' range to ask for less data
-      // Start with 6 hours for 1m, 2 days for higher resolutions
-      const hoursToFetch = retryCount > 1 ? 3 : (resolution > 1 ? 48 : 6);
+      // Start with 2 hours for 1m, 1 day for higher resolutions
+      const hoursToFetch = retryCount > 2 ? 1 : (retryCount > 0 ? 2 : (resolution > 1 ? 24 : 3));
       const from = to - (60 * 60 * hoursToFetch);
       
       this.log(`Fetching historical bars (${resolution}m) from ${from} to ${to} (Attempt ${retryCount + 1})...`, "INFO");
@@ -934,7 +930,7 @@ ${analysisText}
     try {
       const response = await this.api.get('/api/room/api/get-last-price/', { 
         params: { symbol: 'mazane' },
-        timeout: 3000 // Short timeout for price sync
+        timeout: 10000 // Increased to 10s for busy server
       });
       if (response.data && response.data.price) {
         const apiPrice = parseFloat(response.data.price);
@@ -1114,15 +1110,14 @@ ${analysisText}
       const finalSl = apiSl > 0 ? apiSl : (existingPos?.sl || 0);
       const finalTp = apiTp > 0 ? apiTp : (existingPos?.tp1 || 0);
 
-      // CRITICAL: If the exchange dropped the SL/TP (returns 0), we MUST enforce it or panic close!
+      // CRITICAL: If the exchange dropped the SL/TP (returns 0), we MUST enforce it.
       if (existingPos && (apiSl === 0 || apiTp === 0) && (finalSl > 0 || finalTp > 0)) {
          if (!existingPos.isFixingSlTp) {
             existingPos.isFixingSlTp = true;
-            this.log(`🚨 CRITICAL: Position ${id} is missing SL/TP on exchange! Enforcing now...`, "ERROR");
+            this.log(`🚨 Position ${id} is missing SL/TP on exchange! Enforcing now...`, "INFO");
             this.enforceStopLossTakeProfit(transId, finalSl, finalTp, id).then(success => {
                if (!success) {
-                  this.log(`🚨 PANIC CLOSE: Could not set SL/TP for position ${id}. Closing to protect capital!`, "ERROR");
-                  this.closeTrade(id, 'panic_no_sl_tp');
+                  this.log(`🚨 Could not set SL/TP for position ${id} after multiple attempts. Will retry later.`, "ERROR");
                }
                if (existingPos) existingPos.isFixingSlTp = false;
             });
@@ -1702,8 +1697,7 @@ ${analysisText}
   updatePrice(newPrice: number) {
     if (newPrice <= 0 || newPrice === this.price) return;
     this.price = newPrice;
-    
-    const now = Date.now();
+    this.lastMessageTime = Date.now(); // Update last message time for connectivity check
     const timeframeMs = (this.settings.timeframe?.value || 60) * 1000;
     const candleTime = Math.floor(now / timeframeMs) * timeframeMs;
 
@@ -1910,8 +1904,16 @@ ${analysisText}
         return;
       }
 
-      if (!this.isConnected || this.price <= 0) {
-        this.log(`Trade Skipped: Bot not connected or invalid price.`, "INFO");
+      if (this.price <= 0) {
+        this.log(`Trade Skipped: Invalid price.`, "INFO");
+        this.processedSignals.delete(signalId);
+        return;
+      }
+
+      // If WS is down, we can still trade if we have a recent price sync from API
+      const priceAge = now - this.lastMessageTime;
+      if (!this.isConnected && priceAge > 60000) {
+        this.log(`Trade Skipped: Bot not connected and price is stale (${Math.round(priceAge/1000)}s).`, "INFO");
         this.processedSignals.delete(signalId);
         return;
       }
@@ -1949,8 +1951,8 @@ ${analysisText}
       const id = Date.now();
 
       // SL/TP Safety Check (Ensure not too close to market)
-      // Increased buffer to 35 ticks for high volatility and latency
-      const safetyBuffer = tickSize * 35;
+      // Reduced buffer to 5 ticks to respect strategy logic while avoiding server-side "too close" errors
+      const safetyBuffer = tickSize * 5;
       const currentPrice = this.price;
       
       if (signal.type === 'BUY') {
@@ -2067,15 +2069,18 @@ ${analysisText}
           this.log(`Trade Executed: ${signal.type} at ${this.price} (ID: ${transId || 'PENDING'})`, "SUCCESS");
           
           if (transId && !String(transId).includes('PENDING')) {
-            // Immediate enforcement with a tiny delay to ensure server indexing
+            // Immediate enforcement with a delay to ensure server indexing
             setTimeout(() => {
               const p = this.openPositions.get(id);
               if (!p || (p.slEnforced && p.transactionId === transId)) return;
 
               this.enforceStopLossTakeProfit(transId, sl, tp, id).then(success => {
                 if (success) p.slEnforced = true;
+                else {
+                  this.log(`Failed to enforce SL/TP for ${transId} after all retries. Bot will continue to monitor.`, "ERROR");
+                }
               }).catch(() => {});
-            }, 1000);
+            }, 3000); // Increased from 1s
           }
         } else {
           this.log(`Trade Entry Failed: ${JSON.stringify(response?.data || {})}`, "ERROR");
@@ -2702,7 +2707,7 @@ ${pnlEmoji} معامله ${typeLabel} #${pos.signalId || '---'}
     let slSuccess = sl === 0 || isNaN(sl);
     let tpSuccess = tp === 0 || isNaN(tp);
 
-    const maxAttempts = 3;
+    const maxAttempts = 10; // Increased from 3
     let attempt = 0;
 
     while (attempt < maxAttempts) {
@@ -2717,8 +2722,9 @@ ${pnlEmoji} معامله ${typeLabel} #${pos.signalId || '---'}
 
       attempt++;
       if (attempt < maxAttempts) {
-        this.log(`SL/TP Enforcement attempt ${attempt} failed for ${transactionId}. Retrying in 2s...`, "INFO");
-        await new Promise(r => setTimeout(r, 2000));
+        const delay = 5000 + (Math.random() * 2000); // Increased from 2s
+        this.log(`SL/TP Enforcement attempt ${attempt} failed for ${transactionId}. Retrying in ${Math.round(delay/1000)}s...`, "INFO");
+        await new Promise(r => setTimeout(r, delay));
       }
     }
 
