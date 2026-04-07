@@ -5,7 +5,7 @@ import https from 'https';
 import axios, { AxiosInstance } from 'axios';
 import WebSocket from 'ws';
 import { Strategy } from './strategy';
-import { defaultConfig } from './config';
+import { config as defaultConfig } from './config';
 import { DataRecorder } from './dataRecorder';
 import { loadBestParams, scheduleOptimization } from './autotuneManager';
 
@@ -14,7 +14,7 @@ const STATE_FILE = path.join(process.cwd(), 'src/server/state.json');
 
 const PSYCHOLOGY_TIPS = [
   "صبر، کلید سودآوری است. منتظر تاییدیه بمانید.",
-  "معامله‌گر حرفه‌ای با استاپ‌لاس خود دوست است؛ استاپ‌لاس محافظ سرمایه شماست نه دقیقاً دشمن سود شما.",
+  "معامله‌گر حرفه‌ای با استاپ‌لاس خود دوست است؛ استاپ‌لاس محافظ سرمایه شماست نه دشمن سود شما.",
   "بازار همیشه فرصت می‌دهد، اگر امروز فرصتی نبود، فردا هست.",
   "مدیریت سرمایه مهم‌تر از استراتژی است. هرگز بیش از حد ریسک نکنید.",
   "احساسات خود را در معامله دخالت ندهید. به استراتژی خود پایبند باشید.",
@@ -236,7 +236,7 @@ export class FarazGoldBot {
     
     this.api = axios.create({
       baseURL: auth.baseUrl,
-      timeout: 60000, // Increased to 60s for slow server responses
+      timeout: 60000, 
       withCredentials: true,
       headers: {
         ...authHeader,
@@ -247,13 +247,7 @@ export class FarazGoldBot {
         'X-Requested-With': 'XMLHttpRequest',
         'Cookie': cookieString,
         'Referer': `${auth.baseUrl}/room/`,
-        'Origin': auth.baseUrl,
-        'sec-ch-ua': '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
-        'sec-ch-ua-mobile': '?0',
-        'sec-ch-ua-platform': '"Windows"',
-        'sec-fetch-dest': 'empty',
-        'sec-fetch-mode': 'cors',
-        'sec-fetch-site': 'same-origin'
+        'Origin': auth.baseUrl
       },
       httpsAgent: new https.Agent({ 
         keepAlive: true,
@@ -268,12 +262,12 @@ export class FarazGoldBot {
         const originalRequest = error.config;
         const status = error.response?.status;
 
-        // Auto-retry for Gateway Timeout (504) or Bad Gateway (502)
-        if ((status === 504 || status === 502) && !originalRequest._retryCount) {
+        // Auto-retry for Gateway Timeout (504) or Bad Gateway (502) or Service Unavailable (503)
+        if ((status === 504 || status === 502 || status === 503) && !originalRequest._retryCount) {
           originalRequest._retryCount = (originalRequest._retryCount || 0) + 1;
-          if (originalRequest._retryCount <= 3) {
-            const delay = 5000 * originalRequest._retryCount;
-            this.log(`Server Busy (${status}). Retrying request in ${delay/1000}s...`, "INFO");
+          if (originalRequest._retryCount <= 5) { // Increased to 5 retries
+            const delay = Math.min(30000, 5000 * Math.pow(1.5, originalRequest._retryCount - 1)) + (Math.random() * 2000);
+            this.log(`Server Busy (${status}). Retrying request in ${Math.round(delay/1000)}s (Attempt ${originalRequest._retryCount}/5)...`, "INFO");
             await new Promise(resolve => setTimeout(resolve, delay));
             return this.api!(originalRequest);
           }
@@ -738,9 +732,10 @@ ${analysisText}
     // Force API source
     this.settings.source = 'API';
     
-    await this.updatePortfolio();
-    await this.getUserInfo();
-    await this.fetchHistoricalBars();
+    // Initial data sync (non-blocking to allow WS to connect in parallel)
+    this.updatePortfolio().catch(() => {});
+    this.getUserInfo().catch(() => {});
+    this.fetchHistoricalBars().catch(() => {});
     this.connectToExternalWS();
     
     if (this.mainLoopTimer) clearInterval(this.mainLoopTimer);
@@ -764,12 +759,13 @@ ${analysisText}
     
     this.mainLoopTimer = setInterval(async () => {
       this.resetDailyIfNeeded();
-      this.monitorTrades();
+      this.checkTargetsAndStops();
       
       const now = Date.now();
       
       // Price Sync Fallback: If no WS message for 3s, try to get price via API
-      if (now - this.lastMessageTime > 3000 && this.isConnected) {
+      // Also sync if WS is disconnected to maintain a fresh price for trading
+      if (now - this.lastMessageTime > 3000 || !this.isConnected) {
         this.fetchCurrentPriceViaAPI();
       }
 
@@ -806,8 +802,8 @@ ${analysisText}
       const resolution = Math.floor((this.settings.timeframe?.value || 60) / 60);
       
       // If we keep getting 504, reduce the 'from' range to ask for less data
-      // Start with 6 hours for 1m, 2 days for higher resolutions
-      const hoursToFetch = retryCount > 1 ? 3 : (resolution > 1 ? 48 : 6);
+      // Start with 2 hours for 1m, 1 day for higher resolutions
+      const hoursToFetch = retryCount > 2 ? 1 : (retryCount > 0 ? 2 : (resolution > 1 ? 24 : 3));
       const from = to - (60 * 60 * hoursToFetch);
       
       this.log(`Fetching historical bars (${resolution}m) from ${from} to ${to} (Attempt ${retryCount + 1})...`, "INFO");
@@ -934,7 +930,7 @@ ${analysisText}
     try {
       const response = await this.api.get('/api/room/api/get-last-price/', { 
         params: { symbol: 'mazane' },
-        timeout: 3000 // Short timeout for price sync
+        timeout: 10000 // Increased to 10s for busy server
       });
       if (response.data && response.data.price) {
         const apiPrice = parseFloat(response.data.price);
@@ -1114,15 +1110,14 @@ ${analysisText}
       const finalSl = apiSl > 0 ? apiSl : (existingPos?.sl || 0);
       const finalTp = apiTp > 0 ? apiTp : (existingPos?.tp1 || 0);
 
-      // CRITICAL: If the exchange dropped the SL/TP (returns 0), we MUST enforce it or panic close!
+      // CRITICAL: If the exchange dropped the SL/TP (returns 0), we MUST enforce it.
       if (existingPos && (apiSl === 0 || apiTp === 0) && (finalSl > 0 || finalTp > 0)) {
          if (!existingPos.isFixingSlTp) {
             existingPos.isFixingSlTp = true;
-            this.log(`🚨 CRITICAL: Position ${id} is missing SL/TP on exchange! Enforcing now...`, "ERROR");
+            this.log(`🚨 Position ${id} is missing SL/TP on exchange! Enforcing now...`, "INFO");
             this.enforceStopLossTakeProfit(transId, finalSl, finalTp, id).then(success => {
                if (!success) {
-                  this.log(`🚨 PANIC CLOSE: Could not set SL/TP for position ${id}. Closing to protect capital!`, "ERROR");
-                  this.closeTrade(id, 'panic_no_sl_tp');
+                  this.log(`🚨 Could not set SL/TP for position ${id} after multiple attempts. Will retry later.`, "ERROR");
                }
                if (existingPos) existingPos.isFixingSlTp = false;
             });
@@ -1271,26 +1266,11 @@ ${analysisText}
       
       this.ws.on('unexpected-response', (req, res) => {
         const isGatewayError = res.statusCode === 504 || res.statusCode === 502;
-        const isAuthError = res.statusCode === 401 || res.statusCode === 403;
-        
         this.log(`WS unexpected-response: ${res.statusCode}${isGatewayError ? ' (Server Busy)' : ''}`, "ERROR");
-        
-        if (isAuthError) {
-          this.log("Auth error during WS handshake. Attempting to refresh token...", "INFO");
-          this.refreshAuthToken().catch(() => {});
-        } else if (isGatewayError && this.reconnectAttempts > 2) {
-          // If we keep getting 504s, maybe a fresh token/session helps with some load balancers
-          this.log("Persistent Server Busy errors. Refreshing token to see if it helps...", "INFO");
-          this.refreshAuthToken().catch(() => {});
-        }
-
         if (this.ws) {
-          this.ws.removeAllListeners();
-          this.ws.terminate();
-          this.ws = null;
+          this.ws.terminate(); // This should trigger the 'close' event
         }
-        
-        this.scheduleReconnect(isGatewayError);
+        this.scheduleReconnect(isGatewayError); // Call it directly just in case 'close' isn't emitted
       });
 
       this.ws.on('open', () => {
@@ -1667,19 +1647,14 @@ ${analysisText}
     
     // If we got a 504, it means the server is overloaded. We should wait longer.
     // Exponential backoff with max 10 minutes to prevent spamming
-    const baseDelay = isGatewayError ? 45000 : (this.reconnectAttempts > 3 ? 30000 : 15000);
-    const delay = Math.min(600000, baseDelay * Math.pow(1.3, this.reconnectAttempts - 1));
+    const baseDelay = isGatewayError ? 60000 : (this.reconnectAttempts > 3 ? 30000 : 15000);
+    const delay = Math.min(600000, baseDelay * Math.pow(1.5, this.reconnectAttempts - 1));
     
-    // Add jitter (±15%) to avoid thundering herd
-    const jitter = (Math.random() * 0.3) + 0.85; // 0.85 to 1.15
+    // Add jitter (±10%) to avoid thundering herd
+    const jitter = (Math.random() * 0.2) + 0.9; // 0.9 to 1.1
     const finalDelay = Math.round(delay * jitter);
     
-    const delaySec = Math.round(finalDelay/1000);
-    this.log(`Scheduling WS reconnect in ${delaySec}s (Attempt ${this.reconnectAttempts})${isGatewayError ? ' - Server Busy Mode' : ''}`, "WS");
-    
-    if (isGatewayError) {
-      this.sendTelegramMessage(`⚠️ *سرور فرازگلد شلوغ است (خطای ۵۰۴)*\nتلاش مجدد برای اتصال در ${delaySec} ثانیه دیگر...`);
-    }
+    this.log(`Scheduling WS reconnect in ${Math.round(finalDelay/1000)}s (Attempt ${this.reconnectAttempts})`, "WS");
     this.wsReconnectTimer = setTimeout(() => {
       this.wsReconnectTimer = null;
       this.connectToExternalWS();
@@ -1722,8 +1697,7 @@ ${analysisText}
   updatePrice(newPrice: number) {
     if (newPrice <= 0 || newPrice === this.price) return;
     this.price = newPrice;
-    
-    const now = Date.now();
+    this.lastMessageTime = Date.now(); // Update last message time for connectivity check
     const timeframeMs = (this.settings.timeframe?.value || 60) * 1000;
     const candleTime = Math.floor(now / timeframeMs) * timeframeMs;
 
@@ -1930,8 +1904,16 @@ ${analysisText}
         return;
       }
 
-      if (!this.isConnected || this.price <= 0) {
-        this.log(`Trade Skipped: Bot not connected or invalid price.`, "INFO");
+      if (this.price <= 0) {
+        this.log(`Trade Skipped: Invalid price.`, "INFO");
+        this.processedSignals.delete(signalId);
+        return;
+      }
+
+      // If WS is down, we can still trade if we have a recent price sync from API
+      const priceAge = now - this.lastMessageTime;
+      if (!this.isConnected && priceAge > 60000) {
+        this.log(`Trade Skipped: Bot not connected and price is stale (${Math.round(priceAge/1000)}s).`, "INFO");
         this.processedSignals.delete(signalId);
         return;
       }
@@ -1969,8 +1951,8 @@ ${analysisText}
       const id = Date.now();
 
       // SL/TP Safety Check (Ensure not too close to market)
-      // Increased buffer to 35 ticks for high volatility and latency
-      const safetyBuffer = tickSize * 35;
+      // Reduced buffer to 5 ticks to respect strategy logic while avoiding server-side "too close" errors
+      const safetyBuffer = tickSize * 5;
       const currentPrice = this.price;
       
       if (signal.type === 'BUY') {
@@ -2087,15 +2069,18 @@ ${analysisText}
           this.log(`Trade Executed: ${signal.type} at ${this.price} (ID: ${transId || 'PENDING'})`, "SUCCESS");
           
           if (transId && !String(transId).includes('PENDING')) {
-            // Immediate enforcement with a tiny delay to ensure server indexing
+            // Immediate enforcement with a delay to ensure server indexing
             setTimeout(() => {
               const p = this.openPositions.get(id);
               if (!p || (p.slEnforced && p.transactionId === transId)) return;
 
               this.enforceStopLossTakeProfit(transId, sl, tp, id).then(success => {
                 if (success) p.slEnforced = true;
+                else {
+                  this.log(`Failed to enforce SL/TP for ${transId} after all retries. Bot will continue to monitor.`, "ERROR");
+                }
               }).catch(() => {});
-            }, 1000);
+            }, 3000); // Increased from 1s
           }
         } else {
           this.log(`Trade Entry Failed: ${JSON.stringify(response?.data || {})}`, "ERROR");
@@ -2130,440 +2115,12 @@ ${analysisText}
     }
   }
 
-  async enforceStopLossTakeProfit(transactionId: any, sl: number, tp: number, localId: any): Promise<boolean> {
-    this.log(`Enforcing SL/TP for transaction ${transactionId}: SL=${sl}, TP=${tp}`, "INFO");
-    
-    let slSuccess = sl === 0 || isNaN(sl);
-    let tpSuccess = tp === 0 || isNaN(tp);
-
-    const maxAttempts = 3;
-    let attempt = 0;
-
-    while (attempt < maxAttempts) {
-      if (!slSuccess && sl > 0 && !isNaN(sl)) {
-        slSuccess = await this.editStopLoss(transactionId, sl);
-      }
-      if (!tpSuccess && tp > 0 && !isNaN(tp)) {
-        tpSuccess = await this.editTakeProfit(transactionId, tp);
-      }
-
-      if (slSuccess && tpSuccess) break;
-
-      attempt++;
-      if (attempt < maxAttempts) {
-        this.log(`SL/TP Enforcement attempt ${attempt} failed for ${transactionId}. Retrying in 2s...`, "INFO");
-        await new Promise(r => setTimeout(r, 2000));
-      }
-    }
-
-    return slSuccess && tpSuccess;
-  }
-
-  async editTakeProfit(transactionId: any, newTp: number) {
-    if (!transactionId || String(transactionId).includes('PENDING')) return false;
-    if (this.settings.source === 'API' && this.api && transactionId) {
-      try {
-        this.log(`Updating TP for transaction ${transactionId} to ${newTp}...`, "INFO");
-        
-        const endpoints = [
-          `/api/room/api/edit-take-profit/${transactionId}/`
-        ];
-
-        let ok = false;
-        let primaryNotFound = false;
-
-        for (let i = 0; i < endpoints.length; i++) {
-          const url = endpoints[i];
-          if (ok) break;
-          try {
-            const res = await this.api.post(url, {
-              take_profit: String(Math.round(newTp))
-            }, {
-              headers: { 'Accept': '*/*', 'X-Requested-With': 'XMLHttpRequest' },
-              timeout: 20000
-            });
-            
-            const apiResponse = res?.data;
-            ok = apiResponse?.status === true || 
-                 apiResponse?.status === 'true' || 
-                 apiResponse?.status === 1 || 
-                 apiResponse?.status === 'success' ||
-                 (res.status === 200 && (Object.keys(apiResponse || {}).length === 0 || apiResponse?.message?.includes('ویرایش')));
-            
-            if (ok) {
-              this.log(`Take Profit updated successfully for ${transactionId} via ${url}`, "SUCCESS");
-              return true;
-            }
-          } catch (e: any) {
-            const status = e.response?.status;
-            const data = e.response?.data;
-            const errorMsg = (typeof data === 'object' ? data?.message : null) || e.message || "";
-
-            this.log(`Edit TP API Error (${url}): Status ${status} | Data: ${typeof data === 'string' ? 'HTML Response' : JSON.stringify(data || e.message)}`, "ERROR");
-            
-            if (errorMsg.includes('بسته شده') || errorMsg.includes('باز نیست')) {
-              this.log(`TP Edit skipped: Trade is closed (${transactionId})`, "INFO");
-              return true; 
-            }
-
-            if (status === 404 || errorMsg.includes('یافت نشد') || errorMsg.includes('نامعتبر')) {
-              if (i === 0) primaryNotFound = true;
-              continue;
-            }
-
-            if (errorMsg.includes('بالا') || errorMsg.includes('پایین') || errorMsg.includes('فاصله')) {
-              this.log(`TP too close to market for ${transactionId}. Skipping TP for now.`, "INFO");
-              return true;
-            }
-          }
-        }
-
-        if (!ok && primaryNotFound) return true;
-        return ok;
-      } catch (e: any) {
-        this.log(`Edit TP API Error for ${transactionId}: ${e.message}`, "ERROR");
-        return false;
-      }
-    }
-    return false;
-  }
-
-  async editStopLoss(transactionId: any, newSl: number) {
-    if (!transactionId || String(transactionId).includes('PENDING')) return false;
-    if (this.settings.source === 'API' && this.api && transactionId) {
-      try {
-        this.log(`Updating SL for transaction ${transactionId} to ${newSl}...`, "INFO");
-        
-        const endpoints = [
-          `/api/room/api/edit-stop-loss/${transactionId}/`
-        ];
-
-        let ok = false;
-        let primaryNotFound = false;
-
-        for (let i = 0; i < endpoints.length; i++) {
-          const url = endpoints[i];
-          if (ok) break;
-          try {
-            const res = await this.api.post(url, {
-              stop_loss: String(Math.round(newSl))
-            }, {
-              headers: { 
-                'Accept': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest' 
-              },
-              timeout: 20000
-            });
-            
-            const apiResponse = res?.data;
-            ok = apiResponse?.status === true || 
-                 apiResponse?.status === 'true' || 
-                 apiResponse?.status === 1 || 
-                 apiResponse?.status === 'success' ||
-                 (res.status === 200 && (Object.keys(apiResponse || {}).length === 0 || apiResponse?.message?.includes('ویرایش')));
-            
-            if (ok) {
-              this.log(`Stop Loss updated successfully for ${transactionId} via ${url}`, "SUCCESS");
-              return true;
-            }
-          } catch (e: any) {
-            const status = e.response?.status;
-            const data = e.response?.data;
-            const errorMsg = (typeof data === 'object' ? data?.message : null) || e.message || "";
-
-            this.log(`Edit SL API Error (${url}): Status ${status} | Data: ${typeof data === 'string' ? 'HTML Response' : JSON.stringify(data || e.message)}`, "ERROR");
-            
-            if (errorMsg.includes('بسته شده') || errorMsg.includes('باز نیست')) {
-              this.log(`SL Edit skipped: Trade is closed (${transactionId})`, "INFO");
-              return true; 
-            }
-
-            if (status === 404 || errorMsg.includes('یافت نشد') || errorMsg.includes('نامعتبر')) {
-              if (i === 0) primaryNotFound = true;
-              continue;
-            }
-
-            if (errorMsg.includes('بالا') || errorMsg.includes('پایین') || errorMsg.includes('فاصله')) {
-              const tickSize = this.settings.market?.tickSize || 1;
-              let adjustedSl = newSl;
-              
-              if (errorMsg.includes('بالا')) {
-                adjustedSl = Math.max(newSl + tickSize * 2, this.price + tickSize * 5);
-              } else if (errorMsg.includes('پایین')) {
-                adjustedSl = Math.min(newSl - tickSize * 2, this.price - tickSize * 5);
-              } else {
-                adjustedSl = newSl > this.price ? this.price + tickSize * 5 : this.price - tickSize * 5;
-              }
-
-              this.log(`SL too close to market. Retrying with safe SL: ${adjustedSl}`, "INFO");
-              
-              const retryRes = await this.api.post(url, {
-                stop_loss: String(Math.round(adjustedSl))
-              }, {
-                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-                timeout: 20000
-              });
-              
-              if (retryRes?.data?.status === true || retryRes?.data?.status === 'true' || retryRes?.data?.status === 1) {
-                for (const [id, pos] of this.openPositions.entries()) {
-                  if (pos.transactionId === transactionId) {
-                    pos.sl = Math.round(adjustedSl);
-                    this.saveState();
-                    break;
-                  }
-                }
-                return true;
-              }
-              return false;
-            }
-          }
-        }
-
-        if (!ok && primaryNotFound) return true;
-        return ok;
-      } catch (e: any) {
-        this.log(`Edit SL API Error for ${transactionId}: ${e.message}`, "ERROR");
-        return false;
-      }
-    }
-    return false;
-  }
-
-  async closeTrade(id: number, reason: string = 'manual') {
-    const pos = this.openPositions.get(id);
-    if (!pos) return;
-
-    this.log(`Closing Trade ${id} (${reason}) at ${this.price}`, "INFO");
-
-    const isBuy = pos.type === 'BUY';
-    const closePrice = this.price;
-    const entryPrice = pos.entry || pos.price;
-    const priceDiff = isBuy ? (closePrice - entryPrice) : (entryPrice - closePrice);
-    
-    const tickSize = Number(this.settings.market?.tickSize ?? 1);
-    const tickValue = Number(this.settings.market?.tickValueToman ?? 23000);
-    const pnl = Math.round((priceDiff / tickSize) * tickValue * (pos.units || 1));
-
-    if (this.settings.source === 'API' && this.api) {
-      // Anti-Arbitrage: Minimum hold time
-      const antiArb = this.settings.risk?.antiArbitrage || { enabled: false, minHoldTimeSeconds: 30 };
-      if (antiArb.enabled) {
-        const minHoldTime = (antiArb.minHoldTimeSeconds || 30) * 1000;
-        const timeOpen = Date.now() - new Date(pos.entryTime).getTime();
-        if (reason !== 'stop_loss' && reason !== 'daily_loss_limit' && timeOpen < minHoldTime) {
-          this.log(`Anti-Arbitrage: Trade hold time too short (${Math.round(timeOpen/1000)}s < ${antiArb.minHoldTimeSeconds}s). Delaying close...`, "INFO");
-        }
-        
-        // Random Jitter to avoid HFT detection
-        const jitter = Math.floor(Math.random() * 1500) + 500; // 0.5s to 2s
-        await new Promise(resolve => setTimeout(resolve, jitter));
-      }
-
-      try {
-        let ok = false;
-        let apiResponse: any = null;
-
-        const isPending = !pos.transactionId || pos.transactionId === 'PENDING' || String(pos.transactionId).includes('PENDING');
-
-        if (pos.transactionId && !isPending) {
-          const endpoints = [
-            `/api/room/api/close-futures-transaction/${pos.transactionId}/`,
-            `/api/room/api/close-transaction/${pos.transactionId}/`
-          ];
-
-          for (const url of endpoints) {
-            if (ok) break;
-            try {
-              const res = await this.api.post(url, {}, {
-                headers: { 'Accept': '*/*', 'X-Requested-With': 'XMLHttpRequest' },
-                timeout: 20000
-              });
-              apiResponse = res?.data;
-              ok = apiResponse?.status === true || 
-                   apiResponse?.status === 'true' || 
-                   apiResponse?.status === 1 || 
-                   apiResponse?.status === 'success' ||
-                   (res.status === 200 && (Object.keys(apiResponse || {}).length === 0 || apiResponse?.message?.includes('بسته')));
-              
-              if (ok) {
-                this.log(`Closed via ${url}`, "SUCCESS");
-              }
-            } catch (e: any) {
-              const status = e.response?.status;
-              const data = e.response?.data;
-              apiResponse = data; 
-              
-              if (status === 500) {
-                this.log(`Close Trade: Received 500 on ${url}. Treating as SUCCESS per user experience.`, "SUCCESS");
-                ok = true;
-                break;
-              }
-
-              this.log(`Close Trade API Error (${url}): Status ${status} | Data: ${typeof data === 'string' ? 'HTML Response' : JSON.stringify(data || e.message)}`, "ERROR");
-              
-              if (status === 404) {
-                this.log(`Trade ${pos.transactionId} not found on ${url}. It might be already closed.`, "INFO");
-                ok = true; 
-                break;
-              }
-            }
-          }
-        } 
-        
-        if (!ok) {
-          const closeAction = isBuy ? 'sell' : 'buy';
-          const orderData: any = {
-            action: closeAction,
-            order_type: 'verbal',
-            units: String(pos.units || 1),
-            price: -1,
-            signal_token: ""
-          };
-          
-          await this.sleepWithJitter(200, 600);
-          
-          try {
-            const res = await this.api.post('/api/room/api/submit-order/', orderData, {
-              headers: { 'Accept': 'application/json, text/plain, */*', 'X-Requested-With': 'XMLHttpRequest' }
-            });
-            apiResponse = res?.data;
-          } catch (e: any) {
-            apiResponse = e.response?.data;
-            this.log(`Fallback close error: ${e.message}`, "ERROR");
-          }
-          
-          const rawStatus = apiResponse?.status;
-          ok = rawStatus === true || rawStatus === 'true' || rawStatus === 1 || rawStatus === '1' || rawStatus === 'success' || Boolean(apiResponse?.order_id) || Boolean(apiResponse?.id) || (typeof apiResponse?.message === 'string' && apiResponse.message.includes('ثبت'));
-          
-          if (!ok) {
-            const msg = String(apiResponse?.message || "");
-            if (msg.includes('موجودی کافی نیست') || msg.includes('یافت نشد') || msg.includes('وضعیت باز نیست')) {
-               this.log(`Could not submit opposite order. Position might be closed.`, "INFO");
-               ok = true;
-            }
-          }
-        }
-        
-        if (!ok) {
-          this.log(`Close Trade Failed: API returned false status`, "ERROR");
-          return; 
-        }
-      } catch (e: any) {
-        this.log(`Close Trade API Error: ${e.message}`, "ERROR");
-        return; 
-      }
-    } else {
-      this.log(`Close Trade Skipped: API not configured or not connected`, "ERROR");
-      return; 
-    }
-
-    this.dailyPnL += pnl;
-    this.totalTrades++;
-    if (pnl > 0) this.winningTrades++;
-    else if (pnl < 0) this.losingTrades++;
-
-    if (this.settings.rubika?.enabled && this.settings.rubika?.drawdownReportEnabled) {
-      const mae = Math.round(pos.maxAdverseTicks || 0);
-      const mfe = Math.round(pos.maxFavorableTicks || 0);
-      const pnlEmoji = pnl > 0 ? '✅' : '❌';
-      const typeLabel = isBuy ? 'خرید (BUY)' : 'فروش (SELL)';
-      
-      const report = `📊 گزارش تحلیل درادان (Drawdown)
-----------------------------------
-${pnlEmoji} معامله ${typeLabel} #${pos.signalId || '---'}
-💰 سود/ضرر: ${pnl.toLocaleString('fa-IR')} تومان
-📈 ورود: ${entryPrice.toLocaleString('fa-IR')}
-📉 خروج: ${closePrice.toLocaleString('fa-IR')}
-
-⚠️ درادان (MAE): ${mae.toLocaleString('fa-IR')} خط
-🚀 پیشروی (MFE): ${mfe.toLocaleString('fa-IR')} خط
-
-💡 ${pnl > 0 
-        ? (mae > 5 ? `قیمت قبل از سوددهی ${mae} خط در ضرر رفته بود.` : 'نقطه ورود بسیار دقیق بود.') 
-        : (mfe > 5 ? `قیمت قبل از استاپ، ${mfe} خط در سود رفته بود.` : 'معامله سریعاً به استاپ رسید.')}
-----------------------------------`;
-      
-      this.sendRubikaMessage(report, pos.rubikaMessageId);
-    }
-    
-    this.openPositions.delete(id);
-    
-    const maxDailyLoss = this.settings.risk?.maxDailyLossToman || 5000000;
-    if (this.dailyPnL <= -Math.abs(maxDailyLoss) && this.isTrading) {
-      this.log(`Daily Loss Limit Reached! (PnL: ${this.dailyPnL} <= -${maxDailyLoss}). Stopping bot.`, "ERROR");
-      this.isTrading = false;
-      this.sendTelegramMessage(`🚨 *حد ضرر روزانه فعال شد*
-ربات متوقف شد و تمام پوزیشن‌ها بسته خواهند شد.`);
-      const remainingPositions = Array.from(this.openPositions.keys());
-      for (const otherId of remainingPositions) {
-        if (otherId !== id) { 
-          this.closeTrade(otherId, 'daily_loss_limit');
-        }
-      }
-    }
-
-    const closedPos = {
-      ...pos,
-      exitPrice: closePrice,
-      exitTime: new Date(),
-      pnl,
-      reason,
-      details: {
-        breakEven: pos.breakEvenHit ? 'فعال شده' : 'خیر',
-        tp1: pos.tp1Hit ? 'تاچ شده' : 'خیر',
-        tp2: pos.tp2Hit ? 'تاچ شده' : 'خیر',
-        tp3: pos.tp3Hit ? 'تاچ شده' : 'خیر',
-        strength: pos.strength || 'NORMAL',
-        pyramid: pos.pyramidTriggered ? 'پله دوم فعال' : 'تک پله'
-      }
-    };
-    this.closedPositions.push(closedPos);
-    if (this.closedPositions.length > 50) this.closedPositions.shift();
-
-    this.openPositions.delete(id);
-    this.saveState();
-    
-    this.recorder.recordTrade({
-      tOpen: new Date(pos.entryTime).getTime(),
-      tClose: Date.now(),
-      side: pos.type,
-      entry: pos.entry || pos.price,
-      exit: closePrice,
-      units: pos.units || 1,
-      pnl: pnl || 0,
-      reason: reason,
-      maeTicks: pos.maxAdverseTicks || 0,
-      mfeTicks: pos.maxFavorableTicks || 0
-    });
-
-    const signalId = pos.signalId || '---';
-    const profitEmoji = pnl >= 0 ? '✅' : '❌';
-    const profitText = pnl >= 0 ? 'سود' : 'ضرر';
-    const reasonText = reason === 'take_profit_final' ? 'تارگت نهایی' : (reason === 'stop_loss' ? 'حد ضرر' : 'خروج دستی');
-
-    this.sendTelegramMessage(`${profitEmoji} *معامله بسته شد* ${profitEmoji}
-#${signalId}
-📌 نوع: ${pos.type === 'BUY' ? 'خرید' : 'فروش'}
-💰 ${profitText}: ${pnl.toLocaleString('fa-IR')} تومان
-📝 علت: ${reasonText}
-🏁 قیمت خروج: ${closePrice.toLocaleString('fa-IR')}
-📈 سود کل امروز: ${this.dailyPnL.toLocaleString('fa-IR')}`, pos.telegramMessageId);
-
-    this.sendRubikaMessage(`${profitEmoji} معامله بسته شد ${profitEmoji}
-#${signalId}
-📌 نوع: ${pos.type === 'BUY' ? 'خرید' : 'فروش'}
-💰 ${profitText}: ${pnl.toLocaleString('fa-IR')} تومان
-📝 علت: ${reasonText}
-🏁 قیمت خروج: ${closePrice.toLocaleString('fa-IR')}`, pos.rubikaMessageId);
-  }
-
-  async monitorTrades() {
+  checkTargetsAndStops() {
     if (this.openPositions.size === 0) return;
     const currentPrice = this.price;
     if (currentPrice <= 0) return;
 
     const tickSize = Number(this.settings.market?.tickSize ?? 1);
-    const tickValue = Number(this.settings.market?.tickValueToman ?? 23000);
 
     for (const [id, position] of this.openPositions) {
       if (position.status !== 'open') continue;
@@ -2620,6 +2177,7 @@ ${pnlEmoji} معامله ${typeLabel} #${pos.signalId || '---'}
       }
 
       // Max Loss Per Trade & Max Daily Loss Enforcement
+      const tickValue = Number(this.settings.market?.tickValueToman ?? 23000);
       const priceDiff = isBuy ? currentPrice - entryPrice : entryPrice - currentPrice;
       const currentPnlToman = Math.round((priceDiff / tickSize) * tickValue * (position.units || 1));
       
@@ -2880,87 +2438,652 @@ ${pnlEmoji} معامله ${typeLabel} #${pos.signalId || '---'}
           this.enterTrade(signal);
         }
       }
-      
-      // Time-based Exit
-      const maxAgeMinutes = this.settings.risk?.maxTradeAgeMinutes || 60;
-      const ageMinutes = (now - new Date(position.entryTime).getTime()) / 60000;
-      if (ageMinutes > maxAgeMinutes) {
-        this.log(`⏰ Time Limit: Position ${id} reached max age (${maxAgeMinutes}m). Closing.`, "INFO");
-        this.closeTrade(id, 'time_limit');
-        continue;
-      }
     }
   }
 
-  getState() {
-    const winRate = this.totalTrades === 0 ? 0 : (this.winningTrades / this.totalTrades) * 100;
-    const profitFactor = this.losingTrades === 0 ? (this.winningTrades > 0 ? 99 : 0) : (this.winningTrades / this.losingTrades);
+  async closeTrade(id: number, reason: string = 'manual') {
+    const pos = this.openPositions.get(id);
+    if (!pos) return;
+
+    this.log(`Closing Trade ${id} (${reason}) at ${this.price}`, "INFO");
+
+    const isBuy = pos.type === 'BUY';
+    const closePrice = this.price;
+    const entryPrice = pos.entry || pos.price;
+    const priceDiff = isBuy ? (closePrice - entryPrice) : (entryPrice - closePrice);
     
+    const tickSize = Number(this.settings.market?.tickSize ?? 1);
+    const tickValue = Number(this.settings.market?.tickValueToman ?? 23000);
+    const pnl = Math.round((priceDiff / tickSize) * tickValue * (pos.units || 1));
+
+    if (this.settings.source === 'API' && this.api) {
+      // Anti-Arbitrage: Minimum hold time
+      const antiArb = this.settings.risk?.antiArbitrage || { enabled: false, minHoldTimeSeconds: 30 };
+      if (antiArb.enabled) {
+        const minHoldTime = (antiArb.minHoldTimeSeconds || 30) * 1000;
+        const timeOpen = Date.now() - new Date(pos.entryTime).getTime();
+        if (reason !== 'stop_loss' && reason !== 'daily_loss_limit' && timeOpen < minHoldTime) {
+          this.log(`Anti-Arbitrage: Trade hold time too short (${Math.round(timeOpen/1000)}s < ${antiArb.minHoldTimeSeconds}s). Delaying close...`, "INFO");
+          // For real accounts, we might want to actually wait, but for now we just log and proceed
+          // to avoid missing the exit. In a stricter mode, we could return here.
+        }
+        
+        // Random Jitter to avoid HFT detection
+        const jitter = Math.floor(Math.random() * 1500) + 500; // 0.5s to 2s
+        await new Promise(resolve => setTimeout(resolve, jitter));
+      }
+
+      try {
+        let ok = false;
+        let apiResponse: any = null;
+
+        const isPending = !pos.transactionId || pos.transactionId === 'PENDING' || String(pos.transactionId).includes('PENDING');
+
+        if (pos.transactionId && !isPending) {
+          const endpoints = [
+            `/api/room/api/close-futures-transaction/${pos.transactionId}/`,
+            `/api/room/api/close-transaction/${pos.transactionId}/`
+          ];
+
+          for (const url of endpoints) {
+            if (ok) break;
+            try {
+              const res = await this.api.post(url, {}, {
+                headers: { 'Accept': '*/*', 'X-Requested-With': 'XMLHttpRequest' },
+                timeout: 20000
+              });
+              apiResponse = res?.data;
+              ok = apiResponse?.status === true || 
+                   apiResponse?.status === 'true' || 
+                   apiResponse?.status === 1 || 
+                   apiResponse?.status === 'success' ||
+                   (res.status === 200 && (Object.keys(apiResponse || {}).length === 0 || apiResponse?.message?.includes('بسته')));
+              
+              if (ok) {
+                this.log(`Closed via ${url}`, "SUCCESS");
+              }
+            } catch (e: any) {
+              const status = e.response?.status;
+              const data = e.response?.data;
+              apiResponse = data; // Store error response data for later checks
+              
+              // Per user feedback, 500 on close often means success
+              if (status === 500) {
+                this.log(`Close Trade: Received 500 on ${url}. Treating as SUCCESS per user experience.`, "SUCCESS");
+                ok = true;
+                break;
+              }
+
+              this.log(`Close Trade API Error (${url}): Status ${status} | Data: ${typeof data === 'string' ? 'HTML Response' : JSON.stringify(data || e.message)}`, "ERROR");
+              
+              if (status === 404) {
+                this.log(`Trade ${pos.transactionId} not found on ${url}. It might be already closed.`, "INFO");
+                ok = true; // Consider it done if 404
+                break;
+              }
+              
+              if (status === 500 || status === 404) {
+                this.log(`Endpoint ${url} returned ${status}. Trying next fallback...`, "INFO");
+              } else {
+                this.log(`Endpoint ${url} failed: ${status}`, "INFO");
+              }
+            }
+          }
+          
+          if (!ok) {
+            this.log(`Close via transactionId failed after all attempts. Last Response: ${JSON.stringify(apiResponse || {})}`, "ERROR");
+            
+            // If response is completely empty {}, it's likely the transaction ID was invalid or already closed
+            // and the server just returned a 200 OK with no body.
+            const isEmptyResponse = apiResponse && Object.keys(apiResponse).length === 0;
+            const msg = String(apiResponse?.message || "");
+            if (isEmptyResponse || msg.includes('یافت نشد') || msg.toLowerCase().includes('not found') || msg.toLowerCase().includes('invalid') || msg.includes('وضعیت باز نیست')) {
+              this.log(`Position likely already closed on server (TP/SL hit) or invalid ID. Removing locally.`, "INFO");
+              ok = true; 
+            }
+          }
+        } 
+        
+        // Only try fallback if it wasn't already closed
+        if (!ok) {
+          const closeAction = isBuy ? 'sell' : 'buy';
+          const orderData: any = {
+            action: closeAction,
+            order_type: 'verbal',
+            units: String(pos.units || 1),
+            price: -1,
+            signal_token: ""
+          };
+          
+          // Humanized delay for fallback close
+          await this.sleepWithJitter(200, 600);
+          
+          try {
+            const res = await this.api.post('/api/room/api/submit-order/', orderData, {
+              headers: { 'Accept': 'application/json, text/plain, */*', 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            apiResponse = res?.data;
+          } catch (e: any) {
+            apiResponse = e.response?.data;
+            this.log(`Fallback close error: ${e.message}`, "ERROR");
+          }
+          
+          const rawStatus = apiResponse?.status;
+          ok = rawStatus === true || rawStatus === 'true' || rawStatus === 1 || rawStatus === '1' || rawStatus === 'success' || Boolean(apiResponse?.order_id) || Boolean(apiResponse?.id) || (typeof apiResponse?.message === 'string' && apiResponse.message.includes('ثبت'));
+          
+          if (!ok) {
+            this.log(`Close via submit-order failed. Response: ${JSON.stringify(apiResponse || {})}`, "ERROR");
+            
+            // Check for "already closed" or "no position" errors
+            const msg = String(apiResponse?.message || "");
+            if (msg.includes('موجودی کافی نیست') || msg.includes('یافت نشد') || msg.includes('وضعیت باز نیست')) {
+               // If we can't open the opposite order, maybe we don't need to
+               this.log(`Could not submit opposite order. Position might be closed.`, "INFO");
+               ok = true;
+            }
+          }
+        }
+        
+        if (!ok) {
+          this.log(`Close Trade Failed: API returned false status`, "ERROR");
+          return; // Do not close in bot state if API failed
+        }
+      } catch (e: any) {
+        this.log(`Close Trade API Error: ${e.message}`, "ERROR");
+        return; // Do not close in bot state if API failed
+      }
+    } else {
+      this.log(`Close Trade Skipped: API not configured or not connected`, "ERROR");
+      return; // Do not close in bot state if API not connected
+    }
+
+    this.dailyPnL += pnl;
+    this.totalTrades++;
+    if (pnl > 0) this.winningTrades++;
+    else if (pnl < 0) this.losingTrades++;
+
+    // Send Drawdown Report to Rubika if enabled
+    if (this.settings.rubika?.enabled && this.settings.rubika?.drawdownReportEnabled) {
+      const mae = Math.round(pos.maxAdverseTicks || 0);
+      const mfe = Math.round(pos.maxFavorableTicks || 0);
+      const pnlEmoji = pnl > 0 ? '✅' : '❌';
+      const typeLabel = isBuy ? 'خرید (BUY)' : 'فروش (SELL)';
+      
+      const report = `📊 گزارش تحلیل درادان (Drawdown)
+----------------------------------
+${pnlEmoji} معامله ${typeLabel} #${pos.signalId || '---'}
+💰 سود/ضرر: ${pnl.toLocaleString('fa-IR')} تومان
+📈 ورود: ${entryPrice.toLocaleString('fa-IR')}
+📉 خروج: ${closePrice.toLocaleString('fa-IR')}
+
+⚠️ درادان (MAE): ${mae.toLocaleString('fa-IR')} خط
+🚀 پیشروی (MFE): ${mfe.toLocaleString('fa-IR')} خط
+
+💡 ${pnl > 0 
+        ? (mae > 5 ? `قیمت قبل از سوددهی ${mae} خط در ضرر رفته بود.` : 'نقطه ورود بسیار دقیق بود.') 
+        : (mfe > 5 ? `قیمت قبل از استاپ، ${mfe} خط در سود رفته بود.` : 'معامله سریعاً به استاپ رسید.')}
+----------------------------------`;
+      
+      this.sendRubikaMessage(report, pos.rubikaMessageId);
+    }
+    
+    // First remove the position from local state to prevent infinite loops
+    this.openPositions.delete(id);
+    
+    // Daily Loss Limit Check
+    const maxDailyLoss = this.settings.risk?.maxDailyLossToman || 5000000;
+    if (this.dailyPnL <= -Math.abs(maxDailyLoss) && this.isTrading) {
+      this.log(`Daily Loss Limit Reached! (PnL: ${this.dailyPnL} <= -${maxDailyLoss}). Stopping bot.`, "ERROR");
+      this.isTrading = false;
+      this.sendTelegramMessage(`🚨 *حد ضرر روزانه فعال شد*
+ربات متوقف شد و تمام پوزیشن‌ها بسته خواهند شد.`);
+      // Close all other open positions
+      const remainingPositions = Array.from(this.openPositions.keys());
+      for (const otherId of remainingPositions) {
+        if (otherId !== id) { // Don't try to close the one we just closed
+          this.closeTrade(otherId, 'daily_loss_limit');
+        }
+      }
+    }
+
+    const closedPos = {
+      ...pos,
+      exitPrice: closePrice,
+      exitTime: new Date(),
+      pnl,
+      reason,
+      details: {
+        breakEven: pos.breakEvenHit ? 'فعال شده' : 'خیر',
+        tp1: pos.tp1Hit ? 'تاچ شده' : 'خیر',
+        tp2: pos.tp2Hit ? 'تاچ شده' : 'خیر',
+        tp3: pos.tp3Hit ? 'تاچ شده' : 'خیر',
+        strength: pos.strength || 'NORMAL',
+        pyramid: pos.pyramidTriggered ? 'پله دوم فعال' : 'تک پله'
+      }
+    };
+    this.closedPositions.push(closedPos);
+    if (this.closedPositions.length > 50) this.closedPositions.shift();
+
+    this.openPositions.delete(id);
+    this.saveState();
+    
+    this.recorder.recordTrade({
+      tOpen: new Date(pos.entryTime).getTime(),
+      tClose: Date.now(),
+      side: pos.type,
+      entry: pos.entry || pos.price,
+      exit: closePrice,
+      units: pos.units || 1,
+      pnl: pnl || 0,
+      reason: reason,
+      maeTicks: pos.maxAdverseTicks || 0,
+      mfeTicks: pos.maxFavorableTicks || 0
+    });
+
+    const signalId = pos.signalId || '---';
+    const profitEmoji = pnl >= 0 ? '✅' : '❌';
+    const profitText = pnl >= 0 ? 'سود' : 'ضرر';
+    const reasonText = reason === 'take_profit_final' ? 'تارگت نهایی' : (reason === 'stop_loss' ? 'حد ضرر' : 'خروج دستی');
+
+    this.sendTelegramMessage(`${profitEmoji} *معامله بسته شد* ${profitEmoji}
+#${signalId}
+📌 نوع: ${pos.type === 'BUY' ? 'خرید' : 'فروش'}
+💰 ${profitText}: ${pnl.toLocaleString('fa-IR')} تومان
+📝 علت: ${reasonText}
+🏁 قیمت خروج: ${closePrice.toLocaleString('fa-IR')}
+📈 سود کل امروز: ${this.dailyPnL.toLocaleString('fa-IR')}`, pos.telegramMessageId);
+
+    this.sendRubikaMessage(`${profitEmoji} معامله بسته شد ${profitEmoji}
+#${signalId}
+📌 نوع: ${pos.type === 'BUY' ? 'خرید' : 'فروش'}
+💰 ${profitText}: ${pnl.toLocaleString('fa-IR')} تومان
+📝 علت: ${reasonText}
+🏁 قیمت خروج: ${closePrice.toLocaleString('fa-IR')}`, pos.rubikaMessageId);
+  }
+
+  async enforceStopLossTakeProfit(transactionId: number, sl: number, tp: number, localId: number): Promise<boolean> {
+    this.log(`Enforcing SL/TP for transaction ${transactionId}: SL=${sl}, TP=${tp}`, "INFO");
+    
+    let slSuccess = sl === 0 || isNaN(sl);
+    let tpSuccess = tp === 0 || isNaN(tp);
+
+    const maxAttempts = 10; // Increased from 3
+    let attempt = 0;
+
+    while (attempt < maxAttempts) {
+      if (!slSuccess && sl > 0 && !isNaN(sl)) {
+        slSuccess = await this.editStopLoss(transactionId, sl);
+      }
+      if (!tpSuccess && tp > 0 && !isNaN(tp)) {
+        tpSuccess = await this.editTakeProfit(transactionId, tp);
+      }
+
+      if (slSuccess && tpSuccess) break;
+
+      attempt++;
+      if (attempt < maxAttempts) {
+        const delay = 5000 + (Math.random() * 2000); // Increased from 2s
+        this.log(`SL/TP Enforcement attempt ${attempt} failed for ${transactionId}. Retrying in ${Math.round(delay/1000)}s...`, "INFO");
+        await new Promise(r => setTimeout(r, delay));
+      }
+    }
+
+    return slSuccess && tpSuccess;
+  }
+
+  async editTakeProfit(transactionId: number, newTp: number) {
+    if (String(transactionId).includes('PENDING')) return false;
+    if (this.settings.source === 'API' && this.api && transactionId) {
+      try {
+        this.log(`Updating TP for transaction ${transactionId} to ${newTp}...`, "INFO");
+        
+        const endpoints = [
+          `/api/room/api/edit-take-profit/${transactionId}/`
+        ];
+
+        let ok = false;
+        let lastError = null;
+        let primaryNotFound = false;
+
+        for (let i = 0; i < endpoints.length; i++) {
+          const url = endpoints[i];
+          if (ok) break;
+          try {
+            const res = await this.api.post(url, {
+              take_profit: String(Math.round(newTp))
+            }, {
+              headers: { 'Accept': '*/*', 'X-Requested-With': 'XMLHttpRequest' },
+              timeout: 20000
+            });
+            
+            const apiResponse = res?.data;
+            ok = apiResponse?.status === true || 
+                 apiResponse?.status === 'true' || 
+                 apiResponse?.status === 1 || 
+                 apiResponse?.status === 'success' ||
+                 (res.status === 200 && (Object.keys(apiResponse || {}).length === 0 || apiResponse?.message?.includes('ویرایش')));
+            
+            if (ok) {
+              this.log(`Take Profit updated successfully for ${transactionId} via ${url}`, "SUCCESS");
+              return true;
+            }
+          } catch (e: any) {
+            lastError = e;
+            const status = e.response?.status;
+            const data = e.response?.data;
+            const errorMsg = (typeof data === 'object' ? data?.message : null) || e.message || "";
+
+            this.log(`Edit TP API Error (${url}): Status ${status} | Data: ${typeof data === 'string' ? 'HTML Response' : JSON.stringify(data || e.message)}`, "ERROR");
+            
+            // If trade closed or TP already hit, consider it "done" for enforcement purposes
+            if (errorMsg.includes('بسته شده') || errorMsg.includes('باز نیست')) {
+              this.log(`TP Edit skipped: Trade is closed (${transactionId})`, "INFO");
+              return true; 
+            }
+
+            // If "یافت نشد" (Not Found) or "نامعتبر" (Invalid), it might be the wrong endpoint or ID type.
+            if (status === 404 || errorMsg.includes('یافت نشد') || errorMsg.includes('نامعتبر')) {
+              if (i === 0) primaryNotFound = true;
+              this.log(`Endpoint ${url} returned 404 for TP edit. Trying next...`, "INFO");
+              continue;
+            }
+
+            // Handle "TP too close" error by adjusting and retrying once
+            if (errorMsg.includes('بالا') || errorMsg.includes('پایین') || errorMsg.includes('فاصله')) {
+              this.log(`TP too close to market for ${transactionId}. Skipping TP for now.`, "INFO");
+              return true; // Stop retries for this ID
+            }
+
+            if (status === 500) {
+              this.log(`Endpoint ${url} returned 500 for TP edit. Trying next...`, "INFO");
+            } else {
+              this.log(`Endpoint ${url} failed for TP edit: ${status}`, "INFO");
+            }
+          }
+        }
+
+        if (!ok) {
+          if (primaryNotFound) {
+            this.log(`Edit TP: Transaction ${transactionId} not found on primary endpoint. Stopping enforcement for this ID.`, "INFO");
+            return true; // Return true to stop the retry loop for this specific ID
+          }
+          this.log(`Edit TP Failed for ${transactionId} after trying all endpoints.`, "ERROR");
+          return false;
+        }
+      } catch (e: any) {
+        this.log(`Edit TP API Error for ${transactionId}: ${e.message}`, "ERROR");
+        return false;
+      }
+    }
+    return false;
+  }
+
+  async editStopLoss(transactionId: number, newSl: number) {
+    if (String(transactionId).includes('PENDING')) return false;
+    if (this.settings.source === 'API' && this.api && transactionId) {
+      try {
+        this.log(`Updating SL for transaction ${transactionId} to ${newSl}...`, "INFO");
+        
+        const endpoints = [
+          `/api/room/api/edit-stop-loss/${transactionId}/`
+        ];
+
+        let ok = false;
+        let lastError = null;
+        let primaryNotFound = false;
+
+        for (let i = 0; i < endpoints.length; i++) {
+          const url = endpoints[i];
+          if (ok) break;
+          try {
+            const res = await this.api.post(url, {
+              stop_loss: String(Math.round(newSl))
+            }, {
+              headers: { 
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest' 
+              },
+              timeout: 20000
+            });
+            
+            const apiResponse = res?.data;
+            ok = apiResponse?.status === true || 
+                 apiResponse?.status === 'true' || 
+                 apiResponse?.status === 1 || 
+                 apiResponse?.status === 'success' ||
+                 (res.status === 200 && (Object.keys(apiResponse || {}).length === 0 || apiResponse?.message?.includes('ویرایش')));
+            
+            if (ok) {
+              this.log(`Stop Loss updated successfully for ${transactionId} via ${url}`, "SUCCESS");
+              return true;
+            }
+          } catch (e: any) {
+            lastError = e;
+            const status = e.response?.status;
+            const data = e.response?.data;
+            const errorMsg = (typeof data === 'object' ? data?.message : null) || e.message || "";
+
+            this.log(`Edit SL API Error (${url}): Status ${status} | Data: ${typeof data === 'string' ? 'HTML Response' : JSON.stringify(data || e.message)}`, "ERROR");
+            
+            // If trade closed, consider it "done"
+            if (errorMsg.includes('بسته شده') || errorMsg.includes('باز نیست')) {
+              this.log(`SL Edit skipped: Trade is closed (${transactionId})`, "INFO");
+              return true; 
+            }
+
+            // If "یافت نشد" (Not Found) or "نامعتبر" (Invalid), it might be the wrong endpoint or ID type.
+            if (status === 404 || errorMsg.includes('یافت نشد') || errorMsg.includes('نامعتبر')) {
+              if (i === 0) primaryNotFound = true;
+              this.log(`Endpoint ${url} returned 404 for SL edit. Trying next...`, "INFO");
+              continue;
+            }
+
+            // Handle "SL too close" error by adjusting and retrying once with a safe distance
+            if (errorMsg.includes('بالا') || errorMsg.includes('پایین') || errorMsg.includes('فاصله')) {
+              const tickSize = this.settings.market?.tickSize || 1;
+              let adjustedSl = newSl;
+              
+              if (errorMsg.includes('بالا')) {
+                // Must be higher than current price (likely a SELL trade)
+                adjustedSl = Math.max(newSl + tickSize * 2, this.price + tickSize * 5);
+              } else if (errorMsg.includes('پایین')) {
+                // Must be lower than current price (likely a BUY trade)
+                adjustedSl = Math.min(newSl - tickSize * 2, this.price - tickSize * 5);
+              } else {
+                // Generic distance error, try both ways based on current price
+                adjustedSl = newSl > this.price ? this.price + tickSize * 5 : this.price - tickSize * 5;
+              }
+
+              this.log(`SL too close to market. Retrying with safe SL: ${adjustedSl} (Price: ${this.price})`, "INFO");
+              
+              // Recursive call with adjusted SL (only once because we check ok)
+              return await this.api.post(url, {
+                stop_loss: String(Math.round(adjustedSl))
+              }, {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                timeout: 20000
+              }).then(r => {
+                const s = r?.data?.status;
+                if (s === true || s === 'true' || s === 1 || s === 'success') {
+                  // Update memory so bot knows the real SL
+                  for (const [id, pos] of this.openPositions.entries()) {
+                    if (pos.transactionId === transactionId) {
+                      pos.sl = Math.round(adjustedSl);
+                      this.saveState();
+                      break;
+                    }
+                  }
+                  return true;
+                }
+                return false;
+              }).catch(() => false);
+            }
+
+            if (status === 500) {
+              this.log(`Endpoint ${url} returned 500 for SL edit. Trying next...`, "INFO");
+            } else {
+              this.log(`Endpoint ${url} failed for SL edit: ${status}`, "INFO");
+            }
+          }
+        }
+
+        if (!ok) {
+          if (primaryNotFound) {
+            this.log(`Edit SL: Transaction ${transactionId} not found on primary endpoint. Stopping enforcement for this ID.`, "INFO");
+            return true; // Return true to stop the retry loop for this specific ID
+          }
+          this.log(`Edit SL Failed for ${transactionId} after trying all endpoints.`, "ERROR");
+          return false;
+        }
+      } catch (e: any) {
+        this.log(`Edit SL API Error for ${transactionId}: ${e.message}`, "ERROR");
+        return false;
+      }
+    }
+    return false;
+  }
+
+  getMarketAnalysis() {
+    const rsi = this.strategy.indicators.rsi || 50;
+    const emaFast = this.strategy.indicators.emaFast || this.price;
+    const emaSlow = this.strategy.indicators.emaSlow || this.price;
+    const atr = this.strategy.indicators.atr || 0;
+    
+    let trend = 'رنج (خنثی)';
+    let color = 'text-slate-400';
+    
+    // Use a smaller threshold for trend detection (0.01% instead of 0.05%)
+    const regime = this.strategy.indicators.regime || 'NORMAL';
+    
+    if (regime === 'RANGING') {
+      trend = 'رنج (بدون روند) ⚖️';
+      color = 'text-amber-500';
+    } else if (emaFast > emaSlow * 1.0001) {
+      trend = 'صعودی 🟢';
+      color = 'text-emerald-500';
+    } else if (emaFast < emaSlow * 0.9999) {
+      trend = 'نزولی 🔴';
+      color = 'text-rose-500';
+    }
+
+    let analysis = `بازار در وضعیت ${trend} قرار دارد. `;
+    if (regime === 'RANGING') {
+      analysis = 'بازار در حال حاضر در وضعیت رنج (ساید) است. در این شرایط استراتژی‌های نوسان‌گیری بهتر عمل می‌کنند. ';
+    }
+    
+    // RSI Analysis
+    if (rsi > 70) {
+      analysis += 'شاخص RSI در منطقه اشباع خرید است و احتمال اصلاح یا ریزش قیمت بالاست. ';
+    } else if (rsi < 30) {
+      analysis += 'شاخص RSI در منطقه اشباع فروش است و احتمال برگشت یا رشد قیمت بالاست. ';
+    } else if (rsi > 55) {
+      analysis += 'قدرت خریداران بیشتر است (RSI بالای ۵۰). ';
+    } else if (rsi < 45) {
+      analysis += 'قدرت فروشندگان بیشتر است (RSI زیر ۵۰). ';
+    } else {
+      analysis += 'قدرت خریدار و فروشنده تقریباً برابر است. ';
+    }
+
+    // ATR / Volatility Analysis
+    if (atr > this.price * 0.001) {
+      analysis += 'نوسانات بازار شدید است (ATR بالا)، مراقب حد ضررها باشید.';
+    } else if (atr < this.price * 0.0003) {
+      analysis += 'بازار کم‌نوسان است و احتمال یک حرکت شارپ وجود دارد.';
+    } else {
+      analysis += 'نوسانات بازار در حد نرمال است.';
+    }
+
+    return { trend, color, analysis };
+  }
+
+  getState() {
+    const timeframeValue = this.settings.timeframe?.value || 60;
+    const candles = this.closes.map((c, i) => ({
+      x: this.timestamps[i] || (Date.now() - (this.closes.length - i) * timeframeValue * 1000),
+      y: [
+        this.opens[i] || c,    // Open
+        this.highs[i] || c,    // High
+        this.lows[i] || c,     // Low
+        c                      // Close
+      ]
+    })).slice(-200); // Send last 200 candles to show past history
+
+    // Calculate HMA and SuperTrend for chart
+    let hmaLine: any[] = [];
+    let stLine: any[] = [];
+    let hmaFastLine: any[] = [];
+    let hmaSlowLine: any[] = [];
+    
+    if (this.closes.length > 0) {
+      const hstCfg = this.settings.strategy?.hst || { hmaLength: 55, stPeriod: 10, stMultiplier: 3 };
+      const hmaValues = this.strategy.calculateHMA(this.closes, hstCfg.hmaLength || 55);
+      const stValues = this.strategy.calculateSuperTrend(this.highs, this.lows, this.closes, hstCfg.stPeriod || 10, hstCfg.stMultiplier || 3);
+      
+      // HMAMACD Indicators
+      const hmamacdCfg = this.settings.strategy?.hmamacd || { hmaFast: 9, hmaSlow: 21 };
+      const hmaFastValues = this.strategy.calculateHMA(this.closes, hmamacdCfg.hmaFast || 9);
+      const hmaSlowValues = this.strategy.calculateHMA(this.closes, hmamacdCfg.hmaSlow || 21);
+
+      // Map back to timestamps, matching the slice(-200)
+      const startIndex = Math.max(0, this.closes.length - 200);
+      
+      for (let i = startIndex; i < this.closes.length; i++) {
+        const time = this.timestamps[i] || (Date.now() - (this.closes.length - i) * 60000);
+        
+        // HST HMA
+        const hmaIdx = hmaValues.length - (this.closes.length - i);
+        if (hmaIdx >= 0 && hmaValues[hmaIdx]) {
+          hmaLine.push({ x: time, y: hmaValues[hmaIdx] });
+        }
+        
+        // HMAMACD Fast HMA
+        const hmaFastIdx = hmaFastValues.length - (this.closes.length - i);
+        if (hmaFastIdx >= 0 && hmaFastValues[hmaFastIdx]) {
+          hmaFastLine.push({ x: time, y: hmaFastValues[hmaFastIdx] });
+        }
+
+        // HMAMACD Slow HMA
+        const hmaSlowIdx = hmaSlowValues.length - (this.closes.length - i);
+        if (hmaSlowIdx >= 0 && hmaSlowValues[hmaSlowIdx]) {
+          hmaSlowLine.push({ x: time, y: hmaSlowValues[hmaSlowIdx] });
+        }
+
+        // SuperTrend
+        const stIdx = stValues.length - (this.closes.length - i);
+        if (stIdx >= 0 && stValues[stIdx]) {
+          stLine.push({ 
+            x: time, 
+            y: stValues[stIdx].value,
+            direction: stValues[stIdx].direction
+          });
+        }
+      }
+    }
+
     return {
-      isConnected: this.isConnected,
-      isTrading: this.isTrading,
       price: this.price,
+      isTrading: this.isTrading,
+      marketStatus: this.marketStatus,
+      isConnected: this.isConnected,
+      openPositions: Array.from(this.openPositions.values()),
+      closedPositions: this.closedPositions,
       dailyPnL: this.dailyPnL,
       totalTrades: this.totalTrades,
-      winRate: winRate.toFixed(1),
-      profitFactor: profitFactor.toFixed(2),
-      openPositions: Array.from(this.openPositions.values()),
-      closedPositions: this.closedPositions.slice(-10).reverse(),
-      logs: this.logs.slice(-50).reverse(),
-      latency: this.latency,
-      marketStatus: this.marketStatus,
+      winningTrades: this.winningTrades,
+      losingTrades: this.losingTrades,
+      indicators: this.strategy.indicators,
+      settings: this.settings,
       portfolio: this.portfolio,
       userInfo: this.userInfo,
-      indicators: this.strategy.indicators,
-      currentSpread: this.currentSpread,
-      orderBook: this.orderBook,
-      isMarketClosed: this.isMarketClosed,
-      settings: this.settings
-    };
-  }
-
-  generateAnalysis() {
-    const rsi = this.strategy.indicators.rsi;
-    const atr = this.strategy.indicators.atr;
-    const hma = this.strategy.indicators.hma;
-    
-    let analysis = "";
-    if (rsi > 70) analysis = "بازار در وضعیت اشباع خرید است. احتمال اصلاح قیمت وجود دارد.";
-    else if (rsi < 30) analysis = "بازار در وضعیت اشباع فروش است. احتمال بازگشت قیمت به بالا وجود دارد.";
-    else analysis = "بازار در وضعیت خنثی قرار دارد.";
-    
-    if (atr > (this.price * 0.002)) analysis += " نوسانات بازار بالاست.";
-    else analysis += " نوسانات بازار کم است.";
-    
-    return analysis;
-  }
-
-  getChartData() {
-    const data = this.closes.map((c, i) => ({
-      time: this.timestamps[i] / 1000,
-      open: this.opens[i],
-      high: this.highs[i],
-      low: this.lows[i],
-      close: c,
-      volume: this.volumes[i]
-    }));
-
-    // Calculate indicator lines for the chart
-    const hmaLine = this.strategy.calculateHMA(this.closes, this.settings.strategy?.hmaPeriod || 21);
-    const superTrend = this.strategy.calculateSuperTrend(
-      this.highs, this.lows, this.closes, 
-      this.settings.strategy?.superTrendPeriod || 10, 
-      this.settings.strategy?.superTrendMultiplier || 3
-    );
-
-    return {
-      candles: data,
-      hma: hmaLine.map((val, i) => ({ time: this.timestamps[i] / 1000, value: val })),
-      superTrend: superTrend.map((st, i) => ({ 
-        time: this.timestamps[i] / 1000, 
-        value: st.value, 
-        direction: st.direction 
-      }))
+      candles: candles,
+      hmaLine: hmaLine,
+      stLine: stLine,
+      hmaFastLine: hmaFastLine,
+      hmaSlowLine: hmaSlowLine,
+      mtfStatus: this.strategy.getMTFStatus(this.closes.map((c, i) => ({ price: c, high: this.highs[i], low: this.lows[i], volume: this.volumes[i], time: this.timestamps[i] })), this.mtfCloses.map((c, i) => ({ price: c, high: this.mtfHighs[i], low: this.mtfLows[i], volume: this.mtfVolumes[i], time: this.mtfTimestamps[i] }))),
+      logs: this.logs,
+      marketAnalysis: this.getMarketAnalysis(),
+      latency: this.latency
     };
   }
 }
