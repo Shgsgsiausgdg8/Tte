@@ -8,15 +8,11 @@
   },
   "risk": {
     "maxOpenPositions": 2,
-    "maxDailyRisk": 8,
-    "maxRiskTomanPerTrade": 420000,
-    "dailyLossLimitToman": 2000000,
-    "maxTradeAgeMinutes": 60,
-    "minBalanceToTrade": 250000
+    "maxDailyRisk": 8
   },
   "market": {
     "tickValueToman": 23000,
-    "tickSize": 1000,
+    "tickSize": 1,
     "spreadTicks": 2
   },
   "trade": {
