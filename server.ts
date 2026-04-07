@@ -47,9 +47,14 @@ async function startServer() {
           'Origin': type === 'real' ? 'https://farazgold.com' : 'https://demo.farazgold.com',
         }
       });
+      const imageUrl = response.data.image_url;
+      const fullImageUrl = imageUrl.startsWith('http') 
+        ? imageUrl 
+        : `${type === 'real' ? 'https://farazgold.com' : 'https://demo.farazgold.com'}${imageUrl.startsWith('/') ? '' : '/'}${imageUrl}`;
+      
       res.json({
         key: response.data.key,
-        image_url: `${type === 'real' ? 'https://farazgold.com' : 'https://demo.farazgold.com'}${response.data.image_url}`
+        image_url: fullImageUrl
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message });

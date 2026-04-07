@@ -33,7 +33,7 @@ export const config = {
   // ==========================================
   market: {
     tickValueToman: 23000,
-    tickSize: 1,
+    tickSize: 1000,
     spreadTicks: 2
   },
 

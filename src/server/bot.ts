@@ -1378,6 +1378,7 @@ ${analysisText}
                   if (isMatch) {
                     pos.transactionId = txId;
                     pos.status = 'open';
+                    if (order.price) pos.entry = Number(order.price);
                     this.log(`[WS] Linked transaction ${txId} from order update to local position ${id}. Enforcing SL/TP in 1.5s...`, "SUCCESS");
                     
                     // Add a small delay to ensure the server has indexed the transaction before we try to edit it
@@ -1496,6 +1497,8 @@ ${analysisText}
 
                   if ((isPending || pos.transactionId !== txId) && !alreadyLinked && isMatch) {
                     pos.transactionId = txId;
+                    pos.status = 'open';
+                    if (tx.price) pos.entry = Number(tx.price);
                     this.log(`[WS] Linked transaction ${txId} to local position ${id} (authoritative). Enforcing SL/TP in 1s...`, "SUCCESS");
                     
                     setTimeout(() => {
@@ -1522,19 +1525,40 @@ ${analysisText}
               if (txId) {
                 for (const [id, pos] of this.openPositions) {
                   if (pos.transactionId === txId) {
-                    this.dailyPnL += (tx.pnl || 0);
+                    const pnl = Number(tx.pnl || 0);
+                    this.dailyPnL += pnl;
+                    this.totalTrades++;
+                    if (pnl > 0) this.winningTrades++;
+                    else if (pnl < 0) this.losingTrades++;
+
                     const signalId = pos.signalId || '---';
+                    
+                    const closedPos = {
+                      ...pos,
+                      exitPrice: Number(tx.close_price || tx.price || this.price),
+                      exitTime: new Date(),
+                      pnl,
+                      reason: 'server_close',
+                      details: {
+                        serverClosed: 'بله (WebSocket)',
+                        tp1: pos.tp1Hit ? 'تاچ شده' : 'خیر',
+                        tp2: pos.tp2Hit ? 'تاچ شده' : 'خیر'
+                      }
+                    };
+                    this.closedPositions.push(closedPos);
+                    if (this.closedPositions.length > 50) this.closedPositions.shift();
+
                     this.openPositions.delete(id);
                     this.saveState();
                     
                     const msg = `🏁 *معامله بسته شد (سرور)*
 #${signalId}
-سود/ضرر: ${(tx.pnl || 0).toLocaleString('fa-IR')} تومان`;
+💰 سود/ضرر: ${pnl.toLocaleString('fa-IR')} تومان`;
                     this.sendTelegramMessage(msg, pos.telegramMessageId);
                     
                     const rubikaMsg = `🏁 معامله بسته شد (سرور)
 #${signalId}
-سود/ضرر: ${(tx.pnl || 0).toLocaleString('fa-IR')} تومان`;
+💰 سود/ضرر: ${pnl.toLocaleString('fa-IR')} تومان`;
                     this.sendRubikaMessage(rubikaMsg, pos.rubikaMessageId);
                     
                     break;
@@ -2174,11 +2198,13 @@ ${analysisText}
       // Max Loss Per Trade & Max Daily Loss Enforcement
       const tickValue = Number(this.settings.market?.tickValueToman ?? 23000);
       const priceDiff = isBuy ? currentPrice - entryPrice : entryPrice - currentPrice;
-      const currentPnlToman = Math.round((priceDiff / tickSize) * tickValue * (position.units || 1));
+      const currentPnlToman = isNaN(priceDiff) || isNaN(tickSize) || tickSize === 0 
+        ? 0 
+        : Math.round((priceDiff / tickSize) * tickValue * (position.units || 1));
       
       const maxLossPerTrade = this.settings.risk?.maxRiskTomanPerTrade;
-      if (maxLossPerTrade && currentPnlToman <= -Math.abs(maxLossPerTrade)) {
-        this.log(`🚨 Maximum Loss Per Trade Reached! Closing position ${id}. PnL: ${currentPnlToman}`, "ERROR");
+      if (maxLossPerTrade && !isNaN(currentPnlToman) && currentPnlToman <= -Math.abs(maxLossPerTrade)) {
+        this.log(`🚨 Maximum Loss Per Trade Reached! Closing position ${id}. PnL: ${currentPnlToman.toLocaleString('fa-IR')} تومان (Limit: ${maxLossPerTrade.toLocaleString('fa-IR')})`, "ERROR");
         this.closeTrade(id, 'max_loss_per_trade');
         continue;
       }
@@ -2732,7 +2758,8 @@ ${pnlEmoji} معامله ${typeLabel} #${pos.signalId || '---'}
         this.log(`Updating TP for transaction ${transactionId} to ${newTp}...`, "INFO");
         
         const endpoints = [
-          `/api/room/api/edit-take-profit/${transactionId}/`
+          `/api/room/api/edit-take-profit/${transactionId}/`,
+          `/api/room/api/edit-order/${transactionId}/` // Fallback endpoint
         ];
 
         let ok = false;
@@ -2819,7 +2846,8 @@ ${pnlEmoji} معامله ${typeLabel} #${pos.signalId || '---'}
         this.log(`Updating SL for transaction ${transactionId} to ${newSl}...`, "INFO");
         
         const endpoints = [
-          `/api/room/api/edit-stop-loss/${transactionId}/`
+          `/api/room/api/edit-stop-loss/${transactionId}/`,
+          `/api/room/api/edit-order/${transactionId}/` // Fallback endpoint
         ];
 
         let ok = false;
