@@ -1,4 +1,4 @@
-export const defaultConfig = {
+export const config = {
   // ==========================================
   // 🔐 Authentication
   // ==========================================
@@ -456,3 +456,5 @@ export const defaultConfig = {
 
   source: 'SIMULATED' as 'SIMULATED' | 'API'
 };
+
+export default config;
