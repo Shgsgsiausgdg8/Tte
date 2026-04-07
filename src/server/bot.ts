@@ -1271,11 +1271,26 @@ ${analysisText}
       
       this.ws.on('unexpected-response', (req, res) => {
         const isGatewayError = res.statusCode === 504 || res.statusCode === 502;
+        const isAuthError = res.statusCode === 401 || res.statusCode === 403;
+        
         this.log(`WS unexpected-response: ${res.statusCode}${isGatewayError ? ' (Server Busy)' : ''}`, "ERROR");
-        if (this.ws) {
-          this.ws.terminate(); // This should trigger the 'close' event
+        
+        if (isAuthError) {
+          this.log("Auth error during WS handshake. Attempting to refresh token...", "INFO");
+          this.refreshAuthToken().catch(() => {});
+        } else if (isGatewayError && this.reconnectAttempts > 2) {
+          // If we keep getting 504s, maybe a fresh token/session helps with some load balancers
+          this.log("Persistent Server Busy errors. Refreshing token to see if it helps...", "INFO");
+          this.refreshAuthToken().catch(() => {});
         }
-        this.scheduleReconnect(isGatewayError); // Call it directly just in case 'close' isn't emitted
+
+        if (this.ws) {
+          this.ws.removeAllListeners();
+          this.ws.terminate();
+          this.ws = null;
+        }
+        
+        this.scheduleReconnect(isGatewayError);
       });
 
       this.ws.on('open', () => {
@@ -1652,14 +1667,19 @@ ${analysisText}
     
     // If we got a 504, it means the server is overloaded. We should wait longer.
     // Exponential backoff with max 10 minutes to prevent spamming
-    const baseDelay = isGatewayError ? 60000 : (this.reconnectAttempts > 3 ? 30000 : 15000);
-    const delay = Math.min(600000, baseDelay * Math.pow(1.5, this.reconnectAttempts - 1));
+    const baseDelay = isGatewayError ? 45000 : (this.reconnectAttempts > 3 ? 30000 : 15000);
+    const delay = Math.min(600000, baseDelay * Math.pow(1.3, this.reconnectAttempts - 1));
     
-    // Add jitter (±10%) to avoid thundering herd
-    const jitter = (Math.random() * 0.2) + 0.9; // 0.9 to 1.1
+    // Add jitter (±15%) to avoid thundering herd
+    const jitter = (Math.random() * 0.3) + 0.85; // 0.85 to 1.15
     const finalDelay = Math.round(delay * jitter);
     
-    this.log(`Scheduling WS reconnect in ${Math.round(finalDelay/1000)}s (Attempt ${this.reconnectAttempts})`, "WS");
+    const delaySec = Math.round(finalDelay/1000);
+    this.log(`Scheduling WS reconnect in ${delaySec}s (Attempt ${this.reconnectAttempts})${isGatewayError ? ' - Server Busy Mode' : ''}`, "WS");
+    
+    if (isGatewayError) {
+      this.sendTelegramMessage(`⚠️ *سرور فرازگلد شلوغ است (خطای ۵۰۴)*\nتلاش مجدد برای اتصال در ${delaySec} ثانیه دیگر...`);
+    }
     this.wsReconnectTimer = setTimeout(() => {
       this.wsReconnectTimer = null;
       this.connectToExternalWS();
@@ -2338,7 +2358,7 @@ ${analysisText}
     }
   }
 
-  getStats() {
+  getState() {
     const winRate = this.totalTrades === 0 ? 0 : (this.winningTrades / this.totalTrades) * 100;
     const profitFactor = this.losingTrades === 0 ? (this.winningTrades > 0 ? 99 : 0) : (this.winningTrades / this.losingTrades);
     
@@ -2360,7 +2380,8 @@ ${analysisText}
       indicators: this.strategy.indicators,
       currentSpread: this.currentSpread,
       orderBook: this.orderBook,
-      isMarketClosed: this.isMarketClosed
+      isMarketClosed: this.isMarketClosed,
+      settings: this.settings
     };
   }
 
