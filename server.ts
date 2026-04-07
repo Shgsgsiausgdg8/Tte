@@ -4,7 +4,7 @@ import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import { WebSocketServer, WebSocket } from "ws";
-import { FarazGoldBot } from "./src/server/bot.js";
+import { FarazGoldBot } from "./src/server/bot";
 import axios from "axios";
 
 process.on('unhandledRejection', (reason, promise) => {
@@ -48,16 +48,8 @@ async function startServer() {
         }
       });
       const domain = type === 'real' ? 'https://farazgold.com' : 'https://demo.farazgold.com';
-      let path = response.data.image_url || '';
-      
-      // Clean up if API returns double domain or malformed URL
-      if (path.includes(domain + domain)) {
-        path = path.replace(domain + domain, domain);
-      } else if (!path.includes(domain)) {
-        path = `${domain}${path.startsWith('/') ? '' : '/'}${path}`;
-      }
-
-      const captchaImageUrl = path;
+      const path = response.data.image_url || '';
+      const captchaImageUrl = path.includes(domain) ? path : `${domain}${path.startsWith('/') ? '' : '/'}${path}`;
 
       res.json({
         key: response.data.key,
