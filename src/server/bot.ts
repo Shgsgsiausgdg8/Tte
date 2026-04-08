@@ -2109,6 +2109,7 @@ ${analysisText}
 
   checkTargetsAndStops() {
     if (this.openPositions.size === 0) return;
+    if (this.isMarketClosed) return; // Skip checking targets if market is closed
     const currentPrice = this.price;
     if (currentPrice <= 0) return;
 
@@ -2449,6 +2450,11 @@ ${analysisText}
     const pnl = Math.round((priceDiff / tickSize) * tickValue * (pos.units || 1));
 
     if (this.settings.source === 'API' && this.api) {
+      if (this.isMarketClosed) {
+        this.log(`Close Trade Paused: Market is closed. Waiting for reopen...`, "INFO");
+        return;
+      }
+
       // Anti-Arbitrage: Minimum hold time check only (no artificial delays)
       const antiArb = this.settings.risk?.antiArbitrage || { enabled: false, minHoldTimeSeconds: 30 };
       if (antiArb.enabled) {
@@ -2502,6 +2508,13 @@ ${analysisText}
 
               this.log(`Close Trade API Error (${url}): Status ${status} | Data: ${typeof data === 'string' ? 'HTML Response' : JSON.stringify(data || e.message)}`, "ERROR");
               
+              if (status === 403) {
+                this.isMarketClosed = true;
+                this.lastMarketClosedTime = Date.now();
+                this.log(`Market is CLOSED (403). Pausing trade closing.`, "INFO");
+                return;
+              }
+
               if (status === 404) {
                 this.log(`Trade ${pos.transactionId} not found on ${url}. It might be already closed.`, "INFO");
                 ok = true; // Consider it done if 404
@@ -2551,6 +2564,13 @@ ${analysisText}
             apiResponse = res?.data;
           } catch (e: any) {
             apiResponse = e.response?.data;
+            const status = e.response?.status;
+            if (status === 403) {
+              this.isMarketClosed = true;
+              this.lastMarketClosedTime = Date.now();
+              this.log(`Market is CLOSED (403) during fallback close. Pausing.`, "INFO");
+              return;
+            }
             this.log(`Fallback close error: ${e.message}`, "ERROR");
           }
           
