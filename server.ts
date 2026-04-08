@@ -5,6 +5,7 @@ import { createServer as createViteServer } from "vite";
 import path from "path";
 import { WebSocketServer, WebSocket } from "ws";
 import { FarazGoldBot } from "./src/server/bot";
+import { CopyEngine } from "./src/server/copyEngine";
 import axios from "axios";
 
 process.on('unhandledRejection', (reason, promise) => {
@@ -21,13 +22,14 @@ async function startServer() {
   const PORT = 3000;
 
   const bot = new FarazGoldBot();
+  const copyEngine = new CopyEngine(bot.settings);
   const wss = new WebSocketServer({ server });
 
   wss.on("connection", (ws) => {
-    ws.send(JSON.stringify({ type: 'INIT', data: bot.getState() }));
+    ws.send(JSON.stringify({ type: 'INIT', data: { ...bot.getState(), copyTrade: copyEngine.getStatus() } }));
     const interval = setInterval(() => {
       if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'UPDATE', data: bot.getState() }));
+        ws.send(JSON.stringify({ type: 'UPDATE', data: { ...bot.getState(), copyTrade: copyEngine.getStatus() } }));
       }
     }, 500);
     ws.on("close", () => clearInterval(interval));
@@ -209,6 +211,24 @@ async function startServer() {
     res.json(result);
   });
 
+  // Copy Trade Endpoints
+  app.post("/api/copytrade/toggle", (req, res) => {
+    const status = copyEngine.getStatus();
+    if (status.isRunning) {
+      copyEngine.stop();
+    } else {
+      copyEngine.start();
+    }
+    res.json({ status: !status.isRunning });
+  });
+
+  app.post("/api/copytrade/settings", (req, res) => {
+    const settings = bot.settings;
+    settings.copyTrade = req.body;
+    bot.saveSettings(settings);
+    res.json({ success: true });
+  });
+
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -226,6 +246,7 @@ async function startServer() {
   server.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
     bot.start().catch(console.error);
+    copyEngine.start().catch(console.error);
   });
 }
 
