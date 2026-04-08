@@ -582,10 +582,14 @@ ${emoji} سیگنال ${type} جدید #${signalId}
   async sendRubikaMessage(text: string, replyToMessageId?: string): Promise<string | undefined> {
     if (!this.settings.rubika?.enabled || !this.settings.rubika?.botToken || !this.settings.rubika?.chatId) return undefined;
     
-    // Prevent INVALID_INPUT from Rubika by sanitizing NaN
+    // Prevent INVALID_INPUT from Rubika by sanitizing NaN and using standard digits
     if (text.includes('NaN')) {
       text = text.replace(/NaN/g, '---');
     }
+
+    // Standardize digits for Rubika (sometimes Persian digits cause INVALID_INPUT in metadata/replies)
+    const toEnglishDigits = (str: string) => str.replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d).toString());
+    const sanitizedText = toEnglishDigits(text);
 
     const chatIds = String(this.settings.rubika.chatId).split(',').map((id: string) => id.trim()).filter(Boolean);
     const url = `https://botapi.rubika.ir/v3/${this.settings.rubika.botToken}/sendMessage`;
@@ -596,12 +600,13 @@ ${emoji} سیگنال ${type} جدید #${signalId}
       try {
         const payload: any = {
           chat_id: chatId,
-          text: text
+          text: sanitizedText
         };
         
         // Only reply if we have a valid ID and it's likely from this chat 
         // (Simplification: only reply if there's only one chat ID configured)
-        if (replyToMessageId && replyToMessageId !== 'SENT' && chatIds.length === 1) {
+        // Also ensure it's a numeric-looking string or a valid Rubika ID
+        if (replyToMessageId && replyToMessageId !== 'SENT' && chatIds.length === 1 && /^\d+$/.test(String(replyToMessageId))) {
           payload.reply_to_message_id = replyToMessageId;
         }
 
@@ -611,10 +616,10 @@ ${emoji} سیگنال ${type} جدید #${signalId}
         });
         
         if (res.data?.status === 'OK' || res.data?.ok || res.data?.data?.message_id) {
-          lastMessageId = res.data?.data?.message_id || 'SENT';
+          lastMessageId = String(res.data?.data?.message_id || 'SENT');
           this.log(`Rubika message sent to ${chatId}`, "INFO");
         } else {
-          this.log(`Rubika API returned error for ${chatId}: ${JSON.stringify(res.data)}`, "ERROR");
+          this.log(`Rubika API returned error for ${chatId}: ${JSON.stringify(res.data)} | Payload: ${JSON.stringify(payload)}`, "ERROR");
         }
       } catch (e: any) {
         this.log(`Rubika Error (${chatId}): ${e.response?.data ? JSON.stringify(e.response.data) : e.message}`, "ERROR");
