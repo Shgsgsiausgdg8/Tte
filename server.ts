@@ -212,20 +212,32 @@ async function startServer() {
   });
 
   // Copy Trade Endpoints
-  app.post("/api/copytrade/toggle", (req, res) => {
+  app.post("/api/copytrade/toggle", async (req, res) => {
     const status = copyEngine.getStatus();
     if (status.isRunning) {
       copyEngine.stop();
+      // Also update the enabled flag in settings
+      const settings = bot.settings;
+      if (settings.copyTrade) settings.copyTrade.enabled = false;
+      bot.saveSettings(settings);
+      res.json({ success: true, status: false, message: "سیستم کپی ترید متوقف شد." });
     } else {
-      copyEngine.start();
+      // Ensure the enabled flag is true before starting
+      const settings = bot.settings;
+      if (settings.copyTrade) settings.copyTrade.enabled = true;
+      bot.saveSettings(settings);
+      copyEngine.updateSettings(settings);
+      
+      const result = await copyEngine.start();
+      res.json({ ...result, status: result.success });
     }
-    res.json({ status: !status.isRunning });
   });
 
   app.post("/api/copytrade/settings", (req, res) => {
     const settings = bot.settings;
     settings.copyTrade = req.body;
     bot.saveSettings(settings);
+    copyEngine.updateSettings(settings);
     res.json({ success: true });
   });
 

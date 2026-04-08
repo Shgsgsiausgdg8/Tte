@@ -32,11 +32,12 @@ export default function Dashboard() {
   const [showAddAccount, setShowAddAccount] = useState(false);
   const [newAccountType, setNewAccountType] = useState<'real' | 'demo'>('demo');
   const [showCopyTrade, setShowCopyTrade] = useState(false);
+  const [isTogglingCopy, setIsTogglingCopy] = useState(false);
 
-  const showSettingsRef = React.useRef(showSettings);
+  const isEditingSettingsRef = React.useRef(false);
   useEffect(() => {
-    showSettingsRef.current = showSettings;
-  }, [showSettings]);
+    isEditingSettingsRef.current = showSettings || showCopyTrade || showAddAccount;
+  }, [showSettings, showCopyTrade, showAddAccount]);
 
   useEffect(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -55,8 +56,8 @@ export default function Dashboard() {
         const msg = JSON.parse(event.data);
         if (msg.type === 'INIT' || msg.type === 'UPDATE') {
           setBotState(msg.data);
-          // Only update settings from server if modal is closed
-          if (!showSettingsRef.current) {
+          // Only update settings from server if no settings-related modal is open
+          if (!isEditingSettingsRef.current) {
             setSettings(msg.data.settings);
           }
           setHistory(prev => {
@@ -3357,18 +3358,38 @@ export default function Dashboard() {
               <div className="flex gap-4 mt-8">
                 <button 
                   onClick={async () => {
-                    const newSettings = { ...settings, copyTrade: { ...settings.copyTrade, enabled: !settings.copyTrade.enabled } };
-                    setSettings(newSettings);
-                    await fetch('/api/copytrade/settings', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify(newSettings.copyTrade)
-                    });
-                    await fetch('/api/copytrade/toggle', { method: 'POST' });
+                    if (isTogglingCopy) return;
+                    setIsTogglingCopy(true);
+                    try {
+                      const newSettings = { ...settings, copyTrade: { ...settings.copyTrade, enabled: !botState?.copyTrade?.isRunning } };
+                      setSettings(newSettings);
+                      
+                      // 1. Save settings
+                      await fetch('/api/copytrade/settings', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(newSettings.copyTrade)
+                      });
+                      
+                      // 2. Toggle engine
+                      const res = await fetch('/api/copytrade/toggle', { method: 'POST' });
+                      const data = await res.json();
+                      
+                      if (!data.success && data.message) {
+                        alert(data.message);
+                      }
+                    } catch (e) {
+                      alert('خطا در برقراری ارتباط با سرور');
+                    } finally {
+                      setIsTogglingCopy(false);
+                    }
                   }}
-                  className={`flex-1 py-4 rounded-2xl font-black text-sm transition-all flex items-center justify-center gap-2 shadow-xl ${botState?.copyTrade?.isRunning ? 'bg-rose-500/10 text-rose-500 border border-rose-500/20 hover:bg-rose-500/20' : 'bg-blue-500 text-white hover:bg-blue-600 shadow-blue-500/20'}`}
+                  disabled={isTogglingCopy}
+                  className={`flex-1 py-4 rounded-2xl font-black text-sm transition-all flex items-center justify-center gap-2 shadow-xl ${isTogglingCopy ? 'opacity-50 cursor-not-allowed' : ''} ${botState?.copyTrade?.isRunning ? 'bg-rose-500/10 text-rose-500 border border-rose-500/20 hover:bg-rose-500/20' : 'bg-blue-500 text-white hover:bg-blue-600 shadow-blue-500/20'}`}
                 >
-                  {botState?.copyTrade?.isRunning ? (
+                  {isTogglingCopy ? (
+                    <RefreshCw className="w-5 h-5 animate-spin" />
+                  ) : botState?.copyTrade?.isRunning ? (
                     <>
                       <Power className="w-5 h-5" />
                       توقف سیستم کپی ترید

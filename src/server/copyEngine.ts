@@ -44,17 +44,37 @@ export class CopyEngine {
   }
 
   public async start() {
-    if (this.isRunning) return;
-    if (!this.settings.copyTrade?.enabled) {
-      this.log("Copy Trade is disabled in settings.", "INFO");
-      return;
+    if (this.isRunning) return { success: true, message: "Already running" };
+    
+    if (!this.settings.copyTrade?.source?.bearerToken || !this.settings.copyTrade?.destination?.bearerToken) {
+      this.log("Missing Bearer Tokens. Please enter tokens for both accounts.", "ERROR");
+      return { success: false, message: "توکن‌های مبدا یا مقصد وارد نشده‌اند." };
     }
 
     this.isRunning = true;
     this.log("Starting Copy Trade Engine...", "INFO");
     
-    await this.setupDestinationApi();
-    this.connectSourceWs();
+    try {
+      await this.setupDestinationApi();
+      this.connectSourceWs();
+      return { success: true, message: "سیستم کپی ترید با موفقیت فعال شد." };
+    } catch (e: any) {
+      this.isRunning = false;
+      return { success: false, message: e.message };
+    }
+  }
+
+  public updateSettings(newSettings: any) {
+    this.settings = newSettings;
+    this.log("Settings updated.", "INFO");
+    if (this.isRunning) {
+      // Re-setup if running to apply new tokens/types
+      this.setupDestinationApi();
+      if (this.sourceWs) {
+        this.sourceWs.terminate();
+        this.connectSourceWs();
+      }
+    }
   }
 
   public stop() {
