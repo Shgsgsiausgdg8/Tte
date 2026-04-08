@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Chart from 'react-apexcharts';
 import axios from 'axios';
-import { Activity, TrendingUp, TrendingDown, AlertCircle, Clock, Power, Shield, ShieldCheck, Settings, Send, Save, X, ChevronRight, Terminal, RefreshCw, Lock, ShieldAlert, Zap, BarChart3, CircleDot, Layout, Layers, History, Target, Cpu, Waves, Plus, CheckCircle2, Trash2, Globe, Cloud, Info } from 'lucide-react';
+import { Activity, TrendingUp, TrendingDown, AlertCircle, Clock, Power, Shield, ShieldCheck, Settings, Send, Save, X, ChevronRight, Terminal, RefreshCw, Lock, ShieldAlert, Zap, BarChart3, CircleDot, Layout, Layers, History, Target, Cpu, Waves, Plus, CheckCircle2, Trash2, Globe, Cloud, Info, Database } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LoginSection } from './LoginSection';
 
@@ -1506,6 +1506,36 @@ export default function Dashboard() {
                         onChange={(e) => setSettings({ ...settings, targetsTicks: { ...settings.targetsTicks, tpTicks: parseInt(e.target.value) } })}
                         className="w-full bg-white/5 border border-white/5 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-emerald-500/50 font-bold"
                       />
+                    </div>
+                  </div>
+                </section>
+
+                {/* Market Settings */}
+                <section className="border-t border-white/5 pt-6">
+                  <h2 className="text-[10px] sm:text-xs font-bold text-white uppercase tracking-[0.2em] sm:tracking-[0.3em] flex items-center gap-3 mb-5">
+                    <Database className="w-4 h-4 sm:w-5 sm:h-5 text-amber-500" />
+                    تنظیمات بازار و نماد
+                  </h2>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">اندازه هر تیک (Tick Size)</label>
+                      <input 
+                        type="number" 
+                        value={settings.market?.tickSize || 1}
+                        onChange={(e) => setSettings({ ...settings, market: { ...settings.market, tickSize: parseInt(e.target.value) || 1 } })}
+                        className="w-full bg-white/5 border border-white/5 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-emerald-500/50 font-bold"
+                      />
+                      <p className="text-[7px] text-slate-500 mt-1 font-mono uppercase tracking-tight">مقدار هر واحد تغییر قیمت (معمولاً ۱ برای طلا)</p>
+                    </div>
+                    <div>
+                      <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">ارزش هر تیک (تومان)</label>
+                      <input 
+                        type="number" 
+                        value={settings.market?.tickValueToman || 23000}
+                        onChange={(e) => setSettings({ ...settings, market: { ...settings.market, tickValueToman: parseInt(e.target.value) || 0 } })}
+                        className="w-full bg-white/5 border border-white/5 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-emerald-500/50 font-bold"
+                      />
+                      <p className="text-[7px] text-slate-500 mt-1 font-mono uppercase tracking-tight">سود/ضرر هر ۱ تیک به ازای ۱ واحد معامله.</p>
                     </div>
                   </div>
                 </section>

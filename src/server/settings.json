@@ -16,7 +16,7 @@
   },
   "market": {
     "tickValueToman": 23000,
-    "tickSize": 1000,
+    "tickSize": 1,
     "spreadTicks": 2
   },
   "trade": {
