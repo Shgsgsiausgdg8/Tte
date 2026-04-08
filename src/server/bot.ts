@@ -582,15 +582,18 @@ ${emoji} سیگنال ${type} جدید #${signalId}
   async sendRubikaMessage(text: string, replyToMessageId?: string): Promise<string | undefined> {
     if (!this.settings.rubika?.enabled || !this.settings.rubika?.botToken || !this.settings.rubika?.chatId) return undefined;
     
-    // Prevent INVALID_INPUT from Rubika by sanitizing NaN and using standard digits
-    if (text.includes('NaN')) {
-      text = text.replace(/NaN/g, '---');
-    }
+    // Aggressive sanitization for Rubika
+    const sanitize = (str: string) => {
+      return str
+        .replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d).toString()) // Persian Digits -> English
+        .replace(/٬/g, ',') // Persian Decimal Separator -> Comma
+        .replace(/−/g, '-') // Unicode Minus -> Hyphen
+        .replace(/[\u200B-\u200D\uFEFF]/g, '') // Remove ZWNJ, ZWJ, BOM
+        .replace(/\*/g, '') // Remove bold markers just in case
+        .trim();
+    };
 
-    // Standardize digits for Rubika (sometimes Persian digits cause INVALID_INPUT in metadata/replies)
-    const toEnglishDigits = (str: string) => str.replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d).toString());
-    const sanitizedText = toEnglishDigits(text);
-
+    const sanitizedText = sanitize(text);
     const chatIds = String(this.settings.rubika.chatId).split(',').map((id: string) => id.trim()).filter(Boolean);
     const url = `https://botapi.rubika.ir/v3/${this.settings.rubika.botToken}/sendMessage`;
     
@@ -598,28 +601,35 @@ ${emoji} سیگنال ${type} جدید #${signalId}
 
     for (const chatId of chatIds) {
       try {
-        const payload: any = {
-          chat_id: chatId,
-          text: sanitizedText
-        };
+        // Use URLSearchParams to send as application/x-www-form-urlencoded
+        // This is often more reliable for older API wrappers
+        const params = new URLSearchParams();
+        params.append('chat_id', chatId);
+        params.append('text', sanitizedText);
         
-        // Only reply if we have a valid ID and it's likely from this chat 
-        // (Simplification: only reply if there's only one chat ID configured)
-        // Also ensure it's a numeric-looking string or a valid Rubika ID
         if (replyToMessageId && replyToMessageId !== 'SENT' && chatIds.length === 1 && /^\d+$/.test(String(replyToMessageId))) {
-          payload.reply_to_message_id = replyToMessageId;
+          params.append('reply_to_message_id', String(replyToMessageId));
         }
 
-        const res = await axios.post(url, payload, { 
+        const res = await axios.post(url, params, { 
           timeout: 15000,
-          headers: { 'Content-Type': 'application/json' }
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
         });
         
         if (res.data?.status === 'OK' || res.data?.ok || res.data?.data?.message_id) {
           lastMessageId = String(res.data?.data?.message_id || 'SENT');
           this.log(`Rubika message sent to ${chatId}`, "INFO");
         } else {
-          this.log(`Rubika API returned error for ${chatId}: ${JSON.stringify(res.data)} | Payload: ${JSON.stringify(payload)}`, "ERROR");
+          this.log(`Rubika API returned error for ${chatId}: ${JSON.stringify(res.data)} | Text: ${sanitizedText.substring(0, 50)}...`, "ERROR");
+          
+          // Fallback: Try sending a very simple version if the complex one fails
+          if (sanitizedText.length > 20) {
+            const simpleText = `Bot Notification: ${sanitizedText.substring(0, 100)}`;
+            const fallbackParams = new URLSearchParams();
+            fallbackParams.append('chat_id', chatId);
+            fallbackParams.append('text', simpleText);
+            await axios.post(url, fallbackParams, { timeout: 5000 }).catch(() => {});
+          }
         }
       } catch (e: any) {
         this.log(`Rubika Error (${chatId}): ${e.response?.data ? JSON.stringify(e.response.data) : e.message}`, "ERROR");
@@ -635,15 +645,29 @@ ${emoji} سیگنال ${type} جدید #${signalId}
     const targetChatId = this.settings.rubika.logChatId || this.settings.rubika.chatId;
     if (!targetChatId) return;
 
+    const sanitize = (str: string) => {
+      return str
+        .replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d).toString())
+        .replace(/٬/g, ',')
+        .replace(/−/g, '-')
+        .replace(/[\u200B-\u200D\uFEFF]/g, '')
+        .trim();
+    };
+
+    const sanitizedText = sanitize(text);
     const chatIds = targetChatId.split(',').map((id: string) => id.trim()).filter(Boolean);
     const url = `https://botapi.rubika.ir/v3/${this.settings.rubika.botToken}/sendMessage`;
     
     for (const chatId of chatIds) {
       try {
-        await axios.post(url, {
-          chat_id: chatId,
-          text: text
-        }, { timeout: 10000 });
+        const params = new URLSearchParams();
+        params.append('chat_id', chatId);
+        params.append('text', sanitizedText);
+
+        await axios.post(url, params, { 
+          timeout: 10000,
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+        });
       } catch (e: any) {
         console.error(`Rubika Log Error (${chatId}): ${e.message}`);
       }
