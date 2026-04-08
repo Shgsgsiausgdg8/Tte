@@ -598,7 +598,10 @@ ${emoji} سیگنال ${type} جدید #${signalId}
           chat_id: chatId,
           text: text
         };
-        if (replyToMessageId) {
+        
+        // Only reply if we have a valid ID and it's likely from this chat 
+        // (Simplification: only reply if there's only one chat ID configured)
+        if (replyToMessageId && replyToMessageId !== 'SENT' && chatIds.length === 1) {
           payload.reply_to_message_id = replyToMessageId;
         }
 
@@ -2058,6 +2061,24 @@ ${analysisText}
           if (pos) {
             pos.status = 'open';
             if (transId) pos.transactionId = transId;
+            
+            // Send Open Notifications
+            const typeEmoji = signal.type === 'BUY' ? '🔵' : '🔴';
+            const typeLabel = signal.type === 'BUY' ? 'خرید (BUY)' : 'فروش (SELL)';
+            const msg = `${typeEmoji} *معامله جدید باز شد*
+#${signalId}
+نوع: ${typeLabel}
+قیمت ورود: ${this.price.toLocaleString('fa-IR')}
+حد ضرر: ${sl.toLocaleString('fa-IR')}
+تارگت ۱: ${tp.toLocaleString('fa-IR')}`;
+
+            this.sendTelegramMessage(msg).then(mid => {
+              if (mid) pos.telegramMessageId = mid;
+            });
+            this.sendRubikaMessage(msg.replace(/\*/g, '')).then(mid => {
+              if (mid) pos.rubikaMessageId = mid;
+            });
+
             this.saveState();
           }
           
@@ -2098,6 +2119,27 @@ ${analysisText}
           maxAdverseTicks: 0,
           maxFavorableTicks: 0
         });
+
+        // Send Open Notifications (SIM)
+        const typeEmoji = signal.type === 'BUY' ? '🔵' : '🔴';
+        const typeLabel = signal.type === 'BUY' ? 'خرید (BUY)' : 'فروش (SELL)';
+        const msg = `${typeEmoji} *معامله جدید باز شد (SIM)*
+#${signalId}
+نوع: ${typeLabel}
+قیمت ورود: ${this.price.toLocaleString('fa-IR')}
+حد ضرر: ${sl.toLocaleString('fa-IR')}
+تارگت ۱: ${tp.toLocaleString('fa-IR')}`;
+
+        const pos = this.openPositions.get(id);
+        if (pos) {
+          this.sendTelegramMessage(msg).then(mid => {
+            if (mid) pos.telegramMessageId = mid;
+          });
+          this.sendRubikaMessage(msg.replace(/\*/g, '')).then(mid => {
+            if (mid) pos.rubikaMessageId = mid;
+          });
+        }
+
         this.log(`Trade Executed (SIM): ${signal.type} at ${this.price}`, "SUCCESS");
       }
     } catch (e: any) {
