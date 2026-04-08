@@ -1523,31 +1523,43 @@ export default function Dashboard() {
                         <span className="text-[8px] text-slate-500">جلوگیری از معامله در شرایط نامناسب</span>
                       </div>
                       <button 
-                        onClick={() => setSettings({ ...settings, strategy: { ...settings.strategy, antiArbitrage: { ...settings.strategy?.antiArbitrage, enabled: !settings.strategy?.antiArbitrage?.enabled } } })}
-                        className={`w-10 h-5 rounded-full transition-colors relative ${settings.strategy?.antiArbitrage?.enabled ? 'bg-emerald-500' : 'bg-slate-700'}`}
+                        onClick={() => setSettings({ ...settings, risk: { ...settings.risk, antiArbitrage: { ...settings.risk?.antiArbitrage, enabled: !settings.risk?.antiArbitrage?.enabled } } })}
+                        className={`w-10 h-5 rounded-full transition-colors relative ${settings.risk?.antiArbitrage?.enabled ? 'bg-emerald-500' : 'bg-slate-700'}`}
                       >
-                        <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${settings.strategy?.antiArbitrage?.enabled ? 'left-6' : 'left-1'}`} />
+                        <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${settings.risk?.antiArbitrage?.enabled ? 'left-6' : 'left-1'}`} />
                       </button>
                     </div>
-                    <div className="bg-white/5 p-3 rounded-xl border border-white/5">
-                      <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">حداکثر تاخیر مجاز (میلی‌ثانیه)</label>
-                      <input 
-                        type="number" 
-                        value={settings.strategy?.antiArbitrage?.maxLatencyMs || 500}
-                        onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, antiArbitrage: { ...settings.strategy?.antiArbitrage, maxLatencyMs: parseInt(e.target.value) } } })}
-                        className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-[10px] text-white outline-none focus:border-emerald-500/50 font-bold"
-                      />
-                      <p className="text-[7px] text-slate-500 mt-1.5 font-mono uppercase tracking-tight">اگر پینگ بیشتر از این باشد، ربات وارد نمی‌شود (پیش‌فرض: ۵۰۰)</p>
+                    <div className="flex items-center justify-between bg-white/5 p-4 rounded-xl border border-white/5">
+                      <div className="flex flex-col">
+                        <span className="text-[10px] font-bold">فیلتر اسپرد (Spread Filter)</span>
+                        <span className="text-[8px] text-slate-500">جلوگیری از ورود در اسپرد بالا</span>
+                      </div>
+                      <button 
+                        onClick={() => setSettings({ ...settings, risk: { ...settings.risk, useSpreadFilter: !settings.risk?.useSpreadFilter } })}
+                        className={`w-10 h-5 rounded-full transition-colors relative ${settings.risk?.useSpreadFilter ? 'bg-emerald-500' : 'bg-slate-700'}`}
+                      >
+                        <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${settings.risk?.useSpreadFilter ? 'left-6' : 'left-1'}`} />
+                      </button>
                     </div>
                     <div className="bg-white/5 p-3 rounded-xl border border-white/5">
                       <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">حداکثر اسپرد مجاز (تیک)</label>
                       <input 
                         type="number" 
-                        value={settings.strategy?.antiArbitrage?.maxSpreadTicks || 15}
-                        onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, antiArbitrage: { ...settings.strategy?.antiArbitrage, maxSpreadTicks: parseInt(e.target.value) } } })}
+                        value={settings.risk?.maxSpreadTicks || 15}
+                        onChange={(e) => setSettings({ ...settings, risk: { ...settings.risk, maxSpreadTicks: parseInt(e.target.value) } })}
                         className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-[10px] text-white outline-none focus:border-emerald-500/50 font-bold"
                       />
                       <p className="text-[7px] text-slate-500 mt-1.5 font-mono uppercase tracking-tight">جلوگیری از ورود در زمان باز شدن اسپرد (پیش‌فرض: ۱۵)</p>
+                    </div>
+                    <div className="bg-white/5 p-3 rounded-xl border border-white/5">
+                      <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">حداکثر تاخیر مجاز (میلی‌ثانیه)</label>
+                      <input 
+                        type="number" 
+                        value={settings.risk?.antiArbitrage?.maxLatencyMs || 500}
+                        onChange={(e) => setSettings({ ...settings, risk: { ...settings.risk, antiArbitrage: { ...settings.risk?.antiArbitrage, maxLatencyMs: parseInt(e.target.value) } } })}
+                        className="w-full bg-black/20 border border-white/5 rounded-lg px-3 py-2 text-[10px] text-white outline-none focus:border-emerald-500/50 font-bold"
+                      />
+                      <p className="text-[7px] text-slate-500 mt-1.5 font-mono uppercase tracking-tight">اگر پینگ بیشتر از این باشد، ربات وارد نمی‌شود (پیش‌فرض: ۵۰۰)</p>
                     </div>
                   </div>
                 </section>

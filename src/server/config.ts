@@ -23,9 +23,11 @@ export const config = {
     maxLeverage: 1,
     stopTradingOnMaxDailyLoss: true,
     antiArbitrage: {
-      enabled: true,
+      enabled: false,
       minHoldTimeSeconds: 30
-    }
+    },
+    useSpreadFilter: false,
+    maxSpreadTicks: 15
   },
 
   // ==========================================

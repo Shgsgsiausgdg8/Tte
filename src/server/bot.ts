@@ -1328,12 +1328,7 @@ ${analysisText}
 
           if (msg.type === 'ping') {
             if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-              // Add a tiny random delay before responding to ping to simulate human network latency
-              setTimeout(() => {
-                if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-                  this.ws.send(JSON.stringify({ type: 'pong' }));
-                }
-              }, Math.floor(Math.random() * 100) + 50); // 50-150ms delay
+              this.ws.send(JSON.stringify({ type: 'pong' }));
             }
             return;
           }
@@ -1378,7 +1373,7 @@ ${analysisText}
                   if (isMatch) {
                     pos.transactionId = txId;
                     pos.status = 'open';
-                    this.log(`[WS] Linked transaction ${txId} from order update to local position ${id}. Enforcing SL/TP in 1.5s...`, "SUCCESS");
+                    this.log(`[WS] Linked transaction ${txId} from order update to local position ${id}. Enforcing SL/TP in 0.5s...`, "SUCCESS");
                     
                     // Add a small delay to ensure the server has indexed the transaction before we try to edit it
                     setTimeout(() => {
@@ -1389,7 +1384,7 @@ ${analysisText}
                       this.enforceStopLossTakeProfit(txId, p.sl, p.tp1, id).then(success => {
                         if (success) p.slEnforced = true;
                       }).catch(() => {});
-                    }, 1500);
+                    }, 500);
                     break;
                   }
                 }
@@ -1781,16 +1776,20 @@ ${analysisText}
     const result = this.strategy.analyze(history, this.openPositions.size, this.price, false, mtfHistory);
     
     // Anti-Arbitrage & Real Account Safety Guards
-    const antiArb = this.settings.strategy?.antiArbitrage || { enabled: true, maxLatencyMs: 500, maxSpreadTicks: 15 };
-    if (antiArb.enabled && result.signal) {
-      if (this.latency > antiArb.maxLatencyMs) {
+    const antiArb = this.settings.risk?.antiArbitrage || { enabled: false, maxLatencyMs: 500 };
+    const useSpreadFilter = this.settings.risk?.useSpreadFilter ?? false;
+    const maxSpread = this.settings.risk?.maxSpreadTicks || 15;
+
+    if (result.signal) {
+      if (antiArb.enabled && this.latency > antiArb.maxLatencyMs) {
         this.log(`Latency too high (${this.latency}ms > ${antiArb.maxLatencyMs}ms). Skipping entry for safety.`, "INFO");
         return;
       }
+      
       const tickSize = this.settings.market?.tickSize || 1;
       const spreadTicks = this.currentSpread / tickSize;
-      if (spreadTicks > antiArb.maxSpreadTicks) {
-        this.log(`Spread too high (${spreadTicks.toFixed(1)} ticks > ${antiArb.maxSpreadTicks} ticks). Skipping entry.`, "INFO");
+      if (useSpreadFilter && spreadTicks > maxSpread) {
+        this.log(`Spread too high (${spreadTicks.toFixed(1)} ticks > ${maxSpread} ticks). Skipping entry.`, "INFO");
         return;
       }
     }
@@ -1891,12 +1890,13 @@ ${analysisText}
     
     try {
       // Max Spread Check
-      const maxSpread = this.settings.strategy?.numerical?.spreadThreshold || 18;
+      const useSpreadFilter = this.settings.risk?.useSpreadFilter ?? false;
+      const maxSpread = this.settings.risk?.maxSpreadTicks || 15;
       const tickSize = this.settings.market?.tickSize || 1;
       const effectiveSpread = this.orderBook.realSpread > 0 ? this.orderBook.realSpread : this.currentSpread;
       const spreadTicks = effectiveSpread / tickSize;
       
-      if (effectiveSpread > 0 && spreadTicks > maxSpread) {
+      if (useSpreadFilter && effectiveSpread > 0 && spreadTicks > maxSpread) {
         this.log(`Trade Skipped: Spread too high (${spreadTicks.toFixed(1)} > ${maxSpread})`, "INFO");
         this.processedSignals.delete(signalId);
         return;
@@ -1949,8 +1949,8 @@ ${analysisText}
       const id = Date.now();
 
       // SL/TP Safety Check (Ensure not too close to market)
-      // Increased buffer to 35 ticks for high volatility and latency
-      const safetyBuffer = tickSize * 35;
+      // Reduced buffer to 15 ticks for faster execution
+      const safetyBuffer = tickSize * 15;
       const currentPrice = this.price;
       
       if (signal.type === 'BUY') {
@@ -2010,9 +2010,6 @@ ${analysisText}
           stop_loss: String(sl),
           signal_token: ""
         };
-
-        // Simulated human reaction time
-        await new Promise(r => setTimeout(r, 200 + Math.random() * 300));
 
         let attempts = 0;
         const maxAttempts = 2;
@@ -2075,7 +2072,7 @@ ${analysisText}
               this.enforceStopLossTakeProfit(transId, sl, tp, id).then(success => {
                 if (success) p.slEnforced = true;
               }).catch(() => {});
-            }, 1000);
+            }, 200);
           }
         } else {
           this.log(`Trade Entry Failed: ${JSON.stringify(response?.data || {})}`, "ERROR");
@@ -2452,20 +2449,14 @@ ${analysisText}
     const pnl = Math.round((priceDiff / tickSize) * tickValue * (pos.units || 1));
 
     if (this.settings.source === 'API' && this.api) {
-      // Anti-Arbitrage: Minimum hold time
+      // Anti-Arbitrage: Minimum hold time check only (no artificial delays)
       const antiArb = this.settings.risk?.antiArbitrage || { enabled: false, minHoldTimeSeconds: 30 };
       if (antiArb.enabled) {
         const minHoldTime = (antiArb.minHoldTimeSeconds || 30) * 1000;
         const timeOpen = Date.now() - new Date(pos.entryTime).getTime();
         if (reason !== 'stop_loss' && reason !== 'daily_loss_limit' && timeOpen < minHoldTime) {
-          this.log(`Anti-Arbitrage: Trade hold time too short (${Math.round(timeOpen/1000)}s < ${antiArb.minHoldTimeSeconds}s). Delaying close...`, "INFO");
-          // For real accounts, we might want to actually wait, but for now we just log and proceed
-          // to avoid missing the exit. In a stricter mode, we could return here.
+          this.log(`Anti-Arbitrage Warning: Trade hold time short (${Math.round(timeOpen/1000)}s < ${antiArb.minHoldTimeSeconds}s).`, "INFO");
         }
-        
-        // Random Jitter to avoid HFT detection
-        const jitter = Math.floor(Math.random() * 1500) + 500; // 0.5s to 2s
-        await new Promise(resolve => setTimeout(resolve, jitter));
       }
 
       try {
@@ -2717,8 +2708,8 @@ ${pnlEmoji} معامله ${typeLabel} #${pos.signalId || '---'}
 
       attempt++;
       if (attempt < maxAttempts) {
-        this.log(`SL/TP Enforcement attempt ${attempt} failed for ${transactionId}. Retrying in 2s...`, "INFO");
-        await new Promise(r => setTimeout(r, 2000));
+        this.log(`SL/TP Enforcement attempt ${attempt} failed for ${transactionId}. Retrying in 0.5s...`, "INFO");
+        await new Promise(r => setTimeout(r, 500));
       }
     }
 
