@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Chart from 'react-apexcharts';
 import axios from 'axios';
-import { Activity, TrendingUp, TrendingDown, AlertCircle, Clock, Power, Shield, ShieldCheck, Settings, Send, Save, X, ChevronRight, Terminal, RefreshCw, Lock, ShieldAlert, Zap, BarChart3, CircleDot, Layout, Layers, History, Target, Cpu, Waves, Plus, CheckCircle2, Trash2, Globe, Cloud, Info, Database, Users } from 'lucide-react';
+import { Activity, TrendingUp, TrendingDown, AlertCircle, Clock, Power, Shield, ShieldCheck, Settings, Send, Save, X, ChevronRight, Terminal, RefreshCw, Lock, ShieldAlert, Zap, BarChart3, CircleDot, Layout, Layers, History, Target, Cpu, Waves, Plus, CheckCircle2, Trash2, Globe, Cloud, Info, Database } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LoginSection } from './LoginSection';
 
@@ -31,13 +31,11 @@ export default function Dashboard() {
   const [autoTuneStrategy, setAutoTuneStrategy] = useState<string>('');
   const [showAddAccount, setShowAddAccount] = useState(false);
   const [newAccountType, setNewAccountType] = useState<'real' | 'demo'>('demo');
-  const [showCopyTrade, setShowCopyTrade] = useState(false);
-  const [isTogglingCopy, setIsTogglingCopy] = useState(false);
 
   const isEditingSettingsRef = React.useRef(false);
   useEffect(() => {
-    isEditingSettingsRef.current = showSettings || showCopyTrade || showAddAccount;
-  }, [showSettings, showCopyTrade, showAddAccount]);
+    isEditingSettingsRef.current = showSettings || showAddAccount;
+  }, [showSettings, showAddAccount]);
 
   useEffect(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -531,14 +529,6 @@ export default function Dashboard() {
             >
               <ShieldAlert className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">کیفیت بالا</span>
-            </button>
-            <button 
-              onClick={() => setShowCopyTrade(true)}
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg font-bold transition-all text-xs ${botState?.copyTrade?.isRunning ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/20' : 'bg-white/5 text-slate-400 hover:bg-white/10'}`}
-              title="کپی ترید (اتصال به اکانت دیگر)"
-            >
-              <Users className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">کپی ترید</span>
             </button>
             <button 
               onClick={() => setShowSettings(true)}
@@ -3225,291 +3215,6 @@ export default function Dashboard() {
       </AnimatePresence>
 
       <AnimatePresence>
-        {showCopyTrade && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" dir="rtl">
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-[#0a0a0a] border border-white/10 rounded-3xl p-6 sm:p-8 w-full max-w-4xl shadow-2xl relative max-h-[90vh] overflow-y-auto"
-            >
-              <div className="flex items-center justify-between mb-8">
-                <div className="flex items-center gap-3">
-                  <div className="p-3 bg-blue-500/10 rounded-2xl text-blue-500">
-                    <Users className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h2 className="text-xl sm:text-2xl font-black text-white">کپی ترید (Copy Trade)</h2>
-                    <p className="text-xs text-slate-400 mt-1">اتصال هوشمند و ریل‌تایم بین دو حساب</p>
-                  </div>
-                </div>
-                <button onClick={() => setShowCopyTrade(false)} className="p-2 hover:bg-white/5 rounded-full transition-colors">
-                  <X className="w-5 h-5 text-slate-400" />
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Source Account */}
-                <div className="space-y-4 bg-white/5 p-6 rounded-3xl border border-white/5">
-                  <h3 className="text-sm font-bold text-blue-500 flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                    حساب مبدا (Source)
-                  </h3>
-                  <p className="text-[10px] text-slate-500">حسابی که معاملات آن مانیتور و کپی می‌شود.</p>
-                  
-                  <div className="space-y-3">
-                    <label className="text-[8px] text-slate-500 uppercase font-mono block tracking-widest">انتخاب از حساب‌های فعال</label>
-                    <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1 custom-scrollbar">
-                      {Object.entries(settings?.api?.accounts || {}).map(([id, acc]: [string, any]) => (
-                        <button
-                          key={id}
-                          onClick={() => setSettings({ 
-                            ...settings, 
-                            copyTrade: { 
-                              ...settings.copyTrade, 
-                              source: { 
-                                ...settings.copyTrade.source, 
-                                bearerToken: acc.bearerToken, 
-                                type: acc.type,
-                                username: acc.username
-                              } 
-                            } 
-                          })}
-                          className={`w-full p-3 rounded-xl border transition-all flex items-center justify-between ${
-                            settings?.copyTrade?.source?.bearerToken === acc.bearerToken 
-                            ? 'bg-blue-500/20 border-blue-500 text-blue-400' 
-                            : 'bg-white/5 border-white/5 text-slate-400 hover:bg-white/10'
-                          }`}
-                        >
-                          <div className="flex flex-col items-start">
-                            <span className="text-[10px] font-bold">{acc.username}</span>
-                            <span className="text-[8px] opacity-50 uppercase">{acc.type === 'real' ? 'حساب واقعی' : 'حساب دمو'}</span>
-                          </div>
-                          {settings?.copyTrade?.source?.bearerToken === acc.bearerToken && <CheckCircle2 className="w-4 h-4" />}
-                        </button>
-                      ))}
-                      {Object.keys(settings?.api?.accounts || {}).length === 0 && (
-                        <div className="text-center py-4 bg-white/5 rounded-xl border border-dashed border-white/10">
-                          <p className="text-[9px] text-slate-500">هیچ حسابی لاگین نشده است</p>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="relative py-2">
-                      <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/5"></div></div>
-                      <div className="relative flex justify-center text-[8px] uppercase font-mono"><span className="bg-[#0f172a] px-2 text-slate-500">یا وارد کردن دستی توکن</span></div>
-                    </div>
-
-                    <input 
-                      type="text" 
-                      placeholder="Bearer Token (Source)" 
-                      value={settings?.copyTrade?.source?.bearerToken || ''}
-                      onChange={(e) => setSettings({ ...settings, copyTrade: { ...settings.copyTrade, source: { ...settings.copyTrade.source, bearerToken: e.target.value } } })}
-                      className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-xs text-white outline-none focus:border-blue-500/50"
-                    />
-                  </div>
-                </div>
-
-                {/* Destination Account */}
-                <div className="space-y-4 bg-white/5 p-6 rounded-3xl border border-white/5">
-                  <h3 className="text-sm font-bold text-emerald-500 flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                    حساب مقصد (Destination)
-                  </h3>
-                  <p className="text-[10px] text-slate-500">حسابی که معاملات در آن اجرا می‌شود.</p>
-                  
-                  <div className="space-y-3">
-                    <label className="text-[8px] text-slate-500 uppercase font-mono block tracking-widest">انتخاب از حساب‌های فعال</label>
-                    <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1 custom-scrollbar">
-                      {Object.entries(settings?.api?.accounts || {}).map(([id, acc]: [string, any]) => (
-                        <button
-                          key={id}
-                          onClick={() => setSettings({ 
-                            ...settings, 
-                            copyTrade: { 
-                              ...settings.copyTrade, 
-                              destination: { 
-                                ...settings.copyTrade.destination, 
-                                bearerToken: acc.bearerToken, 
-                                type: acc.type,
-                                username: acc.username
-                              } 
-                            } 
-                          })}
-                          className={`w-full p-3 rounded-xl border transition-all flex items-center justify-between ${
-                            settings?.copyTrade?.destination?.bearerToken === acc.bearerToken 
-                            ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400' 
-                            : 'bg-white/5 border-white/5 text-slate-400 hover:bg-white/10'
-                          }`}
-                        >
-                          <div className="flex flex-col items-start">
-                            <span className="text-[10px] font-bold">{acc.username}</span>
-                            <span className="text-[8px] opacity-50 uppercase">{acc.type === 'real' ? 'حساب واقعی' : 'حساب دمو'}</span>
-                          </div>
-                          {settings?.copyTrade?.destination?.bearerToken === acc.bearerToken && <CheckCircle2 className="w-4 h-4" />}
-                        </button>
-                      ))}
-                      {Object.keys(settings?.api?.accounts || {}).length === 0 && (
-                        <div className="text-center py-4 bg-white/5 rounded-xl border border-dashed border-white/10">
-                          <p className="text-[9px] text-slate-500">هیچ حسابی لاگین نشده است</p>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="relative py-2">
-                      <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/5"></div></div>
-                      <div className="relative flex justify-center text-[8px] uppercase font-mono"><span className="bg-[#0f172a] px-2 text-slate-500">یا وارد کردن دستی توکن</span></div>
-                    </div>
-
-                    <input 
-                      type="text" 
-                      placeholder="Bearer Token (Destination)" 
-                      value={settings?.copyTrade?.destination?.bearerToken || ''}
-                      onChange={(e) => setSettings({ ...settings, copyTrade: { ...settings.copyTrade, destination: { ...settings.copyTrade.destination, bearerToken: e.target.value } } })}
-                      className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-xs text-white outline-none focus:border-emerald-500/50"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Advanced Settings */}
-              <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
-                  <label className="text-[10px] text-slate-500 uppercase mb-2 block">ضریب حجم (Multiplier)</label>
-                  <input 
-                    type="number" 
-                    step="0.1"
-                    value={settings?.copyTrade?.multiplier || 1}
-                    onChange={(e) => setSettings({ ...settings, copyTrade: { ...settings.copyTrade, multiplier: parseFloat(e.target.value) || 1 } })}
-                    className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2 text-sm text-white outline-none"
-                  />
-                </div>
-                <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
-                  <label className="text-[10px] text-slate-500 uppercase mb-2 block">حداکثر پوزیشن همزمان</label>
-                  <input 
-                    type="number" 
-                    value={settings?.copyTrade?.maxPositions ?? 5}
-                    onChange={(e) => setSettings({ ...settings, copyTrade: { ...settings.copyTrade, maxPositions: parseInt(e.target.value) ?? 5 } })}
-                    className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2 text-sm text-white outline-none"
-                  />
-                </div>
-                <div className="flex items-center justify-between bg-white/5 p-4 rounded-2xl border border-white/5">
-                  <span className="text-[10px] text-slate-500 uppercase">کپی حد سود (TP)</span>
-                  <button 
-                    onClick={() => setSettings({ ...settings, copyTrade: { ...settings.copyTrade, copyTP: !settings.copyTrade.copyTP } })}
-                    className={`w-10 h-5 rounded-full relative transition-colors ${settings?.copyTrade?.copyTP ? 'bg-emerald-500' : 'bg-slate-700'}`}
-                  >
-                    <motion.div animate={{ x: settings?.copyTrade?.copyTP ? 22 : 2 }} className="w-4 h-4 bg-white rounded-full absolute top-0.5" />
-                  </button>
-                </div>
-                <div className="flex items-center justify-between bg-white/5 p-4 rounded-2xl border border-white/5">
-                  <span className="text-[10px] text-slate-500 uppercase">کپی حد ضرر (SL)</span>
-                  <button 
-                    onClick={() => setSettings({ ...settings, copyTrade: { ...settings.copyTrade, copySL: !settings.copyTrade.copySL } })}
-                    className={`w-10 h-5 rounded-full relative transition-colors ${settings?.copyTrade?.copySL ? 'bg-emerald-500' : 'bg-slate-700'}`}
-                  >
-                    <motion.div animate={{ x: settings?.copyTrade?.copySL ? 22 : 2 }} className="w-4 h-4 bg-white rounded-full absolute top-0.5" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Logs & Status */}
-              <div className="mt-8 bg-black/40 rounded-3xl border border-white/5 overflow-hidden">
-                <div className="p-4 border-b border-white/5 flex items-center justify-between bg-white/5">
-                  <h3 className="text-xs font-bold text-slate-400 flex items-center gap-2">
-                    <Terminal className="w-4 h-4" />
-                    لاگ‌های سیستم کپی ترید
-                  </h3>
-                  <div className="flex items-center gap-2">
-                    <span className={`w-2 h-2 rounded-full ${botState?.copyTrade?.isRunning ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
-                    <span className="text-[10px] font-bold text-slate-500">{botState?.copyTrade?.isRunning ? 'در حال اجرا' : 'متوقف'}</span>
-                  </div>
-                </div>
-                <div className="h-48 overflow-y-auto p-4 space-y-2 font-mono text-[10px]">
-                  {botState?.copyTrade?.logs?.map((log: any, i: number) => (
-                    <div key={i} className="flex gap-3 border-b border-white/5 pb-1">
-                      <span className="text-slate-600">[{log.time}]</span>
-                      <span className={
-                        log.type === 'ERROR' ? 'text-rose-500' : 
-                        log.type === 'SUCCESS' ? 'text-emerald-500' : 
-                        log.type === 'SIGNAL' ? 'text-blue-500' : 'text-slate-400'
-                      }>{log.message}</span>
-                    </div>
-                  ))}
-                  {(!botState?.copyTrade?.logs || botState.copyTrade.logs.length === 0) && (
-                    <div className="text-center text-slate-600 py-10 italic">هیچ لاگی ثبت نشده است.</div>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex gap-4 mt-8">
-                <button 
-                  onClick={async () => {
-                    if (isTogglingCopy) return;
-                    setIsTogglingCopy(true);
-                    try {
-                      // 1. Save settings first to ensure engine has latest tokens/config
-                      await fetch('/api/copytrade/settings', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(settings.copyTrade)
-                      });
-                      
-                      // 2. Toggle engine
-                      const res = await fetch('/api/copytrade/toggle', { method: 'POST' });
-                      const data = await res.json();
-                      
-                      if (!data.success && data.message) {
-                        alert(data.message);
-                      }
-                    } catch (e) {
-                      alert('خطا در برقراری ارتباط با سرور');
-                    } finally {
-                      setIsTogglingCopy(false);
-                    }
-                  }}
-                  disabled={isTogglingCopy}
-                  className={`flex-1 py-4 rounded-2xl font-black text-sm transition-all flex items-center justify-center gap-3 shadow-xl ${
-                    isTogglingCopy ? 'opacity-50 cursor-not-allowed' : ''
-                  } ${
-                    botState?.copyTrade?.isRunning 
-                    ? 'bg-rose-500 text-white hover:bg-rose-600 shadow-rose-500/20' 
-                    : 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-emerald-500/20'
-                  }`}
-                >
-                  {isTogglingCopy ? (
-                    <RefreshCw className="w-5 h-5 animate-spin" />
-                  ) : botState?.copyTrade?.isRunning ? (
-                    <>
-                      <Power className="w-5 h-5" />
-                      توقف سیستم کپی ترید
-                    </>
-                  ) : (
-                    <>
-                      <Zap className="w-5 h-5" />
-                      فعال‌سازی کپی ترید
-                    </>
-                  )}
-                </button>
-                <button 
-                  onClick={async () => {
-                    await fetch('/api/copytrade/settings', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify(settings.copyTrade)
-                    });
-                    alert('تنظیمات با موفقیت ذخیره شد.');
-                  }}
-                  className="flex-1 bg-white/5 hover:bg-white/10 text-white font-bold py-4 rounded-2xl transition-all border border-white/10 flex items-center justify-center gap-2"
-                >
-                  <Save className="w-5 h-5" />
-                  ذخیره تنظیمات
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-
         {showCreatePortfolio && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" dir="rtl">
             <motion.div 

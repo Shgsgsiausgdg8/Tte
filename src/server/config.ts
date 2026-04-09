@@ -456,32 +456,5 @@ export const config = {
     trend: 0
   },
 
-  source: 'SIMULATED' as 'SIMULATED' | 'API',
-
-  // ==========================================
-  // 👥 Copy Trade Settings
-  // ==========================================
-  copyTrade: {
-    enabled: false,
-    source: {
-      type: 'demo' as 'demo' | 'real',
-      username: '',
-      password: '',
-      sessionid: '',
-      csrftoken: '',
-      bearerToken: ''
-    },
-    destination: {
-      type: 'demo' as 'demo' | 'real',
-      username: '',
-      password: '',
-      sessionid: '',
-      csrftoken: '',
-      bearerToken: ''
-    },
-    multiplier: 1, // Multiply units from source
-    copySL: true,
-    copyTP: true,
-    maxSlippageTicks: 5
-  }
+  source: 'SIMULATED' as 'SIMULATED' | 'API'
 };
