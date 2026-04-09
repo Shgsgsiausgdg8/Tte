@@ -95,7 +95,9 @@ export class CopyEngine {
       headers: {
         'Authorization': `Bearer ${dest.bearerToken}`,
         'Content-Type': 'application/json',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36',
+        'Origin': baseUrl,
+        'Referer': `${baseUrl}/room/`,
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
         'X-Requested-With': 'XMLHttpRequest'
       }
     });
@@ -113,14 +115,28 @@ export class CopyEngine {
     if (!this.isRunning) return;
 
     const src = this.settings.copyTrade.source;
-    const wsUrl = src.type === 'real' ? 'wss://farazgold.com/ws/' : 'wss://demo.farazgold.com/ws/';
+    const baseUrl = src.type === 'real' ? 'https://farazgold.com' : 'https://demo.farazgold.com';
+    const baseWsUrl = src.type === 'real' ? 'wss://farazgold.com/ws/' : 'wss://demo.farazgold.com/ws/';
     
-    this.log(`Connecting to Source WS: ${wsUrl}`, "INFO");
+    // FarazGold WS often requires token in URL
+    const wsUrl = `${baseWsUrl}?token=${src.bearerToken}`;
+    
+    this.log(`Connecting to Source WS: ${baseWsUrl}`, "INFO");
 
     this.sourceWs = new WebSocket(wsUrl, {
       headers: {
+        'Origin': baseUrl,
+        'Referer': `${baseUrl}/room/`,
         'Authorization': `Bearer ${src.bearerToken}`,
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    });
+
+    this.sourceWs.on('unexpected-response', (req, res) => {
+      this.log(`Source WS unexpected-response: ${res.statusCode}`, "ERROR");
+      if (this.sourceWs) {
+        this.sourceWs.terminate();
       }
     });
 
