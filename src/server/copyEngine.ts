@@ -115,13 +115,24 @@ export class CopyEngine {
     if (!this.isRunning) return;
 
     const src = this.settings.copyTrade.source;
+    if (!src || !src.bearerToken) {
+      this.log("Source bearer token missing. Cannot connect.", "ERROR");
+      return;
+    }
+
     const baseUrl = src.type === 'real' ? 'https://farazgold.com' : 'https://demo.farazgold.com';
     const baseWsUrl = src.type === 'real' ? 'wss://farazgold.com/ws/' : 'wss://demo.farazgold.com/ws/';
     
     // FarazGold WS often requires token in URL
-    const wsUrl = `${baseWsUrl}?token=${src.bearerToken}`;
+    const wsUrl = baseWsUrl.includes('?') 
+      ? `${baseWsUrl}&token=${src.bearerToken}`
+      : `${baseWsUrl}?token=${src.bearerToken}`;
     
     this.log(`Connecting to Source WS: ${baseWsUrl}`, "INFO");
+
+    if (this.sourceWs) {
+      this.sourceWs.terminate();
+    }
 
     this.sourceWs = new WebSocket(wsUrl, {
       headers: {
@@ -130,11 +141,14 @@ export class CopyEngine {
         'Authorization': `Bearer ${src.bearerToken}`,
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
         'X-Requested-With': 'XMLHttpRequest'
-      }
+      },
+      handshakeTimeout: 10000
     });
 
+    let pingInterval: NodeJS.Timeout;
+
     this.sourceWs.on('unexpected-response', (req, res) => {
-      this.log(`Source WS unexpected-response: ${res.statusCode}`, "ERROR");
+      this.log(`Source WS unexpected-response: ${res.statusCode}. Check if token is valid.`, "ERROR");
       if (this.sourceWs) {
         this.sourceWs.terminate();
       }
@@ -142,6 +156,14 @@ export class CopyEngine {
 
     this.sourceWs.on('open', () => {
       this.log("Source WebSocket connected.", "SUCCESS");
+      
+      // Keep alive
+      pingInterval = setInterval(() => {
+        if (this.sourceWs?.readyState === WebSocket.OPEN) {
+          this.sourceWs.send(JSON.stringify({ type: 'ping' }));
+        }
+      }, 30000);
+
       this.sourceWs?.send(JSON.stringify({
         action: 'SubAdd',
         subs: ['0~farazgold~mazane~gold~1']
@@ -151,12 +173,14 @@ export class CopyEngine {
     this.sourceWs.on('message', (data) => {
       try {
         const msg = JSON.parse(data.toString());
+        if (msg.type === 'pong') return;
         this.handleSourceMessage(msg);
       } catch (e) {}
     });
 
-    this.sourceWs.on('close', () => {
-      this.log("Source WebSocket closed. Reconnecting in 5s...", "ERROR");
+    this.sourceWs.on('close', (code, reason) => {
+      if (pingInterval) clearInterval(pingInterval);
+      this.log(`Source WebSocket closed (Code: ${code}, Reason: ${reason || 'None'}). Reconnecting in 5s...`, "ERROR");
       if (this.isRunning) {
         setTimeout(() => this.connectSourceWs(), 5000);
       }
@@ -174,14 +198,23 @@ export class CopyEngine {
     }
 
     // 2. New Transaction (Open)
-    if (msg.new_transactions_open || msg.transactions_open) {
-      const txs = msg.new_transactions_open || msg.transactions_open;
+    if (msg.new_transactions_open || msg.transactions_open || msg.new_user_orders) {
+      const txs = msg.new_transactions_open || msg.transactions_open || msg.new_user_orders;
       const arr = Array.isArray(txs) ? txs : [txs];
       for (const tx of arr) {
-        const srcTxId = Number(tx.id);
+        // Skip if it's just an order update that isn't 'completed'
+        if (msg.new_user_orders && tx.status && tx.status !== 'completed' && tx.status !== 'filled') continue;
+
+        const srcTxId = Number(tx.id || tx.transaction_id || tx.order_id);
         if (srcTxId && !this.activeTrades.has(srcTxId)) {
-          this.log(`New trade detected in Source: ${tx.type} at ${tx.price} (ID: ${srcTxId})`, "SIGNAL");
-          await this.copyOpenTrade(tx);
+          const type = (tx.type || tx.action || '').toString().toUpperCase();
+          const price = Number(tx.price || tx.entry_price || tx.entry || this.lastPrice);
+          const units = Number(tx.units || tx.amount || 1);
+
+          if (!type.includes('BUY') && !type.includes('SELL')) continue;
+
+          this.log(`New trade detected in Source: ${type} at ${price} (ID: ${srcTxId})`, "SIGNAL");
+          await this.copyOpenTrade({ ...tx, type, price, units, id: srcTxId });
         }
       }
     }
@@ -189,20 +222,25 @@ export class CopyEngine {
     // 3. Order Update (SL/TP changes)
     if (msg.new_user_orders) {
       const order = msg.new_user_orders;
-      const srcTxId = Number(order.transaction_id);
+      const srcTxId = Number(order.transaction_id || order.id);
       if (srcTxId && this.activeTrades.has(srcTxId)) {
         const destTxId = this.activeTrades.get(srcTxId)!;
-        this.log(`Update detected in Source for ${srcTxId}: SL=${order.stop_loss}, TP=${order.take_profit}`, "INFO");
-        await this.syncSlTp(destTxId, order.stop_loss, order.take_profit);
+        const sl = Number(order.stop_loss || order.sl || 0);
+        const tp = Number(order.take_profit || order.tp || 0);
+        
+        if (sl > 0 || tp > 0) {
+          this.log(`Update detected in Source for ${srcTxId}: SL=${sl}, TP=${tp}`, "INFO");
+          await this.syncSlTp(destTxId, sl, tp);
+        }
       }
     }
 
     // 4. Transaction Closed
-    if (msg.new_transactions_history || msg.transactions_history) {
-      const txs = msg.new_transactions_history || msg.transactions_history;
+    if (msg.new_transactions_history || msg.transactions_history || (msg.new_user_orders && (msg.new_user_orders.status === 'closed' || msg.new_user_orders.status === 'cancelled'))) {
+      const txs = msg.new_transactions_history || msg.transactions_history || msg.new_user_orders;
       const arr = Array.isArray(txs) ? txs : [txs];
       for (const tx of arr) {
-        const srcTxId = Number(tx.id || tx.transaction_id);
+        const srcTxId = Number(tx.id || tx.transaction_id || tx.order_id);
         if (srcTxId && this.activeTrades.has(srcTxId)) {
           const destTxId = this.activeTrades.get(srcTxId)!;
           this.log(`Trade ${srcTxId} closed in Source. Closing ${destTxId} in Destination...`, "SUCCESS");
@@ -218,12 +256,7 @@ export class CopyEngine {
     if (!this.destApi) return;
 
     try {
-      const typeStr = (srcTx.type || srcTx.action || '').toLowerCase();
-      if (!typeStr.includes('buy') && !typeStr.includes('sell')) {
-        this.log(`Skipping trade ${srcTx.id}: Unknown type "${typeStr}"`, "INFO");
-        return;
-      }
-
+      const typeStr = srcTx.type.toLowerCase();
       const action = typeStr.includes('buy') ? 'buy' : 'sell';
       
       // Check max positions for Copy Trade
@@ -233,17 +266,18 @@ export class CopyEngine {
         return;
       }
 
-      const units = Math.max(1, Math.round(srcTx.units * (this.settings.copyTrade.multiplier || 1)));
+      const multiplier = Number(this.settings.copyTrade.multiplier || 1);
+      const units = Math.max(1, Math.round(srcTx.units * multiplier));
       
-      this.log(`Copying ${action} ${units} units to Destination (Source ID: ${srcTx.id})...`, "INFO");
+      this.log(`Copying ${action.toUpperCase()} ${units} units to Destination (Source ID: ${srcTx.id})...`, "INFO");
 
       const response = await this.destApi.post('/api/room/api/submit-order/', {
         action: action,
         order_type: "verbal",
         units: String(units),
         price: -1,
-        take_profit: String(srcTx.tp || srcTx.take_profit || 0),
-        stop_loss: String(srcTx.sl || srcTx.stop_loss || 0),
+        take_profit: String(Math.round(srcTx.tp || srcTx.take_profit || 0)),
+        stop_loss: String(Math.round(srcTx.sl || srcTx.stop_loss || 0)),
         signal_token: ""
       });
 
