@@ -1143,8 +1143,12 @@ ${analysisText}
       const apiSl = Number(p.stop_loss || p.sl || 0);
       const apiTp = Number(p.take_profit || p.tp || 0);
       
+      const defaultTpTicks = this.settings.targetsTicks?.tpTicks || 15;
+      const tickSize = this.settings.market?.tickSize || 1;
+      const fallbackTp = type === 'BUY' ? entry + (defaultTpTicks * tickSize) : entry - (defaultTpTicks * tickSize);
+      
       const finalSl = apiSl > 0 ? apiSl : (existingPos?.sl || 0);
-      const finalTp = apiTp > 0 ? apiTp : (existingPos?.tp1 || 0);
+      const finalTp = apiTp > 0 ? apiTp : (existingPos?.tp1 || fallbackTp);
 
       // CRITICAL: If the exchange dropped the SL/TP (returns 0), we MUST enforce it or panic close!
       if (existingPos && (apiSl === 0 || apiTp === 0) && (finalSl > 0 || finalTp > 0)) {
@@ -1915,7 +1919,12 @@ ${analysisText}
 
     const now = Date.now();
     if (now - this.lastTradeTime < (this.settings.strategy?.tradeCooldown * 1000 || 8000)) return;
-    if (this.openPositions.size >= (this.settings.risk?.maxOpenPositions || 2)) return;
+    
+    const maxPos = this.settings.risk?.maxOpenPositions ?? 2;
+    if (this.openPositions.size >= maxPos) {
+      this.log(`Trade Skipped: Max Concurrent Positions reached (${this.openPositions.size}/${maxPos})`, "INFO");
+      return;
+    }
 
     this.isEnteringTrade = true;
     this.processedSignals.add(signalId);
@@ -2358,15 +2367,35 @@ ${analysisText}
             
             if (isImprovement) {
               const now = Date.now();
-              // Throttle API calls to once every 5 seconds per position to avoid spamming if API fails
+              // Throttle API calls to once every 5 seconds per position
               if (!position.lastSlUpdate || now - position.lastSlUpdate > 5000) {
-                position.sl = newSl;
+                // Safety Check: Ensure new SL is not too close to current price
+                const safetyBuffer = 10 * tickSize;
+                let safeSl = newSl;
+                if (isBuy && safeSl > currentPrice - safetyBuffer) {
+                  safeSl = Math.round(currentPrice - safetyBuffer);
+                } else if (!isBuy && safeSl < currentPrice + safetyBuffer) {
+                  safeSl = Math.round(currentPrice + safetyBuffer);
+                }
+
+                const finalIsImprovement = isBuy ? safeSl > position.sl : safeSl < position.sl;
+                if (!finalIsImprovement) continue;
+
+                position.sl = safeSl;
                 position.currentStep = stepIndex;
                 position.lastSlUpdate = now;
-                this.log(`Stepped Risk-Free: Step ${stepIndex} triggered. SL moved to ${newSl} (Profit: ${currentProfitPct.toFixed(1)}%)`, "SUCCESS");
+                position.breakEvenHit = true; // Mark as triggered
+                
+                this.log(`Stepped Risk-Free: Step ${stepIndex} triggered. SL moved to ${safeSl} (Profit: ${currentProfitPct.toFixed(1)}%)`, "SUCCESS");
                 
                 if (position.transactionId) {
-                  this.editStopLoss(position.transactionId, newSl);
+                  this.editStopLoss(position.transactionId, safeSl).then(success => {
+                    if (!success) {
+                      this.log(`Stepped Risk-Free API Failed for ${position.transactionId}. Will retry in 10s.`, "ERROR");
+                      position.breakEvenHit = false; // Allow retry
+                      position.lastSlUpdate = now + 5000; // Extra cooldown
+                    }
+                  });
                 }
               }
             }
@@ -2390,14 +2419,37 @@ ${analysisText}
             if (isImprovement) {
               const now = Date.now();
               if (!position.lastSlUpdate || now - position.lastSlUpdate > 5000) {
+                // Safety Check: Ensure new SL is not too close to current price
+                const safetyBuffer = 10 * tickSize;
+                let safeSl = newSl;
+                if (isBuy && safeSl > currentPrice - safetyBuffer) {
+                  safeSl = Math.round(currentPrice - safetyBuffer);
+                } else if (!isBuy && safeSl < currentPrice + safetyBuffer) {
+                  safeSl = Math.round(currentPrice + safetyBuffer);
+                }
+
+                const finalIsImprovement = isBuy ? safeSl > position.sl : safeSl < position.sl;
+                if (!finalIsImprovement) continue;
+
                 position.breakEvenHit = true;
-                position.sl = newSl; // Move SL to Entry (Risk-Free)
+                position.sl = safeSl; // Move SL to Entry (Risk-Free)
                 position.lastSlUpdate = now;
-                this.log(`Risk-Free (Break Even) triggered for trade ${id}. Moving SL to ${newSl}`, "SUCCESS");
+                this.log(`[Risk-Free] Break Even triggered for trade ${id}. Moving SL to ${safeSl} (Price: ${currentPrice})`, "SUCCESS");
                 
                 if (position.transactionId) {
-                  this.editStopLoss(position.transactionId, newSl);
+                  this.editStopLoss(position.transactionId, safeSl).then(success => {
+                    if (!success) {
+                      this.log(`Risk-Free API Failed for ${position.transactionId}. Will retry in 10s.`, "ERROR");
+                      position.breakEvenHit = false; // Allow retry
+                      position.lastSlUpdate = now + 5000; // Extra cooldown
+                    }
+                  });
                 }
+              }
+            } else if (!position.breakEvenHit) {
+              // Log why it didn't trigger if it was close
+              if (currentDist >= tpDist * (triggerPercent * 0.9)) {
+                // Silent log or debug log
               }
             }
           }

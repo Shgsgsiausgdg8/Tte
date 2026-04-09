@@ -137,6 +137,7 @@ async function startServer() {
   app.get("/api/bot/settings", (req, res) => res.json(bot.settings));
   app.post("/api/bot/settings", (req, res) => {
     bot.saveSettings(req.body);
+    copyEngine.updateSettings(req.body);
     res.json({ success: true });
   });
   app.post("/api/bot/reset-stats", (req, res) => {

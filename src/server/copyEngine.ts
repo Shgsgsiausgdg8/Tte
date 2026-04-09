@@ -202,11 +202,24 @@ export class CopyEngine {
     if (!this.destApi) return;
 
     try {
-      const type = (srcTx.type || srcTx.action || '').toLowerCase();
-      const action = type.includes('buy') ? 'buy' : 'sell';
+      const typeStr = (srcTx.type || srcTx.action || '').toLowerCase();
+      if (!typeStr.includes('buy') && !typeStr.includes('sell')) {
+        this.log(`Skipping trade ${srcTx.id}: Unknown type "${typeStr}"`, "INFO");
+        return;
+      }
+
+      const action = typeStr.includes('buy') ? 'buy' : 'sell';
+      
+      // Check max positions for Copy Trade
+      const maxPos = this.settings.copyTrade?.maxPositions ?? 5;
+      if (this.activeTrades.size >= maxPos) {
+        this.log(`Copy Trade Skipped: Max Concurrent Positions reached (${this.activeTrades.size}/${maxPos})`, "INFO");
+        return;
+      }
+
       const units = Math.max(1, Math.round(srcTx.units * (this.settings.copyTrade.multiplier || 1)));
       
-      this.log(`Copying ${action} ${units} units to Destination...`, "INFO");
+      this.log(`Copying ${action} ${units} units to Destination (Source ID: ${srcTx.id})...`, "INFO");
 
       const response = await this.destApi.post('/api/room/api/submit-order/', {
         action: action,
@@ -219,7 +232,7 @@ export class CopyEngine {
       });
 
       const data = response.data;
-      if (data.status === true || data.status === 'success') {
+      if (data.status === true || data.status === 'success' || data.order_id) {
         const destTxId = data.order_id || data.id || data.transaction_id;
         if (destTxId) {
           this.activeTrades.set(Number(srcTx.id), Number(destTxId));
@@ -227,7 +240,7 @@ export class CopyEngine {
           this.log(`Trade copied successfully! Source:${srcTx.id} -> Destination:${destTxId}`, "SUCCESS");
         }
       } else {
-        this.log(`Failed to copy trade: ${JSON.stringify(data)}`, "ERROR");
+        this.log(`Failed to copy trade: ${data.message || JSON.stringify(data)}`, "ERROR");
       }
     } catch (e: any) {
       this.log(`Error copying trade: ${e.message}`, "ERROR");

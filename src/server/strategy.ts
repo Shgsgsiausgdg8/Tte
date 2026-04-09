@@ -108,8 +108,8 @@ export class Strategy {
       return { signal: null, reason: 'Cooldown active' };
     }
 
-    if (!dryRun && openPositionsCount >= (this.config.strategy?.filters?.maxPositions ?? 999)) {
-      return { signal: null, reason: 'Max positions reached' };
+    if (!dryRun && openPositionsCount >= (this.config.risk?.maxOpenPositions ?? 2)) {
+      return { signal: null, reason: `Max positions reached (${openPositionsCount})` };
     }
 
     const maxTradesPer10Min = this.config.strategy?.filters?.maxTradesPer10Min || 0;

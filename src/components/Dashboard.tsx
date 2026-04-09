@@ -1504,7 +1504,14 @@ export default function Dashboard() {
                       <input 
                         type="number" 
                         value={settings.risk?.maxOpenPositions || 2}
-                        onChange={(e) => setSettings({ ...settings, risk: { ...settings.risk, maxOpenPositions: parseInt(e.target.value) } })}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value);
+                          setSettings({ 
+                            ...settings, 
+                            risk: { ...settings.risk, maxOpenPositions: val },
+                            strategy: { ...settings.strategy, filters: { ...settings.strategy?.filters, maxPositions: val } }
+                          });
+                        }}
                         className="w-full bg-white/5 border border-white/5 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-emerald-500/50 font-bold"
                       />
                     </div>
@@ -2279,8 +2286,15 @@ export default function Dashboard() {
                       <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">حداکثر پوزیشن همزمان</label>
                       <input 
                         type="number" 
-                        value={settings.strategy?.filters?.maxPositions || 3}
-                        onChange={(e) => setSettings({ ...settings, strategy: { ...settings.strategy, filters: { ...settings.strategy?.filters, maxPositions: parseInt(e.target.value) } } })}
+                        value={settings.risk?.maxOpenPositions || 2}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value);
+                          setSettings({ 
+                            ...settings, 
+                            risk: { ...settings.risk, maxOpenPositions: val },
+                            strategy: { ...settings.strategy, filters: { ...settings.strategy?.filters, maxPositions: val } }
+                          });
+                        }}
                         className="w-full bg-white/5 border border-white/5 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-emerald-500/50 font-bold"
                       />
                     </div>
@@ -3244,16 +3258,48 @@ export default function Dashboard() {
                   <p className="text-[10px] text-slate-500">حسابی که معاملات آن مانیتور و کپی می‌شود.</p>
                   
                   <div className="space-y-3">
-                    <div className="grid grid-cols-2 gap-2">
-                      <button 
-                        onClick={() => setSettings({ ...settings, copyTrade: { ...settings.copyTrade, source: { ...settings.copyTrade.source, type: 'demo' } } })}
-                        className={`py-2 rounded-xl text-[10px] font-bold transition-all ${settings?.copyTrade?.source?.type === 'demo' ? 'bg-blue-500 text-white' : 'bg-white/5 text-slate-400'}`}
-                      >دمو</button>
-                      <button 
-                        onClick={() => setSettings({ ...settings, copyTrade: { ...settings.copyTrade, source: { ...settings.copyTrade.source, type: 'real' } } })}
-                        className={`py-2 rounded-xl text-[10px] font-bold transition-all ${settings?.copyTrade?.source?.type === 'real' ? 'bg-rose-500 text-white' : 'bg-white/5 text-slate-400'}`}
-                      >ریل</button>
+                    <label className="text-[8px] text-slate-500 uppercase font-mono block tracking-widest">انتخاب از حساب‌های فعال</label>
+                    <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1 custom-scrollbar">
+                      {Object.entries(settings?.api?.accounts || {}).map(([id, acc]: [string, any]) => (
+                        <button
+                          key={id}
+                          onClick={() => setSettings({ 
+                            ...settings, 
+                            copyTrade: { 
+                              ...settings.copyTrade, 
+                              source: { 
+                                ...settings.copyTrade.source, 
+                                bearerToken: acc.bearerToken, 
+                                type: acc.type,
+                                username: acc.username
+                              } 
+                            } 
+                          })}
+                          className={`w-full p-3 rounded-xl border transition-all flex items-center justify-between ${
+                            settings?.copyTrade?.source?.bearerToken === acc.bearerToken 
+                            ? 'bg-blue-500/20 border-blue-500 text-blue-400' 
+                            : 'bg-white/5 border-white/5 text-slate-400 hover:bg-white/10'
+                          }`}
+                        >
+                          <div className="flex flex-col items-start">
+                            <span className="text-[10px] font-bold">{acc.username}</span>
+                            <span className="text-[8px] opacity-50 uppercase">{acc.type === 'real' ? 'حساب واقعی' : 'حساب دمو'}</span>
+                          </div>
+                          {settings?.copyTrade?.source?.bearerToken === acc.bearerToken && <CheckCircle2 className="w-4 h-4" />}
+                        </button>
+                      ))}
+                      {Object.keys(settings?.api?.accounts || {}).length === 0 && (
+                        <div className="text-center py-4 bg-white/5 rounded-xl border border-dashed border-white/10">
+                          <p className="text-[9px] text-slate-500">هیچ حسابی لاگین نشده است</p>
+                        </div>
+                      )}
                     </div>
+
+                    <div className="relative py-2">
+                      <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/5"></div></div>
+                      <div className="relative flex justify-center text-[8px] uppercase font-mono"><span className="bg-[#0f172a] px-2 text-slate-500">یا وارد کردن دستی توکن</span></div>
+                    </div>
+
                     <input 
                       type="text" 
                       placeholder="Bearer Token (Source)" 
@@ -3273,16 +3319,48 @@ export default function Dashboard() {
                   <p className="text-[10px] text-slate-500">حسابی که معاملات در آن اجرا می‌شود.</p>
                   
                   <div className="space-y-3">
-                    <div className="grid grid-cols-2 gap-2">
-                      <button 
-                        onClick={() => setSettings({ ...settings, copyTrade: { ...settings.copyTrade, destination: { ...settings.copyTrade.destination, type: 'demo' } } })}
-                        className={`py-2 rounded-xl text-[10px] font-bold transition-all ${settings?.copyTrade?.destination?.type === 'demo' ? 'bg-emerald-500 text-white' : 'bg-white/5 text-slate-400'}`}
-                      >دمو</button>
-                      <button 
-                        onClick={() => setSettings({ ...settings, copyTrade: { ...settings.copyTrade, destination: { ...settings.copyTrade.destination, type: 'real' } } })}
-                        className={`py-2 rounded-xl text-[10px] font-bold transition-all ${settings?.copyTrade?.destination?.type === 'real' ? 'bg-rose-500 text-white' : 'bg-white/5 text-slate-400'}`}
-                      >ریل</button>
+                    <label className="text-[8px] text-slate-500 uppercase font-mono block tracking-widest">انتخاب از حساب‌های فعال</label>
+                    <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1 custom-scrollbar">
+                      {Object.entries(settings?.api?.accounts || {}).map(([id, acc]: [string, any]) => (
+                        <button
+                          key={id}
+                          onClick={() => setSettings({ 
+                            ...settings, 
+                            copyTrade: { 
+                              ...settings.copyTrade, 
+                              destination: { 
+                                ...settings.copyTrade.destination, 
+                                bearerToken: acc.bearerToken, 
+                                type: acc.type,
+                                username: acc.username
+                              } 
+                            } 
+                          })}
+                          className={`w-full p-3 rounded-xl border transition-all flex items-center justify-between ${
+                            settings?.copyTrade?.destination?.bearerToken === acc.bearerToken 
+                            ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400' 
+                            : 'bg-white/5 border-white/5 text-slate-400 hover:bg-white/10'
+                          }`}
+                        >
+                          <div className="flex flex-col items-start">
+                            <span className="text-[10px] font-bold">{acc.username}</span>
+                            <span className="text-[8px] opacity-50 uppercase">{acc.type === 'real' ? 'حساب واقعی' : 'حساب دمو'}</span>
+                          </div>
+                          {settings?.copyTrade?.destination?.bearerToken === acc.bearerToken && <CheckCircle2 className="w-4 h-4" />}
+                        </button>
+                      ))}
+                      {Object.keys(settings?.api?.accounts || {}).length === 0 && (
+                        <div className="text-center py-4 bg-white/5 rounded-xl border border-dashed border-white/10">
+                          <p className="text-[9px] text-slate-500">هیچ حسابی لاگین نشده است</p>
+                        </div>
+                      )}
                     </div>
+
+                    <div className="relative py-2">
+                      <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/5"></div></div>
+                      <div className="relative flex justify-center text-[8px] uppercase font-mono"><span className="bg-[#0f172a] px-2 text-slate-500">یا وارد کردن دستی توکن</span></div>
+                    </div>
+
                     <input 
                       type="text" 
                       placeholder="Bearer Token (Destination)" 
@@ -3295,7 +3373,7 @@ export default function Dashboard() {
               </div>
 
               {/* Advanced Settings */}
-              <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
                   <label className="text-[10px] text-slate-500 uppercase mb-2 block">ضریب حجم (Multiplier)</label>
                   <input 
@@ -3303,6 +3381,15 @@ export default function Dashboard() {
                     step="0.1"
                     value={settings?.copyTrade?.multiplier || 1}
                     onChange={(e) => setSettings({ ...settings, copyTrade: { ...settings.copyTrade, multiplier: parseFloat(e.target.value) || 1 } })}
+                    className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2 text-sm text-white outline-none"
+                  />
+                </div>
+                <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
+                  <label className="text-[10px] text-slate-500 uppercase mb-2 block">حداکثر پوزیشن همزمان</label>
+                  <input 
+                    type="number" 
+                    value={settings?.copyTrade?.maxPositions ?? 5}
+                    onChange={(e) => setSettings({ ...settings, copyTrade: { ...settings.copyTrade, maxPositions: parseInt(e.target.value) ?? 5 } })}
                     className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2 text-sm text-white outline-none"
                   />
                 </div>
@@ -3361,14 +3448,11 @@ export default function Dashboard() {
                     if (isTogglingCopy) return;
                     setIsTogglingCopy(true);
                     try {
-                      const newSettings = { ...settings, copyTrade: { ...settings.copyTrade, enabled: !botState?.copyTrade?.isRunning } };
-                      setSettings(newSettings);
-                      
-                      // 1. Save settings
+                      // 1. Save settings first to ensure engine has latest tokens/config
                       await fetch('/api/copytrade/settings', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(newSettings.copyTrade)
+                        body: JSON.stringify(settings.copyTrade)
                       });
                       
                       // 2. Toggle engine
@@ -3385,7 +3469,13 @@ export default function Dashboard() {
                     }
                   }}
                   disabled={isTogglingCopy}
-                  className={`flex-1 py-4 rounded-2xl font-black text-sm transition-all flex items-center justify-center gap-2 shadow-xl ${isTogglingCopy ? 'opacity-50 cursor-not-allowed' : ''} ${botState?.copyTrade?.isRunning ? 'bg-rose-500/10 text-rose-500 border border-rose-500/20 hover:bg-rose-500/20' : 'bg-blue-500 text-white hover:bg-blue-600 shadow-blue-500/20'}`}
+                  className={`flex-1 py-4 rounded-2xl font-black text-sm transition-all flex items-center justify-center gap-3 shadow-xl ${
+                    isTogglingCopy ? 'opacity-50 cursor-not-allowed' : ''
+                  } ${
+                    botState?.copyTrade?.isRunning 
+                    ? 'bg-rose-500 text-white hover:bg-rose-600 shadow-rose-500/20' 
+                    : 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-emerald-500/20'
+                  }`}
                 >
                   {isTogglingCopy ? (
                     <RefreshCw className="w-5 h-5 animate-spin" />

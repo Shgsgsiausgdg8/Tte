@@ -205,3 +205,220 @@
 {"id":1774991562685.9678,"time":"۲۱:۱۲:۴۲","message":"Portfolio Update: Server busy or network issue after 5 retries (timeout of 10000ms exceeded).","type":"INFO","timestamp":"2026-03-31T21:12:42.685Z"}
 {"id":1774991570664.4521,"time":"۲۱:۱۲:۵۰","message":"Historical Bars Fetch Error: 504 - Request failed with status code 504","type":"ERROR","timestamp":"2026-03-31T21:12:50.665Z"}
 {"id":1774991570665.2874,"time":"۲۱:۱۲:۵۰","message":"Retrying historical bars fetch in 30s (Attempt 5/5)...","type":"INFO","timestamp":"2026-03-31T21:12:50.665Z"}
+{"id":1775691914941.3474,"time":"۲۳:۴۵:۱۴","message":"Bot engine v4.3 PRO starting...","type":"INFO","timestamp":"2026-04-08T23:45:14.967Z"}
+{"id":1775692016442.3362,"time":"۲۳:۴۶:۵۶","message":"Portfolio Update: Server busy or network issue after 5 retries (timeout of 10000ms exceeded).","type":"INFO","timestamp":"2026-04-08T23:46:56.443Z"}
+{"id":1775692031497.9998,"time":"۲۳:۴۷:۱۱","message":"Server Busy (504). Retrying request in 5s...","type":"INFO","timestamp":"2026-04-08T23:47:11.497Z"}
+{"id":1775692051520.4592,"time":"۲۳:۴۷:۳۱","message":"Fetching historical bars (1m) from 1775670451 to 1775692051 (Attempt 1)...","type":"INFO","timestamp":"2026-04-08T23:47:31.520Z"}
+{"id":1775692066542.208,"time":"۲۳:۴۷:۴۶","message":"Server Busy (504). Retrying request in 5s...","type":"INFO","timestamp":"2026-04-08T23:47:46.542Z"}
+{"id":1775692086563.5117,"time":"۲۳:۴۸:۰۶","message":"Historical Bars Fetch Error: 504 - Request failed with status code 504","type":"ERROR","timestamp":"2026-04-08T23:48:06.563Z"}
+{"id":1775692086563.7937,"time":"۲۳:۴۸:۰۶","message":"Retrying historical bars fetch in 5s (Attempt 1/5)...","type":"INFO","timestamp":"2026-04-08T23:48:06.563Z"}
+{"id":1775692086564.164,"time":"۲۳:۴۸:۰۶","message":"Connecting to FarazGold WS (DEMO): wss://demo.farazgold.com/ws/","type":"WS","timestamp":"2026-04-08T23:48:06.564Z"}
+{"id":1775692091564.4878,"time":"۲۳:۴۸:۱۱","message":"Fetching historical bars (1m) from 1775670491 to 1775692091 (Attempt 2)...","type":"INFO","timestamp":"2026-04-08T23:48:11.564Z"}
+{"id":1775692101616.512,"time":"۲۳:۴۸:۲۱","message":"WS unexpected-response: 504 (Server Busy)","type":"ERROR","timestamp":"2026-04-08T23:48:21.616Z"}
+{"id":1775692101617.6536,"time":"۲۳:۴۸:۲۱","message":"Scheduling WS reconnect in 63s (Attempt 1)","type":"WS","timestamp":"2026-04-08T23:48:21.617Z"}
+{"id":1775692101617.5146,"time":"۲۳:۴۸:۲۱","message":"WS Connection Closed. Code: 1006, Reason: ","type":"WS","timestamp":"2026-04-08T23:48:21.618Z"}
+{"id":1775692106584.3442,"time":"۲۳:۴۸:۲۶","message":"Server Busy (504). Retrying request in 5s...","type":"INFO","timestamp":"2026-04-08T23:48:26.584Z"}
+{"id":1775692126638.2126,"time":"۲۳:۴۸:۴۶","message":"Historical Bars Fetch Error: 504 - Request failed with status code 504","type":"ERROR","timestamp":"2026-04-08T23:48:46.638Z"}
+{"id":1775692126638.524,"time":"۲۳:۴۸:۴۶","message":"Retrying historical bars fetch in 10s (Attempt 2/5)...","type":"INFO","timestamp":"2026-04-08T23:48:46.638Z"}
+{"id":1775692136639.8992,"time":"۲۳:۴۸:۵۶","message":"Fetching historical bars (1m) from 1775681336 to 1775692136 (Attempt 3)...","type":"INFO","timestamp":"2026-04-08T23:48:56.639Z"}
+{"id":1775692151659.5747,"time":"۲۳:۴۹:۱۱","message":"Server Busy (504). Retrying request in 5s...","type":"INFO","timestamp":"2026-04-08T23:49:11.660Z"}
+{"id":1775692164522.4275,"time":"۲۳:۴۹:۲۴","message":"Connecting to FarazGold WS (DEMO): wss://demo.farazgold.com/ws/","type":"WS","timestamp":"2026-04-08T23:49:24.522Z"}
+{"id":1775692171683.8994,"time":"۲۳:۴۹:۳۱","message":"Historical Bars Fetch Error: 504 - Request failed with status code 504","type":"ERROR","timestamp":"2026-04-08T23:49:31.684Z"}
+{"id":1775692171684.308,"time":"۲۳:۴۹:۳۱","message":"Retrying historical bars fetch in 20s (Attempt 3/5)...","type":"INFO","timestamp":"2026-04-08T23:49:31.684Z"}
+{"id":1775692179571.3308,"time":"۲۳:۴۹:۳۹","message":"WS unexpected-response: 504 (Server Busy)","type":"ERROR","timestamp":"2026-04-08T23:49:39.571Z"}
+{"id":1775692179572.2505,"time":"۲۳:۴۹:۳۹","message":"Scheduling WS reconnect in 88s (Attempt 2)","type":"WS","timestamp":"2026-04-08T23:49:39.572Z"}
+{"id":1775692179572.915,"time":"۲۳:۴۹:۳۹","message":"WS Connection Closed. Code: 1006, Reason: ","type":"WS","timestamp":"2026-04-08T23:49:39.572Z"}
+{"id":1775692191683.249,"time":"۲۳:۴۹:۵۱","message":"Fetching historical bars (1m) from 1775681391 to 1775692191 (Attempt 4)...","type":"INFO","timestamp":"2026-04-08T23:49:51.684Z"}
+{"id":1775692197467.0667,"time":"۲۳:۴۹:۵۷","message":"Portfolio Update: Server busy or network issue after 5 retries (timeout of 10000ms exceeded).","type":"INFO","timestamp":"2026-04-08T23:49:57.467Z"}
+{"id":1775692206732.6074,"time":"۲۳:۵۰:۰۶","message":"Server Busy (504). Retrying request in 5s...","type":"INFO","timestamp":"2026-04-08T23:50:06.732Z"}
+{"id":1775692226758.0896,"time":"۲۳:۵۰:۲۶","message":"Historical Bars Fetch Error: 504 - Request failed with status code 504","type":"ERROR","timestamp":"2026-04-08T23:50:26.759Z"}
+{"id":1775692226759.005,"time":"۲۳:۵۰:۲۶","message":"Retrying historical bars fetch in 30s (Attempt 4/5)...","type":"INFO","timestamp":"2026-04-08T23:50:26.759Z"}
+{"id":1775692256759.3704,"time":"۲۳:۵۰:۵۶","message":"Fetching historical bars (1m) from 1775681456 to 1775692256 (Attempt 5)...","type":"INFO","timestamp":"2026-04-08T23:50:56.760Z"}
+{"id":1775692268010.8232,"time":"۲۳:۵۱:۰۸","message":"Connecting to FarazGold WS (DEMO): wss://demo.farazgold.com/ws/","type":"WS","timestamp":"2026-04-08T23:51:08.010Z"}
+{"id":1775692271810.1335,"time":"۲۳:۵۱:۱۱","message":"Server Busy (504). Retrying request in 5s...","type":"INFO","timestamp":"2026-04-08T23:51:11.810Z"}
+{"id":1775692283060.6301,"time":"۲۳:۵۱:۲۳","message":"WS unexpected-response: 504 (Server Busy)","type":"ERROR","timestamp":"2026-04-08T23:51:23.060Z"}
+{"id":1775692283060.6252,"time":"۲۳:۵۱:۲۳","message":"Scheduling WS reconnect in 137s (Attempt 3)","type":"WS","timestamp":"2026-04-08T23:51:23.060Z"}
+{"id":1775692283060.4092,"time":"۲۳:۵۱:۲۳","message":"WS Connection Closed. Code: 1006, Reason: ","type":"WS","timestamp":"2026-04-08T23:51:23.061Z"}
+{"id":1775692291832.713,"time":"۲۳:۵۱:۳۱","message":"Historical Bars Fetch Error: 504 - Request failed with status code 504","type":"ERROR","timestamp":"2026-04-08T23:51:31.832Z"}
+{"id":1775692291832.2297,"time":"۲۳:۵۱:۳۱","message":"Retrying historical bars fetch in 30s (Attempt 5/5)...","type":"INFO","timestamp":"2026-04-08T23:51:31.832Z"}
+{"id":1775692301640.3318,"time":"۲۳:۵۱:۴۱","message":"Portfolio Update: Server busy or network issue after 5 retries (timeout of 10000ms exceeded).","type":"INFO","timestamp":"2026-04-08T23:51:41.640Z"}
+{"id":1775692301640.5225,"time":"۲۳:۵۱:۴۱","message":"Fetching MTF bars (5m) from 1775605901 to 1775692301 (Attempt 1)...","type":"INFO","timestamp":"2026-04-08T23:51:41.641Z"}
+{"id":1775692316661.4077,"time":"۲۳:۵۱:۵۶","message":"Server Busy (504). Retrying request in 5s...","type":"INFO","timestamp":"2026-04-08T23:51:56.661Z"}
+{"id":1775692321833.7869,"time":"۲۳:۵۲:۰۱","message":"Fetching historical bars (1m) from 1775681521 to 1775692321 (Attempt 6)...","type":"INFO","timestamp":"2026-04-08T23:52:01.833Z"}
+{"id":1775692336711.1711,"time":"۲۳:۵۲:۱۶","message":"MTF Bars Fetch: 504 Gateway Timeout (Attempt 1/5). Retrying...","type":"INFO","timestamp":"2026-04-08T23:52:16.712Z"}
+{"id":1775692336882.7864,"time":"۲۳:۵۲:۱۶","message":"Server Busy (504). Retrying request in 5s...","type":"INFO","timestamp":"2026-04-08T23:52:16.882Z"}
+{"id":1775692338712.5872,"time":"۲۳:۵۲:۱۸","message":"Fetching MTF bars (5m) from 1775649138 to 1775692338 (Attempt 2)...","type":"INFO","timestamp":"2026-04-08T23:52:18.712Z"}
+{"id":1775692353732.1658,"time":"۲۳:۵۲:۳۳","message":"Server Busy (504). Retrying request in 5s...","type":"INFO","timestamp":"2026-04-08T23:52:33.732Z"}
+{"id":1775692356904.4312,"time":"۲۳:۵۲:۳۶","message":"Historical Bars Fetch Error: 504 - Request failed with status code 504","type":"ERROR","timestamp":"2026-04-08T23:52:36.904Z"}
+{"id":1775692373752.6497,"time":"۲۳:۵۲:۵۳","message":"MTF Bars Fetch: 504 Gateway Timeout (Attempt 2/5). Retrying...","type":"INFO","timestamp":"2026-04-08T23:52:53.752Z"}
+{"id":1775692377752.5918,"time":"۲۳:۵۲:۵۷","message":"Fetching MTF bars (5m) from 1775649177 to 1775692377 (Attempt 3)...","type":"INFO","timestamp":"2026-04-08T23:52:57.752Z"}
+{"id":1775692392771.4932,"time":"۲۳:۵۳:۱۲","message":"Server Busy (504). Retrying request in 5s...","type":"INFO","timestamp":"2026-04-08T23:53:12.772Z"}
+{"id":1775692406496.1963,"time":"۲۳:۵۳:۲۶","message":"Portfolio Update: Server busy or network issue after 5 retries (timeout of 10000ms exceeded).","type":"INFO","timestamp":"2026-04-08T23:53:26.496Z"}
+{"id":1775692412823.522,"time":"۲۳:۵۳:۳۲","message":"MTF Bars Fetch: 504 Gateway Timeout (Attempt 3/5). Retrying...","type":"INFO","timestamp":"2026-04-08T23:53:32.823Z"}
+{"id":1775692420413.3242,"time":"۲۳:۵۳:۴۰","message":"Connecting to FarazGold WS (DEMO): wss://demo.farazgold.com/ws/","type":"WS","timestamp":"2026-04-08T23:53:40.413Z"}
+{"id":1775692420823.1055,"time":"۲۳:۵۳:۴۰","message":"Fetching MTF bars (5m) from 1775649220 to 1775692420 (Attempt 4)...","type":"INFO","timestamp":"2026-04-08T23:53:40.823Z"}
+{"id":1775692435461.017,"time":"۲۳:۵۳:۵۵","message":"WS unexpected-response: 504 (Server Busy)","type":"ERROR","timestamp":"2026-04-08T23:53:55.461Z"}
+{"id":1775692435461.5051,"time":"۲۳:۵۳:۵۵","message":"Scheduling WS reconnect in 187s (Attempt 4)","type":"WS","timestamp":"2026-04-08T23:53:55.462Z"}
+{"id":1775692435462.3613,"time":"۲۳:۵۳:۵۵","message":"WS Connection Closed. Code: 1006, Reason: ","type":"WS","timestamp":"2026-04-08T23:53:55.462Z"}
+{"id":1775692435845.5134,"time":"۲۳:۵۳:۵۵","message":"Server Busy (504). Retrying request in 5s...","type":"INFO","timestamp":"2026-04-08T23:53:55.845Z"}
+{"id":1775692455892.5605,"time":"۲۳:۵۴:۱۵","message":"MTF Bars Fetch: 504 Gateway Timeout (Attempt 4/5). Retrying...","type":"INFO","timestamp":"2026-04-08T23:54:15.892Z"}
+{"id":1775692470892.2095,"time":"۲۳:۵۴:۳۰","message":"Fetching MTF bars (5m) from 1775649270 to 1775692470 (Attempt 5)...","type":"INFO","timestamp":"2026-04-08T23:54:30.892Z"}
+{"id":1775692485911.1035,"time":"۲۳:۵۴:۴۵","message":"Server Busy (504). Retrying request in 5s...","type":"INFO","timestamp":"2026-04-08T23:54:45.911Z"}
+{"id":1775692500883.0505,"time":"۲۳:۵۵:۰۰","message":"Fetching MTF bars (5m) from 1775606100 to 1775692500 (Attempt 1)...","type":"INFO","timestamp":"2026-04-08T23:55:00.883Z"}
+{"id":1775692505932.716,"time":"۲۳:۵۵:۰۵","message":"MTF Bars Fetch: 504 Gateway Timeout (Attempt 5/5). Retrying...","type":"INFO","timestamp":"2026-04-08T23:55:05.933Z"}
+{"id":1775692511936.1082,"time":"۲۳:۵۵:۱۱","message":"Portfolio Update: Server busy or network issue after 5 retries (timeout of 10000ms exceeded).","type":"INFO","timestamp":"2026-04-08T23:55:11.936Z"}
+{"id":1775692515937.597,"time":"۲۳:۵۵:۱۵","message":"Server Busy (504). Retrying request in 5s...","type":"INFO","timestamp":"2026-04-08T23:55:15.937Z"}
+{"id":1775692520932.7659,"time":"۲۳:۵۵:۲۰","message":"Fetching MTF bars (5m) from 1775649320 to 1775692520 (Attempt 6)...","type":"INFO","timestamp":"2026-04-08T23:55:20.933Z"}
+{"id":1775692535952.3735,"time":"۲۳:۵۵:۳۵","message":"Server Busy (504). Retrying request in 5s...","type":"INFO","timestamp":"2026-04-08T23:55:35.952Z"}
+{"id":1775692535983.6995,"time":"۲۳:۵۵:۳۵","message":"MTF Bars Fetch: 504 Gateway Timeout (Attempt 1/5). Retrying...","type":"INFO","timestamp":"2026-04-08T23:55:35.983Z"}
+{"id":1775692537984.0735,"time":"۲۳:۵۵:۳۷","message":"Fetching MTF bars (5m) from 1775649337 to 1775692537 (Attempt 2)...","type":"INFO","timestamp":"2026-04-08T23:55:37.985Z"}
+{"id":1775692553004.4958,"time":"۲۳:۵۵:۵۳","message":"Server Busy (504). Retrying request in 5s...","type":"INFO","timestamp":"2026-04-08T23:55:53.004Z"}
+{"id":1775692555972.284,"time":"۲۳:۵۵:۵۵","message":"MTF Bars Fetch: 504 Gateway Timeout (Attempt 6/5). Retrying...","type":"INFO","timestamp":"2026-04-08T23:55:55.972Z"}
+{"id":1775692573026.6094,"time":"۲۳:۵۶:۱۳","message":"MTF Bars Fetch: 504 Gateway Timeout (Attempt 2/5). Retrying...","type":"INFO","timestamp":"2026-04-08T23:56:13.026Z"}
+{"id":1775692577027.5288,"time":"۲۳:۵۶:۱۷","message":"Fetching MTF bars (5m) from 1775649377 to 1775692577 (Attempt 3)...","type":"INFO","timestamp":"2026-04-08T23:56:17.027Z"}
+{"id":1775692592050.2969,"time":"۲۳:۵۶:۳۲","message":"Server Busy (504). Retrying request in 5s...","type":"INFO","timestamp":"2026-04-08T23:56:32.050Z"}
+{"id":1775692612072.7468,"time":"۲۳:۵۶:۵۲","message":"MTF Bars Fetch: 504 Gateway Timeout (Attempt 3/5). Retrying...","type":"INFO","timestamp":"2026-04-08T23:56:52.073Z"}
+{"id":1775692617001.119,"time":"۲۳:۵۶:۵۷","message":"Portfolio Update: Server busy or network issue after 5 retries (timeout of 10000ms exceeded).","type":"INFO","timestamp":"2026-04-08T23:56:57.001Z"}
+{"id":1775692620072.7173,"time":"۲۳:۵۷:۰۰","message":"Fetching MTF bars (5m) from 1775649420 to 1775692620 (Attempt 4)...","type":"INFO","timestamp":"2026-04-08T23:57:00.073Z"}
+{"id":1775692622159.5105,"time":"۲۳:۵۷:۰۲","message":"Connecting to FarazGold WS (DEMO): wss://demo.farazgold.com/ws/","type":"WS","timestamp":"2026-04-08T23:57:02.160Z"}
+{"id":1775692635094.4348,"time":"۲۳:۵۷:۱۵","message":"Server Busy (504). Retrying request in 5s...","type":"INFO","timestamp":"2026-04-08T23:57:15.094Z"}
+{"id":1775692637207.7388,"time":"۲۳:۵۷:۱۷","message":"WS unexpected-response: 504 (Server Busy)","type":"ERROR","timestamp":"2026-04-08T23:57:17.207Z"}
+{"id":1775692637207.8,"time":"۲۳:۵۷:۱۷","message":"Scheduling WS reconnect in 316s (Attempt 5)","type":"WS","timestamp":"2026-04-08T23:57:17.207Z"}
+{"id":1775692637207.2698,"time":"۲۳:۵۷:۱۷","message":"WS Connection Closed. Code: 1006, Reason: ","type":"WS","timestamp":"2026-04-08T23:57:17.208Z"}
+{"id":1775692655114.4456,"time":"۲۳:۵۷:۳۵","message":"MTF Bars Fetch: 504 Gateway Timeout (Attempt 4/5). Retrying...","type":"INFO","timestamp":"2026-04-08T23:57:35.114Z"}
+{"id":1775692670114.1572,"time":"۲۳:۵۷:۵۰","message":"Fetching MTF bars (5m) from 1775649470 to 1775692670 (Attempt 5)...","type":"INFO","timestamp":"2026-04-08T23:57:50.114Z"}
+{"id":1775692685299.3938,"time":"۲۳:۵۸:۰۵","message":"Server Busy (504). Retrying request in 5s...","type":"INFO","timestamp":"2026-04-08T23:58:05.299Z"}
+{"id":1775692705349.42,"time":"۲۳:۵۸:۲۵","message":"MTF Bars Fetch: 504 Gateway Timeout (Attempt 5/5). Retrying...","type":"INFO","timestamp":"2026-04-08T23:58:25.349Z"}
+{"id":1775692720350.355,"time":"۲۳:۵۸:۴۰","message":"Fetching MTF bars (5m) from 1775649520 to 1775692720 (Attempt 6)...","type":"INFO","timestamp":"2026-04-08T23:58:40.350Z"}
+{"id":1775692721317.9124,"time":"۲۳:۵۸:۴۱","message":"Portfolio Update: Server busy or network issue after 5 retries (timeout of 10000ms exceeded).","type":"INFO","timestamp":"2026-04-08T23:58:41.317Z"}
+{"id":1775692735395.0942,"time":"۲۳:۵۸:۵۵","message":"Server Busy (504). Retrying request in 5s...","type":"INFO","timestamp":"2026-04-08T23:58:55.395Z"}
+{"id":1775692755445.2917,"time":"۲۳:۵۹:۱۵","message":"MTF Bars Fetch: 504 Gateway Timeout (Attempt 6/5). Retrying...","type":"INFO","timestamp":"2026-04-08T23:59:15.445Z"}
+{"id":1775692800093.8362,"time":"۰:۰۰:۰۰","message":"Fetching MTF bars (5m) from 1775606400 to 1775692800 (Attempt 1)...","type":"INFO","timestamp":"2026-04-09T00:00:00.094Z"}
+{"id":1775692809120.5938,"time":"۰:۰۰:۰۹","message":"Restored 0 open positions from state file.","type":"SUCCESS","timestamp":"2026-04-09T00:00:09.150Z"}
+{"id":1775692809465.9636,"time":"۰:۰۰:۰۹","message":"Bot engine v4.3 PRO starting...","type":"INFO","timestamp":"2026-04-09T00:00:09.466Z"}
+{"id":1775692911075.397,"time":"۰:۰۱:۵۱","message":"Portfolio Update: Server busy or network issue after 5 retries (timeout of 10000ms exceeded).","type":"INFO","timestamp":"2026-04-09T00:01:51.076Z"}
+{"id":1775692926133.3215,"time":"۰:۰۲:۰۶","message":"Server Busy (504). Retrying request in 5s...","type":"INFO","timestamp":"2026-04-09T00:02:06.134Z"}
+{"id":1775692946159.7268,"time":"۰:۰۲:۲۶","message":"Fetching historical bars (1m) from 1775671346 to 1775692946 (Attempt 1)...","type":"INFO","timestamp":"2026-04-09T00:02:26.159Z"}
+{"id":1775692961183.7185,"time":"۰:۰۲:۴۱","message":"Server Busy (504). Retrying request in 5s...","type":"INFO","timestamp":"2026-04-09T00:02:41.183Z"}
+{"id":1775692981207.277,"time":"۰:۰۳:۰۱","message":"Historical Bars Fetch Error: 504 - Request failed with status code 504","type":"ERROR","timestamp":"2026-04-09T00:03:01.207Z"}
+{"id":1775692981207.2588,"time":"۰:۰۳:۰۱","message":"Retrying historical bars fetch in 5s (Attempt 1/5)...","type":"INFO","timestamp":"2026-04-09T00:03:01.207Z"}
+{"id":1775692981208.488,"time":"۰:۰۳:۰۱","message":"Connecting to FarazGold WS (DEMO): wss://demo.farazgold.com/ws/","type":"WS","timestamp":"2026-04-09T00:03:01.208Z"}
+{"id":1775692986209.8723,"time":"۰:۰۳:۰۶","message":"Fetching historical bars (1m) from 1775671386 to 1775692986 (Attempt 2)...","type":"INFO","timestamp":"2026-04-09T00:03:06.209Z"}
+{"id":1775692996259.0293,"time":"۰:۰۳:۱۶","message":"WS unexpected-response: 504 (Server Busy)","type":"ERROR","timestamp":"2026-04-09T00:03:16.260Z"}
+{"id":1775692996261.7288,"time":"۰:۰۳:۱۶","message":"Scheduling WS reconnect in 63s (Attempt 1)","type":"WS","timestamp":"2026-04-09T00:03:16.261Z"}
+{"id":1775692996261.0042,"time":"۰:۰۳:۱۶","message":"WS Connection Closed. Code: 1006, Reason: ","type":"WS","timestamp":"2026-04-09T00:03:16.261Z"}
+{"id":1775693001231.8484,"time":"۰:۰۳:۲۱","message":"Server Busy (504). Retrying request in 5s...","type":"INFO","timestamp":"2026-04-09T00:03:21.231Z"}
+{"id":1775693021255.8323,"time":"۰:۰۳:۴۱","message":"Historical Bars Fetch Error: 504 - Request failed with status code 504","type":"ERROR","timestamp":"2026-04-09T00:03:41.255Z"}
+{"id":1775693021255.4668,"time":"۰:۰۳:۴۱","message":"Retrying historical bars fetch in 10s (Attempt 2/5)...","type":"INFO","timestamp":"2026-04-09T00:03:41.255Z"}
+{"id":1775693031255.2705,"time":"۰:۰۳:۵۱","message":"Fetching historical bars (1m) from 1775682231 to 1775693031 (Attempt 3)...","type":"INFO","timestamp":"2026-04-09T00:03:51.255Z"}
+{"id":1775693046305.5571,"time":"۰:۰۴:۰۶","message":"Server Busy (504). Retrying request in 5s...","type":"INFO","timestamp":"2026-04-09T00:04:06.305Z"}
+{"id":1775693059043.408,"time":"۰:۰۴:۱۹","message":"Connecting to FarazGold WS (DEMO): wss://demo.farazgold.com/ws/","type":"WS","timestamp":"2026-04-09T00:04:19.043Z"}
+{"id":1775693066327.4663,"time":"۰:۰۴:۲۶","message":"Historical Bars Fetch Error: 504 - Request failed with status code 504","type":"ERROR","timestamp":"2026-04-09T00:04:26.328Z"}
+{"id":1775693066328.604,"time":"۰:۰۴:۲۶","message":"Retrying historical bars fetch in 20s (Attempt 3/5)...","type":"INFO","timestamp":"2026-04-09T00:04:26.328Z"}
+{"id":1775693074093.622,"time":"۰:۰۴:۳۴","message":"WS unexpected-response: 504 (Server Busy)","type":"ERROR","timestamp":"2026-04-09T00:04:34.093Z"}
+{"id":1775693074094.8318,"time":"۰:۰۴:۳۴","message":"Scheduling WS reconnect in 83s (Attempt 2)","type":"WS","timestamp":"2026-04-09T00:04:34.094Z"}
+{"id":1775693074094.554,"time":"۰:۰۴:۳۴","message":"WS Connection Closed. Code: 1006, Reason: ","type":"WS","timestamp":"2026-04-09T00:04:34.094Z"}
+{"id":1775693086328.1506,"time":"۰:۰۴:۴۶","message":"Fetching historical bars (1m) from 1775682286 to 1775693086 (Attempt 4)...","type":"INFO","timestamp":"2026-04-09T00:04:46.328Z"}
+{"id":1775693097118.7595,"time":"۰:۰۴:۵۷","message":"Portfolio Update: Server busy or network issue after 5 retries (timeout of 10000ms exceeded).","type":"INFO","timestamp":"2026-04-09T00:04:57.119Z"}
+{"id":1775693101350.1194,"time":"۰:۰۵:۰۱","message":"Server Busy (504). Retrying request in 5s...","type":"INFO","timestamp":"2026-04-09T00:05:01.350Z"}
+{"id":1775693121372.06,"time":"۰:۰۵:۲۱","message":"Historical Bars Fetch Error: 504 - Request failed with status code 504","type":"ERROR","timestamp":"2026-04-09T00:05:21.372Z"}
+{"id":1775693121373.8926,"time":"۰:۰۵:۲۱","message":"Retrying historical bars fetch in 30s (Attempt 4/5)...","type":"INFO","timestamp":"2026-04-09T00:05:21.373Z"}
+{"id":1775693151373.373,"time":"۰:۰۵:۵۱","message":"Fetching historical bars (1m) from 1775682351 to 1775693151 (Attempt 5)...","type":"INFO","timestamp":"2026-04-09T00:05:51.373Z"}
+{"id":1775693157206.8809,"time":"۰:۰۵:۵۷","message":"Connecting to FarazGold WS (DEMO): wss://demo.farazgold.com/ws/","type":"WS","timestamp":"2026-04-09T00:05:57.207Z"}
+{"id":1775693166421.4502,"time":"۰:۰۶:۰۶","message":"Server Busy (504). Retrying request in 5s...","type":"INFO","timestamp":"2026-04-09T00:06:06.421Z"}
+{"id":1775693172258.7627,"time":"۰:۰۶:۱۲","message":"WS unexpected-response: 504 (Server Busy)","type":"ERROR","timestamp":"2026-04-09T00:06:12.258Z"}
+{"id":1775693172258.0693,"time":"۰:۰۶:۱۲","message":"Scheduling WS reconnect in 122s (Attempt 3)","type":"WS","timestamp":"2026-04-09T00:06:12.258Z"}
+{"id":1775693172259.1465,"time":"۰:۰۶:۱۲","message":"WS Connection Closed. Code: 1006, Reason: ","type":"WS","timestamp":"2026-04-09T00:06:12.259Z"}
+{"id":1775693186439.5325,"time":"۰:۰۶:۲۶","message":"Historical Bars Fetch Error: 504 - Request failed with status code 504","type":"ERROR","timestamp":"2026-04-09T00:06:26.440Z"}
+{"id":1775693186440.3777,"time":"۰:۰۶:۲۶","message":"Retrying historical bars fetch in 30s (Attempt 5/5)...","type":"INFO","timestamp":"2026-04-09T00:06:26.440Z"}
+{"id":1775693202096.1094,"time":"۰:۰۶:۴۲","message":"Portfolio Update: Server busy or network issue after 5 retries (timeout of 10000ms exceeded).","type":"INFO","timestamp":"2026-04-09T00:06:42.097Z"}
+{"id":1775693202097.2625,"time":"۰:۰۶:۴۲","message":"Fetching MTF bars (5m) from 1775606802 to 1775693202 (Attempt 1)...","type":"INFO","timestamp":"2026-04-09T00:06:42.097Z"}
+{"id":1775693216440.5771,"time":"۰:۰۶:۵۶","message":"Fetching historical bars (1m) from 1775682416 to 1775693216 (Attempt 6)...","type":"INFO","timestamp":"2026-04-09T00:06:56.440Z"}
+{"id":1775693217289.0105,"time":"۰:۰۶:۵۷","message":"Server Busy (504). Retrying request in 5s...","type":"INFO","timestamp":"2026-04-09T00:06:57.289Z"}
+{"id":1775693231496.371,"time":"۰:۰۷:۱۱","message":"Server Busy (504). Retrying request in 5s...","type":"INFO","timestamp":"2026-04-09T00:07:11.496Z"}
+{"id":1775693237473.1675,"time":"۰:۰۷:۱۷","message":"MTF Bars Fetch: 504 Gateway Timeout (Attempt 1/5). Retrying...","type":"INFO","timestamp":"2026-04-09T00:07:17.473Z"}
+{"id":1775693239474.5344,"time":"۰:۰۷:۱۹","message":"Fetching MTF bars (5m) from 1775650039 to 1775693239 (Attempt 2)...","type":"INFO","timestamp":"2026-04-09T00:07:19.474Z"}
+{"id":1775693251546.79,"time":"۰:۰۷:۳۱","message":"Historical Bars Fetch Error: 504 - Request failed with status code 504","type":"ERROR","timestamp":"2026-04-09T00:07:31.546Z"}
+{"id":1775693254494.4973,"time":"۰:۰۷:۳۴","message":"Server Busy (504). Retrying request in 5s...","type":"INFO","timestamp":"2026-04-09T00:07:34.494Z"}
+{"id":1775693274515.1687,"time":"۰:۰۷:۵۴","message":"MTF Bars Fetch: 504 Gateway Timeout (Attempt 2/5). Retrying...","type":"INFO","timestamp":"2026-04-09T00:07:54.515Z"}
+{"id":1775693278516.6892,"time":"۰:۰۷:۵۸","message":"Fetching MTF bars (5m) from 1775650078 to 1775693278 (Attempt 3)...","type":"INFO","timestamp":"2026-04-09T00:07:58.516Z"}
+{"id":1775693293536.5032,"time":"۰:۰۸:۱۳","message":"Server Busy (504). Retrying request in 5s...","type":"INFO","timestamp":"2026-04-09T00:08:13.537Z"}
+{"id":1775693294543.938,"time":"۰:۰۸:۱۴","message":"Connecting to FarazGold WS (DEMO): wss://demo.farazgold.com/ws/","type":"WS","timestamp":"2026-04-09T00:08:14.543Z"}
+{"id":1775693307273.1677,"time":"۰:۰۸:۲۷","message":"Portfolio Update: Server busy or network issue after 5 retries (timeout of 10000ms exceeded).","type":"INFO","timestamp":"2026-04-09T00:08:27.273Z"}
+{"id":1775693309590.7542,"time":"۰:۰۸:۲۹","message":"WS unexpected-response: 504 (Server Busy)","type":"ERROR","timestamp":"2026-04-09T00:08:29.590Z"}
+{"id":1775693309590.5454,"time":"۰:۰۸:۲۹","message":"Scheduling WS reconnect in 203s (Attempt 4)","type":"WS","timestamp":"2026-04-09T00:08:29.590Z"}
+{"id":1775693309591.6233,"time":"۰:۰۸:۲۹","message":"WS Connection Closed. Code: 1006, Reason: ","type":"WS","timestamp":"2026-04-09T00:08:29.591Z"}
+{"id":1775693313591.6216,"time":"۰:۰۸:۳۳","message":"MTF Bars Fetch: 504 Gateway Timeout (Attempt 3/5). Retrying...","type":"INFO","timestamp":"2026-04-09T00:08:33.591Z"}
+{"id":1775693321592.0808,"time":"۰:۰۸:۴۱","message":"Fetching MTF bars (5m) from 1775650121 to 1775693321 (Attempt 4)...","type":"INFO","timestamp":"2026-04-09T00:08:41.592Z"}
+{"id":1775693336614.0715,"time":"۰:۰۸:۵۶","message":"Server Busy (504). Retrying request in 5s...","type":"INFO","timestamp":"2026-04-09T00:08:56.615Z"}
+{"id":1775693356669.148,"time":"۰:۰۹:۱۶","message":"MTF Bars Fetch: 504 Gateway Timeout (Attempt 4/5). Retrying...","type":"INFO","timestamp":"2026-04-09T00:09:16.670Z"}
+{"id":1775693371670.3813,"time":"۰:۰۹:۳۱","message":"Fetching MTF bars (5m) from 1775650171 to 1775693371 (Attempt 5)...","type":"INFO","timestamp":"2026-04-09T00:09:31.670Z"}
+{"id":1775693386688.697,"time":"۰:۰۹:۴۶","message":"Server Busy (504). Retrying request in 5s...","type":"INFO","timestamp":"2026-04-09T00:09:46.689Z"}
+{"id":1775693400505.419,"time":"۰:۱۰:۰۰","message":"Fetching MTF bars (5m) from 1775607000 to 1775693400 (Attempt 1)...","type":"INFO","timestamp":"2026-04-09T00:10:00.505Z"}
+{"id":1775693406709.5994,"time":"۰:۱۰:۰۶","message":"MTF Bars Fetch: 504 Gateway Timeout (Attempt 5/5). Retrying...","type":"INFO","timestamp":"2026-04-09T00:10:06.709Z"}
+{"id":1775693410737.5723,"time":"۰:۱۰:۱۰","message":"Portfolio Update: Server busy or network issue after 5 retries (timeout of 10000ms exceeded).","type":"INFO","timestamp":"2026-04-09T00:10:10.737Z"}
+{"id":1775693415563.4685,"time":"۰:۱۰:۱۵","message":"Server Busy (504). Retrying request in 5s...","type":"INFO","timestamp":"2026-04-09T00:10:15.564Z"}
+{"id":1775693421710.4224,"time":"۰:۱۰:۲۱","message":"Fetching MTF bars (5m) from 1775650221 to 1775693421 (Attempt 6)...","type":"INFO","timestamp":"2026-04-09T00:10:21.711Z"}
+{"id":1775693435585.7356,"time":"۰:۱۰:۳۵","message":"MTF Bars Fetch: 504 Gateway Timeout (Attempt 1/5). Retrying...","type":"INFO","timestamp":"2026-04-09T00:10:35.585Z"}
+{"id":1775693436897.9426,"time":"۰:۱۰:۳۶","message":"Server Busy (504). Retrying request in 5s...","type":"INFO","timestamp":"2026-04-09T00:10:36.898Z"}
+{"id":1775693437586.1643,"time":"۰:۱۰:۳۷","message":"Fetching MTF bars (5m) from 1775650237 to 1775693437 (Attempt 2)...","type":"INFO","timestamp":"2026-04-09T00:10:37.586Z"}
+{"id":1775693452608.9421,"time":"۰:۱۰:۵۲","message":"Server Busy (504). Retrying request in 5s...","type":"INFO","timestamp":"2026-04-09T00:10:52.608Z"}
+{"id":1775693456949.5972,"time":"۰:۱۰:۵۶","message":"MTF Bars Fetch: 504 Gateway Timeout (Attempt 6/5). Retrying...","type":"INFO","timestamp":"2026-04-09T00:10:56.949Z"}
+{"id":1775693472630.9993,"time":"۰:۱۱:۱۲","message":"MTF Bars Fetch: 504 Gateway Timeout (Attempt 2/5). Retrying...","type":"INFO","timestamp":"2026-04-09T00:11:12.630Z"}
+{"id":1775693476630.1917,"time":"۰:۱۱:۱۶","message":"Fetching MTF bars (5m) from 1775650276 to 1775693476 (Attempt 3)...","type":"INFO","timestamp":"2026-04-09T00:11:16.631Z"}
+{"id":1775693491651.6982,"time":"۰:۱۱:۳۱","message":"Server Busy (504). Retrying request in 5s...","type":"INFO","timestamp":"2026-04-09T00:11:31.651Z"}
+{"id":1775693511673.0793,"time":"۰:۱۱:۵۱","message":"MTF Bars Fetch: 504 Gateway Timeout (Attempt 3/5). Retrying...","type":"INFO","timestamp":"2026-04-09T00:11:51.674Z"}
+{"id":1775693512112.729,"time":"۰:۱۱:۵۲","message":"Connecting to FarazGold WS (DEMO): wss://demo.farazgold.com/ws/","type":"WS","timestamp":"2026-04-09T00:11:52.112Z"}
+{"id":1775693515661.2476,"time":"۰:۱۱:۵۵","message":"Portfolio Update: Server busy or network issue after 5 retries (timeout of 10000ms exceeded).","type":"INFO","timestamp":"2026-04-09T00:11:55.661Z"}
+{"id":1775693519673.6821,"time":"۰:۱۱:۵۹","message":"Fetching MTF bars (5m) from 1775650319 to 1775693519 (Attempt 4)...","type":"INFO","timestamp":"2026-04-09T00:11:59.674Z"}
+{"id":1775693527168.5115,"time":"۰:۱۲:۰۷","message":"WS unexpected-response: 504 (Server Busy)","type":"ERROR","timestamp":"2026-04-09T00:12:07.168Z"}
+{"id":1775693527168.0781,"time":"۰:۱۲:۰۷","message":"Scheduling WS reconnect in 311s (Attempt 5)","type":"WS","timestamp":"2026-04-09T00:12:07.168Z"}
+{"id":1775693527169.1245,"time":"۰:۱۲:۰۷","message":"WS Connection Closed. Code: 1006, Reason: ","type":"WS","timestamp":"2026-04-09T00:12:07.169Z"}
+{"id":1775693534695.97,"time":"۰:۱۲:۱۴","message":"Server Busy (504). Retrying request in 5s...","type":"INFO","timestamp":"2026-04-09T00:12:14.695Z"}
+{"id":1775693554718.7466,"time":"۰:۱۲:۳۴","message":"MTF Bars Fetch: 504 Gateway Timeout (Attempt 4/5). Retrying...","type":"INFO","timestamp":"2026-04-09T00:12:34.718Z"}
+{"id":1775693569719.947,"time":"۰:۱۲:۴۹","message":"Fetching MTF bars (5m) from 1775650369 to 1775693569 (Attempt 5)...","type":"INFO","timestamp":"2026-04-09T00:12:49.719Z"}
+{"id":1775693584771.1382,"time":"۰:۱۳:۰۴","message":"Server Busy (504). Retrying request in 5s...","type":"INFO","timestamp":"2026-04-09T00:13:04.772Z"}
+{"id":1775693604822.964,"time":"۰:۱۳:۲۴","message":"MTF Bars Fetch: 504 Gateway Timeout (Attempt 5/5). Retrying...","type":"INFO","timestamp":"2026-04-09T00:13:24.822Z"}
+{"id":1775693619823.575,"time":"۰:۱۳:۳۹","message":"Fetching MTF bars (5m) from 1775650419 to 1775693619 (Attempt 6)...","type":"INFO","timestamp":"2026-04-09T00:13:39.823Z"}
+{"id":1775693621595.6145,"time":"۰:۱۳:۴۱","message":"Portfolio Update: Server busy or network issue after 5 retries (timeout of 10000ms exceeded).","type":"INFO","timestamp":"2026-04-09T00:13:41.595Z"}
+{"id":1775693635012.0684,"time":"۰:۱۳:۵۵","message":"Server Busy (504). Retrying request in 5s...","type":"INFO","timestamp":"2026-04-09T00:13:55.012Z"}
+{"id":1775693655062.3044,"time":"۰:۱۴:۱۵","message":"MTF Bars Fetch: 504 Gateway Timeout (Attempt 6/5). Retrying...","type":"INFO","timestamp":"2026-04-09T00:14:15.062Z"}
+{"id":1775693700712.1548,"time":"۰:۱۵:۰۰","message":"Fetching MTF bars (5m) from 1775607300 to 1775693700 (Attempt 1)...","type":"INFO","timestamp":"2026-04-09T00:15:00.713Z"}
+{"id":1775693715765.2454,"time":"۰:۱۵:۱۵","message":"Server Busy (504). Retrying request in 5s...","type":"INFO","timestamp":"2026-04-09T00:15:15.765Z"}
+{"id":1775693726857.93,"time":"۰:۱۵:۲۶","message":"Portfolio Update: Server busy or network issue after 5 retries (timeout of 10000ms exceeded).","type":"INFO","timestamp":"2026-04-09T00:15:26.857Z"}
+{"id":1775693735812.9463,"time":"۰:۱۵:۳۵","message":"MTF Bars Fetch: 504 Gateway Timeout (Attempt 1/5). Retrying...","type":"INFO","timestamp":"2026-04-09T00:15:35.812Z"}
+{"id":1775693737813.236,"time":"۰:۱۵:۳۷","message":"Fetching MTF bars (5m) from 1775650537 to 1775693737 (Attempt 2)...","type":"INFO","timestamp":"2026-04-09T00:15:37.814Z"}
+{"id":1775693752835.6248,"time":"۰:۱۵:۵۲","message":"Server Busy (504). Retrying request in 5s...","type":"INFO","timestamp":"2026-04-09T00:15:52.835Z"}
+{"id":1775693772885.3792,"time":"۰:۱۶:۱۲","message":"MTF Bars Fetch: 504 Gateway Timeout (Attempt 2/5). Retrying...","type":"INFO","timestamp":"2026-04-09T00:16:12.885Z"}
+{"id":1775693776885.703,"time":"۰:۱۶:۱۶","message":"Fetching MTF bars (5m) from 1775650576 to 1775693776 (Attempt 3)...","type":"INFO","timestamp":"2026-04-09T00:16:16.885Z"}
+{"id":1775693791933.418,"time":"۰:۱۶:۳۱","message":"Server Busy (504). Retrying request in 5s...","type":"INFO","timestamp":"2026-04-09T00:16:31.933Z"}
+{"id":1775693811980.7524,"time":"۰:۱۶:۵۱","message":"MTF Bars Fetch: 504 Gateway Timeout (Attempt 3/5). Retrying...","type":"INFO","timestamp":"2026-04-09T00:16:51.981Z"}
+{"id":1775693819981.735,"time":"۰:۱۶:۵۹","message":"Fetching MTF bars (5m) from 1775650619 to 1775693819 (Attempt 4)...","type":"INFO","timestamp":"2026-04-09T00:16:59.982Z"}
+{"id":1775693832285.077,"time":"۰:۱۷:۱۲","message":"Portfolio Update: Server busy or network issue after 5 retries (timeout of 10000ms exceeded).","type":"INFO","timestamp":"2026-04-09T00:17:12.285Z"}
+{"id":1775693835004.7454,"time":"۰:۱۷:۱۵","message":"Server Busy (504). Retrying request in 5s...","type":"INFO","timestamp":"2026-04-09T00:17:15.004Z"}
+{"id":1775693838012.1028,"time":"۰:۱۷:۱۸","message":"Connecting to FarazGold WS (DEMO): wss://demo.farazgold.com/ws/","type":"WS","timestamp":"2026-04-09T00:17:18.012Z"}
+{"id":1775693853060.979,"time":"۰:۱۷:۳۳","message":"WS unexpected-response: 504 (Server Busy)","type":"ERROR","timestamp":"2026-04-09T00:17:33.061Z"}
+{"id":1775693853061.1592,"time":"۰:۱۷:۳۳","message":"Scheduling WS reconnect in 466s (Attempt 6)","type":"WS","timestamp":"2026-04-09T00:17:33.061Z"}
+{"id":1775693853061.3228,"time":"۰:۱۷:۳۳","message":"WS Connection Closed. Code: 1006, Reason: ","type":"WS","timestamp":"2026-04-09T00:17:33.061Z"}
+{"id":1775693855054.4146,"time":"۰:۱۷:۳۵","message":"MTF Bars Fetch: 504 Gateway Timeout (Attempt 4/5). Retrying...","type":"INFO","timestamp":"2026-04-09T00:17:35.055Z"}
+{"id":1775693870055.8325,"time":"۰:۱۷:۵۰","message":"Fetching MTF bars (5m) from 1775650670 to 1775693870 (Attempt 5)...","type":"INFO","timestamp":"2026-04-09T00:17:50.055Z"}
+{"id":1775693885104.102,"time":"۰:۱۸:۰۵","message":"Server Busy (504). Retrying request in 5s...","type":"INFO","timestamp":"2026-04-09T00:18:05.104Z"}
+{"id":1775693905124.1313,"time":"۰:۱۸:۲۵","message":"MTF Bars Fetch: 504 Gateway Timeout (Attempt 5/5). Retrying...","type":"INFO","timestamp":"2026-04-09T00:18:25.124Z"}
+{"id":1775693920125.5847,"time":"۰:۱۸:۴۰","message":"Fetching MTF bars (5m) from 1775650720 to 1775693920 (Attempt 6)...","type":"INFO","timestamp":"2026-04-09T00:18:40.125Z"}
+{"id":1775693937046.5457,"time":"۰:۱۸:۵۷","message":"Restored 0 open positions from state file.","type":"SUCCESS","timestamp":"2026-04-09T00:18:57.064Z"}
+{"id":1775693937346.8823,"time":"۰:۱۸:۵۷","message":"Bot engine v4.3 PRO starting...","type":"INFO","timestamp":"2026-04-09T00:18:57.347Z"}
+{"id":1775694039682.7292,"time":"۰:۲۰:۳۹","message":"Portfolio Update: Server busy or network issue after 5 retries (timeout of 10000ms exceeded).","type":"INFO","timestamp":"2026-04-09T00:20:39.682Z"}
+{"id":1775694054736.056,"time":"۰:۲۰:۵۴","message":"Server Busy (504). Retrying request in 5s...","type":"INFO","timestamp":"2026-04-09T00:20:54.737Z"}
+{"id":1775694074762.187,"time":"۰:۲۱:۱۴","message":"Fetching historical bars (1m) from 1775672474 to 1775694074 (Attempt 1)...","type":"INFO","timestamp":"2026-04-09T00:21:14.762Z"}
+{"id":1775694089785.4414,"time":"۰:۲۱:۲۹","message":"Server Busy (504). Retrying request in 5s...","type":"INFO","timestamp":"2026-04-09T00:21:29.785Z"}
+{"id":1775694109807.3962,"time":"۰:۲۱:۴۹","message":"Historical Bars Fetch Error: 504 - Request failed with status code 504","type":"ERROR","timestamp":"2026-04-09T00:21:49.807Z"}
+{"id":1775694109807.2207,"time":"۰:۲۱:۴۹","message":"Retrying historical bars fetch in 5s (Attempt 1/5)...","type":"INFO","timestamp":"2026-04-09T00:21:49.807Z"}
+{"id":1775694109808.9102,"time":"۰:۲۱:۴۹","message":"Connecting to FarazGold WS (DEMO): wss://demo.farazgold.com/ws/","type":"WS","timestamp":"2026-04-09T00:21:49.808Z"}
+{"id":1775694114808.9575,"time":"۰:۲۱:۵۴","message":"Fetching historical bars (1m) from 1775672514 to 1775694114 (Attempt 2)...","type":"INFO","timestamp":"2026-04-09T00:21:54.809Z"}
+{"id":1775694124864.809,"time":"۰:۲۲:۰۴","message":"WS unexpected-response: 504 (Server Busy)","type":"ERROR","timestamp":"2026-04-09T00:22:04.864Z"}
+{"id":1775694124865.6667,"time":"۰:۲۲:۰۴","message":"Scheduling WS reconnect in 57s (Attempt 1)","type":"WS","timestamp":"2026-04-09T00:22:04.865Z"}
+{"id":1775694124865.2273,"time":"۰:۲۲:۰۴","message":"WS Connection Closed. Code: 1006, Reason: ","type":"WS","timestamp":"2026-04-09T00:22:04.865Z"}
+{"id":1775694129829.0554,"time":"۰:۲۲:۰۹","message":"Server Busy (504). Retrying request in 5s...","type":"INFO","timestamp":"2026-04-09T00:22:09.830Z"}
+{"id":1775694150016.3545,"time":"۰:۲۲:۳۰","message":"Historical Bars Fetch Error: 504 - Request failed with status code 504","type":"ERROR","timestamp":"2026-04-09T00:22:30.016Z"}
+{"id":1775694150016.3354,"time":"۰:۲۲:۳۰","message":"Retrying historical bars fetch in 10s (Attempt 2/5)...","type":"INFO","timestamp":"2026-04-09T00:22:30.016Z"}
+{"id":1775694160017.491,"time":"۰:۲۲:۴۰","message":"Fetching historical bars (1m) from 1775683360 to 1775694160 (Attempt 3)...","type":"INFO","timestamp":"2026-04-09T00:22:40.018Z"}
