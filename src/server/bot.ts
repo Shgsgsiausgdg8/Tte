@@ -822,13 +822,8 @@ ${analysisText}
       const marketClosedCooldown = 5 * 60 * 1000;
       const shouldSkipDueToMarketClosed = this.isMarketClosed && (now - this.lastMarketClosedTime < marketClosedCooldown);
 
-      if (now % 15000 < 1000 && !isUpdatingPortfolio && !shouldSkipDueToMarketClosed) {
-        isUpdatingPortfolio = true;
-        try {
-          await this.updatePortfolio();
-        } finally {
-          isUpdatingPortfolio = false;
-        }
+      if (now % 15000 < 1000 && !shouldSkipDueToMarketClosed) {
+        this.updatePortfolio();
       }
       
       // Fetch MTF bars every 5 minutes
@@ -992,8 +987,10 @@ ${analysisText}
     }
   }
 
+  private isSyncing = false;
   async updatePortfolio(retryCount = 0, autoCreate = true) {
-    if (!this.api) return;
+    if (!this.api || this.isSyncing) return;
+    this.isSyncing = true;
     try {
       const response = await this.api.post('/api/room/api/check-portfolio/', {}, { timeout: 10000 });
       this.portfolio = response.data;
@@ -1007,6 +1004,7 @@ ${analysisText}
         this.hasAttemptedAutoCreate = true;
         this.log("No portfolio found. Auto-creating 1 unit...", "INFO");
         await this.createPortfolio(1);
+        this.isSyncing = false;
         return;
       }
       
@@ -1039,6 +1037,7 @@ ${analysisText}
         const baseDelay = isServerError ? 3000 : 2000;
         const delay = Math.min(15000, baseDelay * Math.pow(1.8, retryCount)) + (Math.random() * 1000);
         await new Promise(resolve => setTimeout(resolve, delay));
+        this.isSyncing = false; // Allow retry
         return this.updatePortfolio(retryCount + 1, autoCreate);
       }
 
@@ -1056,6 +1055,8 @@ ${analysisText}
       } else {
         this.log(`Portfolio Update Error: ${error.message || error}`, "ERROR");
       }
+    } finally {
+      this.isSyncing = false;
     }
   }
 
@@ -1135,6 +1136,8 @@ ${analysisText}
     const syncedPositions = new Map();
     const matchedLocalIds = new Set();
     const now = Date.now();
+    
+    this.log(`[DEBUG] Syncing ${apiPositions.length} positions from API...`, "INFO");
     
     // 1. Build the new synced map
     for (const p of apiPositions) {
@@ -1227,10 +1230,16 @@ ${analysisText}
       });
     }
     
-    // 2. Detect closed positions (were in local but not in API)
+    // 2. Detect closed positions and preserve pending ones
     for (const [localId, localPos] of this.openPositions.entries()) {
       const isPending = !localPos.transactionId || String(localPos.transactionId).includes('PENDING');
-      if (!matchedLocalIds.has(localId) && !isPending) {
+      
+      if (matchedLocalIds.has(localId)) continue;
+
+      if (isPending) {
+        // CRITICAL: Keep pending positions so they don't disappear from memory!
+        syncedPositions.set(localId, localPos);
+      } else {
         // This position was closed on the server
         this.log(`Position ${localId} closed on server. Adding to history.`, "SUCCESS");
         
