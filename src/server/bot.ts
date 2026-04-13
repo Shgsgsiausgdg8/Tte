@@ -1133,6 +1133,7 @@ ${analysisText}
     if (!Array.isArray(apiPositions)) return;
     
     const syncedPositions = new Map();
+    const matchedLocalIds = new Set();
     const now = Date.now();
     
     // 1. Build the new synced map
@@ -1145,6 +1146,7 @@ ${analysisText}
       const entry = Number(p.entry_price || p.price || p.entry || this.price);
       
       let existingPos = null;
+      let matchedLocalId = null;
       for (const [localId, localPos] of this.openPositions.entries()) {
         const isPending = !localPos.transactionId || String(localPos.transactionId).includes('PENDING');
         const priceDiff = Math.abs(localPos.entry - entry);
@@ -1154,8 +1156,13 @@ ${analysisText}
             this.log(`[DEBUG] Sync matched PENDING position ${localId} with API transaction ${transId} (Price Diff: ${priceDiff})`, "SUCCESS");
           }
           existingPos = localPos;
+          matchedLocalId = localId;
           break;
         }
+      }
+
+      if (matchedLocalId) {
+        matchedLocalIds.add(matchedLocalId);
       }
 
       const apiSl = Number(p.stop_loss || p.sl || 0);
@@ -1177,7 +1184,8 @@ ${analysisText}
          if (!existingPos.isFixingSlTp) {
             existingPos.isFixingSlTp = true;
             this.log(`🚨 CRITICAL: Position ${id} is missing SL/TP on exchange! Enforcing now...`, "ERROR");
-            this.enforceStopLossTakeProfit(transId, finalSl, finalTp, id).then(success => {
+            const targetTp = existingPos.tp3 || existingPos.tp2 || finalTp;
+            this.enforceStopLossTakeProfit(transId, finalSl, targetTp, id).then(success => {
                if (!success) {
                   this.log(`🚨 PANIC CLOSE: Could not set SL/TP for position ${id}. Closing to protect capital!`, "ERROR");
                   this.closeTrade(id, 'panic_no_sl_tp');
@@ -1197,25 +1205,34 @@ ${analysisText}
         units: Number(p.units || p.amount || 1),
         sl: finalSl,
         tp1: finalTp,
+        tp2: existingPos?.tp2 || 0,
+        tp3: existingPos?.tp3 || 0,
         status: 'open',
         entryTime: existingPos?.entryTime || new Date(p.time || p.created_at || Date.now()),
         pattern: existingPos?.pattern || 'API Sync',
         strategy: existingPos?.strategy || 'MANUAL',
         tp1Hit: existingPos?.tp1Hit || false,
+        tp2Hit: existingPos?.tp2Hit || false,
+        tp3Hit: existingPos?.tp3Hit || false,
         breakEvenHit: existingPos?.breakEvenHit || false,
         pyramidTriggered: existingPos?.pyramidTriggered || false,
         currentStep: existingPos?.currentStep || 0,
         originalSl: existingPos?.originalSl || finalSl,
         isFixingSlTp: existingPos?.isFixingSlTp || false,
-        isGhostTrade: isGhostTrade
+        isGhostTrade: isGhostTrade,
+        telegramMessageId: existingPos?.telegramMessageId,
+        rubikaMessageId: existingPos?.rubikaMessageId,
+        isHQ: existingPos?.isHQ || false,
+        signalId: existingPos?.signalId
       });
     }
     
     // 2. Detect closed positions (were in local but not in API)
-    for (const [id, localPos] of this.openPositions.entries()) {
-      if (!syncedPositions.has(id)) {
+    for (const [localId, localPos] of this.openPositions.entries()) {
+      const isPending = !localPos.transactionId || String(localPos.transactionId).includes('PENDING');
+      if (!matchedLocalIds.has(localId) && !isPending) {
         // This position was closed on the server
-        this.log(`Position ${id} closed on server. Adding to history.`, "SUCCESS");
+        this.log(`Position ${localId} closed on server. Adding to history.`, "SUCCESS");
         
         const closePrice = this.price;
         const isBuy = localPos.type === 'BUY';
@@ -1427,8 +1444,12 @@ ${analysisText}
                 const isPending = !pos.transactionId || pos.transactionId === 'PENDING' || String(pos.transactionId).includes('PENDING');
                 if (isPending) {
                   const action = (order.action || '').toLowerCase();
+                  const txPrice = Number(order.price || 0);
+                  const priceDiff = Math.abs(pos.entry - txPrice);
+                  const isPriceMatch = txPrice === 0 || priceDiff < 200;
                   const isMatch = (pos.type === 'BUY' && action.includes('buy')) || (pos.type === 'SELL' && action.includes('sell'));
-                  if (isMatch) {
+                  
+                  if (isMatch && isPriceMatch) {
                     pos.transactionId = txId;
                     pos.status = 'open';
                     this.log(`[WS] Linked transaction ${txId} from order update to local position ${id}. Enforcing SL/TP in 0.1s...`, "SUCCESS");
@@ -1544,11 +1565,14 @@ ${analysisText}
                   // Check if this txId is already assigned to another position to avoid double-linking
                   const alreadyLinked = Array.from(this.openPositions.values()).some(p => p.transactionId === txId);
                   
-                  // Make sure the direction matches
+                  // Make sure the direction and price matches
                   const txType = tx.type || tx.action || '';
+                  const txPrice = Number(tx.price || tx.entry_price || 0);
+                  const priceDiff = Math.abs(pos.entry - txPrice);
+                  const isPriceMatch = txPrice === 0 || priceDiff < 200;
                   const isMatch = !txType || (pos.type === 'BUY' && txType.toLowerCase().includes('buy')) || (pos.type === 'SELL' && txType.toLowerCase().includes('sell'));
 
-                  if ((isPending || pos.transactionId !== txId) && !alreadyLinked && isMatch) {
+                  if (isPending && !alreadyLinked && isMatch && isPriceMatch) {
                     pos.transactionId = txId;
                     this.log(`[WS] Linked transaction ${txId} to local position ${id} (authoritative). Enforcing SL/TP in 1s...`, "SUCCESS");
                     
@@ -1557,7 +1581,7 @@ ${analysisText}
                       // CRITICAL: If already enforced OR if this ID is no longer the active one, ABORT.
                       if (!p || p.slEnforced || p.transactionId !== txId) return;
 
-                      this.enforceStopLossTakeProfit(txId, p.sl, p.tp1, id).then(success => {
+                      this.enforceStopLossTakeProfit(txId, p.sl, p.tp3 || p.tp2 || p.tp1, id).then(success => {
                         if (success) p.slEnforced = true;
                       }).catch(() => {});
                     }, 1000);
