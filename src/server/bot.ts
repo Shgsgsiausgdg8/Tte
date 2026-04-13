@@ -46,6 +46,7 @@ export class FarazGoldBot {
   openPositions: Map<number, any> = new Map();
   strategy: Strategy;
   lastTradeTime: number = 0;
+  tradeHistory: number[] = [];
   dailyPnL: number = 0;
   totalTrades: number = 0;
   winningTrades: number = 0;
@@ -84,6 +85,7 @@ export class FarazGoldBot {
   hasAttemptedAutoCreate: boolean = false;
   signalCounter: number = 1000;
   processedSignals: Set<string> = new Set();
+  processedTransactionIds: Set<number> = new Set();
   private lastCandleLogTime: number = 0;
   private lastMarketClosedTime: number = 0;
   private isMarketClosed: boolean = false;
@@ -407,6 +409,12 @@ export class FarazGoldBot {
         this.closedPositions = state.closedPositions || [];
         this.signalCounter = state.signalCounter || 1000;
         this.lastTradeTime = state.lastTradeTime || 0;
+        this.tradeHistory = state.tradeHistory || [];
+        this.dailyDateKey = state.dailyDateKey || this.getLocalDateKey();
+        
+        if (state.processedTransactionIds) {
+          this.processedTransactionIds = new Set(state.processedTransactionIds);
+        }
         
         if (state.openPositions && Array.isArray(state.openPositions)) {
           this.openPositions = new Map(state.openPositions);
@@ -420,7 +428,10 @@ export class FarazGoldBot {
     try {
       const state = {
         dailyPnL: this.dailyPnL,
+        dailyDateKey: this.dailyDateKey,
         lastTradeTime: this.lastTradeTime,
+        tradeHistory: this.tradeHistory,
+        processedTransactionIds: Array.from(this.processedTransactionIds),
         totalTrades: this.totalTrades,
         winningTrades: this.winningTrades,
         losingTrades: this.losingTrades,
@@ -445,6 +456,7 @@ export class FarazGoldBot {
       this.totalTrades = 0;
       this.winningTrades = 0;
       this.losingTrades = 0;
+      this.processedTransactionIds.clear();
       this.closedPositions = [];
       this.dailyStartBalance = this.portfolio?.balance || 0;
       this.saveState();
@@ -1409,7 +1421,7 @@ ${analysisText}
                   if (isMatch) {
                     pos.transactionId = txId;
                     pos.status = 'open';
-                    this.log(`[WS] Linked transaction ${txId} from order update to local position ${id}. Enforcing SL/TP in 0.5s...`, "SUCCESS");
+                    this.log(`[WS] Linked transaction ${txId} from order update to local position ${id}. Enforcing SL/TP in 0.1s...`, "SUCCESS");
                     
                     // Add a small delay to ensure the server has indexed the transaction before we try to edit it
                     setTimeout(() => {
@@ -1417,10 +1429,11 @@ ${analysisText}
                       // CRITICAL: If already enforced OR if this ID is no longer the active one, ABORT.
                       if (!p || p.slEnforced || p.transactionId !== txId) return;
                       
-                      this.enforceStopLossTakeProfit(txId, p.sl, p.tp1, id).then(success => {
+                      const targetTp = p.tp3 || p.tp2 || p.tp1;
+                      this.enforceStopLossTakeProfit(txId, p.sl, targetTp, id).then(success => {
                         if (success) p.slEnforced = true;
                       }).catch(() => {});
-                    }, 500);
+                    }, 100);
                     break;
                   }
                 }
@@ -1545,23 +1558,32 @@ ${analysisText}
             });
           }
 
-          if (msg.new_transactions_history || msg.transactions_history) {
-            const txs = msg.new_transactions_history || msg.transactions_history;
+          if (msg.new_transactions_history || msg.transactions_history || msg.transactions_history_list) {
+            const txs = msg.new_transactions_history || msg.transactions_history || msg.transactions_history_list;
             const arr = Array.isArray(txs) ? txs : [txs];
             arr.forEach((tx: any) => {
               const txId = Number(tx.id || tx.transaction_id);
-              if (txId) {
+              if (txId && !this.processedTransactionIds.has(txId)) {
+                this.processedTransactionIds.add(txId);
+                
+                // If it was one of our open positions, handle it specially
+                let foundLocal = false;
                 for (const [id, pos] of this.openPositions) {
-                  if (pos.transactionId === txId) {
+                  if (Number(pos.transactionId) === txId) {
+                    foundLocal = true;
                     this.dailyPnL += (tx.pnl || 0);
+                    this.totalTrades++;
+                    if ((tx.pnl || 0) > 0) this.winningTrades++;
+                    else if ((tx.pnl || 0) < 0) this.losingTrades++;
+                    
                     const signalId = pos.signalId || '---';
                     this.openPositions.delete(id);
                     this.saveState();
                     
-                    const msg = `🏁 *معامله بسته شد (سرور)*
+                    const msgText = `🏁 *معامله بسته شد (سرور)*
 #${signalId}
 سود/ضرر: ${(tx.pnl || 0).toLocaleString('fa-IR')} تومان`;
-                    this.sendTelegramMessage(msg, pos.telegramMessageId);
+                    this.sendTelegramMessage(msgText, pos.telegramMessageId);
                     
                     const rubikaMsg = `🏁 معامله بسته شد (سرور)
 #${signalId}
@@ -1571,12 +1593,31 @@ ${analysisText}
                     break;
                   }
                 }
+                
+                // If it's an external trade or we missed the opening, still count it in stats
+                if (!foundLocal && tx.status === 'closed') {
+                  this.dailyPnL += (tx.pnl || 0);
+                  this.totalTrades++;
+                  if ((tx.pnl || 0) > 0) this.winningTrades++;
+                  else if ((tx.pnl || 0) < 0) this.losingTrades++;
+                  this.saveState();
+                }
               }
             });
           }
 
+          if (msg.transactions_open_list) {
+            const openTxs = msg.transactions_open_list;
+            if (Array.isArray(openTxs)) {
+              openTxs.forEach((tx: any) => {
+                const txId = Number(tx.id || tx.transaction_id);
+                // We could use this to sync open positions if needed
+              });
+            }
+          }
+
           // Log unknown messages for analysis
-          const knownKeys = ['action', 'data', 'symbol', 'message', 'bars', 'history', 'market_status', 'price', 'best_buy', 'best_sell', 'spread', 'new_transactions_open', 'transactions_open', 'new_transactions_history', 'transactions_history', 'server_time', 'type', 'data_buy', 'data_sell', 'new_user_orders', 'M', 'FSYM', 'TSYM', 'TYPE', 'TS', 'P'];
+          const knownKeys = ['action', 'data', 'symbol', 'message', 'bars', 'history', 'market_status', 'price', 'best_buy', 'best_sell', 'spread', 'new_transactions_open', 'transactions_open', 'new_transactions_history', 'transactions_history', 'transactions_history_list', 'transactions_open_list', 'user_orders_list', 'pnl_per_line', 'pnl', 'server_time', 'type', 'data_buy', 'data_sell', 'new_user_orders', 'M', 'FSYM', 'TSYM', 'TYPE', 'TS', 'P'];
           const hasUnknownKeys = Object.keys(msg).some(key => !knownKeys.includes(key));
           if (hasUnknownKeys) {
              const unknownData = Object.keys(msg).filter(key => !knownKeys.includes(key)).reduce((obj, key) => {
@@ -1918,7 +1959,20 @@ ${analysisText}
     }
 
     const now = Date.now();
+    
+    // 1. Cooldown Check
     if (now - this.lastTradeTime < (this.settings.strategy?.tradeCooldown * 1000 || 8000)) return;
+
+    // 2. Max Trades per 10 Minutes Check (Persistent)
+    const maxTradesPer10Min = this.settings.strategy?.filters?.maxTradesPer10Min || 0;
+    if (maxTradesPer10Min > 0) {
+      const tenMinsAgo = now - 10 * 60 * 1000;
+      this.tradeHistory = this.tradeHistory.filter(t => t > tenMinsAgo);
+      if (this.tradeHistory.length >= maxTradesPer10Min) {
+        this.log(`Trade Skipped: Max trades (${maxTradesPer10Min}) per 10m reached (Persistent Filter)`, "INFO");
+        return;
+      }
+    }
     
     const maxPos = this.settings.risk?.maxOpenPositions ?? 2;
     if (this.openPositions.size >= maxPos) {
@@ -1988,6 +2042,8 @@ ${analysisText}
       }
 
       const id = Date.now();
+      const tp2 = Math.round(signal.tp2 || tp + (tp - this.price));
+      const tp3 = Math.round(signal.tp3 || tp + 2 * (tp - this.price));
 
       // SL/TP Safety Check (Ensure not too close to market)
       // Reduced buffer to 15 ticks for faster execution
@@ -2031,8 +2087,8 @@ ${analysisText}
           units: units,
           sl: sl,
           tp1: tp,
-          tp2: Math.round(signal.tp2 || tp + (tp - this.price)),
-          tp3: Math.round(signal.tp3 || tp + 2 * (tp - this.price)),
+          tp2: tp2,
+          tp3: tp3,
           slEnforced: false,
           lastEnforceAttempt: Date.now(),
           maxAdverseTicks: 0,
@@ -2040,14 +2096,14 @@ ${analysisText}
         });
         this.saveState();
 
-        this.log(`Attempting API Trade: ${signal.type} TP:${tp} SL:${sl}`, "INFO");
+        this.log(`Attempting API Trade: ${signal.type} TP1:${tp} TP3:${tp3} SL:${sl}`, "INFO");
         
         const orderData = {
           action: signal.type.toLowerCase(),
           order_type: "verbal",
           units: String(units),
           price: -1,
-          take_profit: String(tp),
+          take_profit: String(tp3),
           stop_loss: String(sl),
           signal_token: ""
         };
@@ -2095,6 +2151,7 @@ ${analysisText}
 
         if (ok) {
           const transId = response?.data?.order_id || response?.data?.id || response?.data?.transaction_id;
+          this.tradeHistory.push(Date.now());
           const pos = this.openPositions.get(id);
           if (pos) {
             pos.status = 'open';
@@ -2108,7 +2165,10 @@ ${analysisText}
 نوع: ${typeLabel}
 قیمت ورود: ${this.price.toLocaleString('fa-IR')}
 حد ضرر: ${sl.toLocaleString('fa-IR')}
-تارگت ۱: ${tp.toLocaleString('fa-IR')}`;
+تارگت ۱: ${tp.toLocaleString('fa-IR')}
+تارگت ۲: ${tp2.toLocaleString('fa-IR')}
+تارگت ۳: ${tp3.toLocaleString('fa-IR')}
+(تارگت نهایی در صرافی ثبت شد)`;
 
             this.sendTelegramMessage(msg).then(mid => {
               if (mid) pos.telegramMessageId = mid;
@@ -2128,10 +2188,11 @@ ${analysisText}
               const p = this.openPositions.get(id);
               if (!p || (p.slEnforced && p.transactionId === transId)) return;
 
-              this.enforceStopLossTakeProfit(transId, sl, tp, id).then(success => {
+              const targetTp = p.tp3 || p.tp2 || p.tp1;
+              this.enforceStopLossTakeProfit(transId, sl, targetTp, id).then(success => {
                 if (success) p.slEnforced = true;
               }).catch(() => {});
-            }, 200);
+            }, 100);
           }
         } else {
           this.log(`Trade Entry Failed: ${JSON.stringify(response?.data || {})}`, "ERROR");
@@ -2231,7 +2292,8 @@ ${analysisText}
           position.lastEnforceAttempt = now;
           position.enforceAttempts = attemptCount + 1;
           this.log(`Retrying SL/TP Enforcement for ${position.transactionId} (Attempt ${position.enforceAttempts})...`, "INFO");
-          this.enforceStopLossTakeProfit(position.transactionId, position.sl, position.tp1, id).then(success => {
+          const targetTp = position.tp3 || position.tp2 || position.tp1;
+          this.enforceStopLossTakeProfit(position.transactionId, position.sl, targetTp, id).then(success => {
             if (success) {
               position.slEnforced = true;
               this.log(`SL/TP Enforced on retry for ${position.transactionId}`, "SUCCESS");
@@ -2327,9 +2389,26 @@ ${analysisText}
       } else if (!position.tp3Hit) {
         if ((isBuy && currentPrice >= position.tp3) || (!isBuy && currentPrice <= position.tp3)) {
           position.tp3Hit = true;
-          this.log(`🎯 Target 3 (Final) Hit at ${currentPrice}! Closing trade.`, "SUCCESS");
-          this.closeTrade(id, 'take_profit_final');
-          continue;
+          
+          // If Trailing is enabled, don't close! Instead, move TP3 further and let it trail.
+          const trailingCfg = this.settings.targetsTicks?.trailing;
+          const hqCfg = this.settings.strategy?.highQuality;
+          const effectiveTrailing = (position.isHQ && hqCfg?.trailing?.enabled) ? hqCfg.trailing : trailingCfg;
+
+          if (effectiveTrailing?.enabled) {
+            this.log(`🎯 Target 3 Hit at ${currentPrice}! Trailing is ENABLED, so keeping trade open for more profit.`, "SUCCESS");
+            // Move internal TP3 further away so we don't hit this block again immediately
+            const extension = (this.settings.targetsTicks?.tpTicks || 15) * tickSize;
+            position.tp3 = isBuy ? position.tp3 + extension : position.tp3 - extension;
+            
+            if (position.transactionId) {
+              this.editTakeProfit(position.transactionId, position.tp3);
+            }
+          } else {
+            this.log(`🎯 Target 3 (Final) Hit at ${currentPrice}! Closing trade.`, "SUCCESS");
+            this.closeTrade(id, 'take_profit_final');
+            continue;
+          }
         }
       }
 
@@ -2468,7 +2547,15 @@ ${analysisText}
         const activateDist = (effectiveTrailing.activateAfterTicks || 8) * tickSize;
         
         if (currentDist >= activateDist) {
-          const trailDist = (effectiveTrailing.trailTicks || 4) * tickSize;
+          // Smart Trailing: Tighten trail distance as targets are hit
+          let trailTicks = effectiveTrailing.trailTicks || 4;
+          if (position.tp2Hit) {
+            trailTicks = Math.max(1, Math.round(trailTicks * 0.5)); // 50% tighter after TP2
+          } else if (position.tp1Hit) {
+            trailTicks = Math.max(2, Math.round(trailTicks * 0.75)); // 25% tighter after TP1
+          }
+
+          const trailDist = trailTicks * tickSize;
           const newSl = isBuy ? currentPrice - trailDist : currentPrice + trailDist;
           
           // Only move SL if it's an improvement
@@ -2483,6 +2570,16 @@ ${analysisText}
               
               if (position.transactionId) {
                 this.editStopLoss(position.transactionId, newSl);
+                
+                // Smart TP Management: If we are trailing, ensure TP is always ahead
+                const tpBuffer = (this.settings.targetsTicks?.tpTicks || 15) * tickSize;
+                const minTp = isBuy ? currentPrice + tpBuffer : currentPrice - tpBuffer;
+                const tpNeedsMoving = isBuy ? position.tp3 < minTp : position.tp3 > minTp;
+                
+                if (tpNeedsMoving) {
+                  position.tp3 = minTp;
+                  this.editTakeProfit(position.transactionId, minTp);
+                }
               }
             }
           }

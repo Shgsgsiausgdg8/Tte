@@ -112,15 +112,6 @@ export class Strategy {
       return { signal: null, reason: `Max positions reached (${openPositionsCount})` };
     }
 
-    const maxTradesPer10Min = this.config.strategy?.filters?.maxTradesPer10Min || 0;
-    if (!dryRun && maxTradesPer10Min > 0) {
-      const tenMinsAgo = now - 10 * 60 * 1000;
-      const recentSignals = this.signals.filter(s => s.timestamp > tenMinsAgo);
-      if (recentSignals.length >= maxTradesPer10Min) {
-        return { signal: null, reason: `Max trades (${maxTradesPer10Min}) per 10m reached` };
-      }
-    }
-
     const activeStrategy = this.config.activeStrategy || 'SCALP';
     let result: any = null;
 

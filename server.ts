@@ -142,6 +142,7 @@ async function startServer() {
     bot.totalTrades = 0;
     bot.winningTrades = 0;
     bot.losingTrades = 0;
+    bot.processedTransactionIds.clear();
     bot.closedPositions = [];
     bot.saveState();
     res.json({ success: true });

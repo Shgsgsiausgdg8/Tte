@@ -1697,6 +1697,80 @@ export default function Dashboard() {
                       </div>
                     </div>
 
+                    {/* Trailing Stop Settings */}
+                    <div className="border-t border-white/5 pt-4 mt-1">
+                      <div className="flex items-center justify-between bg-white/5 p-3 rounded-xl border border-white/5 mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className={`p-2 rounded-lg transition-colors ${settings.targetsTicks?.trailing?.enabled ? 'bg-emerald-500/20 text-emerald-500' : 'bg-blue-500/10 text-blue-500'}`}>
+                            <TrendingUp className="w-3.5 h-3.5" />
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-xs font-bold text-white">دنباله قیمت هوشمند (Trailing Stop)</span>
+                            <span className="text-[8px] text-slate-500 font-mono uppercase tracking-wider">تعقیب قیمت برای سود حداکثری</span>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => setSettings({ 
+                            ...settings, 
+                            targetsTicks: { 
+                              ...settings.targetsTicks, 
+                              trailing: { ...settings.targetsTicks?.trailing, enabled: !settings.targetsTicks?.trailing?.enabled } 
+                            } 
+                          })}
+                          className={`w-10 h-5 rounded-full transition-all relative ${settings.targetsTicks?.trailing?.enabled ? 'bg-emerald-500' : 'bg-slate-700'}`}
+                        >
+                          <motion.div 
+                            animate={{ x: settings.targetsTicks?.trailing?.enabled ? 22 : 2 }}
+                            className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm"
+                          />
+                        </button>
+                      </div>
+                      {settings.targetsTicks?.trailing?.enabled && (
+                        <div className="grid grid-cols-2 gap-3 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-4">
+                          <div>
+                            <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">فعال‌سازی بعد از (تیک سود)</label>
+                            <input 
+                              type="number" 
+                              value={settings.targetsTicks?.trailing?.activateAfterTicks || 5}
+                              onChange={(e) => setSettings({ 
+                                ...settings, 
+                                targetsTicks: { 
+                                  ...settings.targetsTicks, 
+                                  trailing: { ...settings.targetsTicks?.trailing, activateAfterTicks: parseInt(e.target.value) } 
+                                } 
+                              })}
+                              className="w-full bg-black/20 border border-white/5 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-emerald-500/50 font-bold"
+                            />
+                            <p className="text-[7px] text-slate-500 mt-1 font-mono uppercase tracking-tight">پس از چند تیک سود، تریلینگ شروع شود.</p>
+                          </div>
+                          <div>
+                            <label className="text-[8px] text-slate-500 uppercase font-mono mb-1.5 block tracking-widest">فاصله دنباله (تیک)</label>
+                            <input 
+                              type="number" 
+                              value={settings.targetsTicks?.trailing?.trailTicks || 3}
+                              onChange={(e) => setSettings({ 
+                                ...settings, 
+                                targetsTicks: { 
+                                  ...settings.targetsTicks, 
+                                  trailing: { ...settings.targetsTicks?.trailing, trailTicks: parseInt(e.target.value) } 
+                                } 
+                              })}
+                              className="w-full bg-black/20 border border-white/5 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-emerald-500/50 font-bold"
+                            />
+                            <p className="text-[7px] text-slate-500 mt-1 font-mono uppercase tracking-tight">فاصله حد ضرر متحرک از قیمت لحظه‌ای.</p>
+                          </div>
+                          <div className="col-span-2">
+                            <div className="flex items-center gap-2 p-2 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
+                              <Info className="w-3 h-3 text-emerald-500 shrink-0" />
+                              <p className="text-[8px] text-emerald-500 leading-relaxed font-bold">
+                                سیستم هوشمند: در صورت فعال بودن تریلینگ، معامله در تارگت ۳ بسته نمی‌شود و تا زمان برخورد به حد ضرر متحرک ادامه می‌یابد. همچنین فاصله تریلینگ پس از تارگت ۱ و ۲ به صورت خودکار تنگ‌تر می‌شود.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
                     {/* Stepped Risk-Free */}
                     <div className="border-t border-white/5 pt-4 mt-1">
                       <div className="flex items-center justify-between bg-white/5 p-3 rounded-xl border border-white/5 mb-3">
