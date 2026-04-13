@@ -1146,7 +1146,13 @@ ${analysisText}
       
       let existingPos = null;
       for (const [localId, localPos] of this.openPositions.entries()) {
-        if (localPos.transactionId === transId || localPos.id === id || (localPos.type === type && Math.abs(localPos.entry - entry) < 100)) {
+        const isPending = !localPos.transactionId || String(localPos.transactionId).includes('PENDING');
+        const priceDiff = Math.abs(localPos.entry - entry);
+        
+        if (localPos.transactionId === transId || localPos.id === id || (localPos.type === type && priceDiff < 200)) {
+          if (isPending) {
+            this.log(`[DEBUG] Sync matched PENDING position ${localId} with API transaction ${transId} (Price Diff: ${priceDiff})`, "SUCCESS");
+          }
           existingPos = localPos;
           break;
         }
@@ -1154,6 +1160,10 @@ ${analysisText}
 
       const apiSl = Number(p.stop_loss || p.sl || 0);
       const apiTp = Number(p.take_profit || p.tp || 0);
+      
+      if (existingPos && (apiSl === 0 || apiTp === 0)) {
+        this.log(`[DEBUG] Sync detected missing SL/TP for ${id}: API_SL=${apiSl}, API_TP=${apiTp} | Local_SL=${existingPos.sl}, Local_TP=${existingPos.tp1}`, "INFO");
+      }
       
       const defaultTpTicks = this.settings.targetsTicks?.tpTicks || 15;
       const tickSize = this.settings.market?.tickSize || 1;
@@ -1408,7 +1418,7 @@ ${analysisText}
             const order = msg.new_user_orders;
             const txId = Number(order.transaction_id);
             const orderId = Number(order.id || order.order_id);
-            this.log(`[WS] Real-time Order Update: ${order.action} ${order.units} units at ${order.price} (Status: ${order.status}, OrderID: ${orderId || 'N/A'})`, "WS");
+            this.log(`[WS] Real-time Order Update: ${JSON.stringify(order)}`, "WS");
             
             // Link transaction ID if it's missing or pending for an open position
             if (txId && !isNaN(txId)) {
@@ -2108,6 +2118,8 @@ ${analysisText}
           signal_token: ""
         };
 
+        this.log(`[DEBUG] Submitting Order Payload: ${JSON.stringify(orderData)}`, "INFO");
+        
         let attempts = 0;
         const maxAttempts = 2;
         let response = null;
@@ -2123,6 +2135,7 @@ ${analysisText}
 
             this.log(`Submitting order to API (Attempt ${attempts + 1})...`, "INFO");
             response = await this.api.post('/api/room/api/submit-order/', orderData);
+            this.log(`[DEBUG] API Response: ${JSON.stringify(response?.data || {})}`, "INFO");
             break;
           } catch (e: any) {
             const status = e.response?.status;
@@ -2267,6 +2280,13 @@ ${analysisText}
       const currentDiff = currentPrice - entryPrice;
       const currentTicks = Math.abs(currentDiff / tickSize);
       
+      // Panic check: If position is PENDING for more than 5s, force a portfolio sync
+      const isPending = !position.transactionId || String(position.transactionId).includes('PENDING');
+      if (isPending && now - (position.entryTime?.getTime() || now) > 5000) {
+        this.log(`🚨 WARNING: Position ${id} has been PENDING for >5s. Forcing portfolio sync...`, "INFO");
+        this.updatePortfolio(0, true);
+      }
+
       if (isBuy) {
         if (currentPrice < entryPrice) {
           position.maxAdverseTicks = Math.max(position.maxAdverseTicks || 0, currentTicks);
@@ -2282,7 +2302,6 @@ ${analysisText}
       }
 
       // Periodic SL/TP Enforcement Retry
-      const isPending = !position.transactionId || position.transactionId === 'PENDING' || String(position.transactionId).includes('PENDING');
       if (this.settings.source === 'API' && !isPending && position.slEnforced === false) {
         const lastAttempt = position.lastEnforceAttempt || 0;
         const attemptCount = position.enforceAttempts || 0;
@@ -2928,7 +2947,11 @@ ${pnlEmoji} معامله ${typeLabel} #${pos.signalId || '---'}
   }
 
   async enforceStopLossTakeProfit(transactionId: number, sl: number, tp: number, localId: number): Promise<boolean> {
-    this.log(`Enforcing SL/TP for transaction ${transactionId}: SL=${sl}, TP=${tp}`, "INFO");
+    this.log(`[DEBUG] Enforcing SL/TP for ${transactionId} (Local: ${localId}): SL=${sl}, TP=${tp}`, "INFO");
+    if (String(transactionId).includes('PENDING')) {
+      this.log(`[DEBUG] Aborting enforcement: transactionId is still PENDING (${transactionId})`, "INFO");
+      return false;
+    }
     
     let slSuccess = sl === 0 || isNaN(sl);
     let tpSuccess = tp === 0 || isNaN(tp);
@@ -2957,7 +2980,10 @@ ${pnlEmoji} معامله ${typeLabel} #${pos.signalId || '---'}
   }
 
   async editTakeProfit(transactionId: number, newTp: number) {
-    if (String(transactionId).includes('PENDING')) return false;
+    if (String(transactionId).includes('PENDING')) {
+      this.log(`[DEBUG] editTakeProfit aborted: transactionId is PENDING (${transactionId})`, "INFO");
+      return false;
+    }
     if (this.settings.source === 'API' && this.api && transactionId) {
       try {
         this.log(`Updating TP for transaction ${transactionId} to ${newTp}...`, "INFO");
@@ -3044,7 +3070,10 @@ ${pnlEmoji} معامله ${typeLabel} #${pos.signalId || '---'}
   }
 
   async editStopLoss(transactionId: number, newSl: number) {
-    if (String(transactionId).includes('PENDING')) return false;
+    if (String(transactionId).includes('PENDING')) {
+      this.log(`[DEBUG] editStopLoss aborted: transactionId is PENDING (${transactionId})`, "INFO");
+      return false;
+    }
     if (this.settings.source === 'API' && this.api && transactionId) {
       try {
         this.log(`Updating SL for transaction ${transactionId} to ${newSl}...`, "INFO");
