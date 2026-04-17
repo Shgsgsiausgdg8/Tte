@@ -2368,6 +2368,31 @@ ${analysisText}
       const priceDiff = isBuy ? currentPrice - entryPrice : entryPrice - currentPrice;
       const currentPnlToman = Math.round((priceDiff / tickSize) * tickValue * (position.units || 1));
       
+      // Smart Profit Saving: If trade reached >60% of TP1 but reversed significantly, move SL to BE
+      if (!position.tp1Hit && !position.breakEvenHit) {
+        const tpDist = Math.abs(position.tp1 - entryPrice);
+        const currentDist = isBuy ? currentPrice - entryPrice : entryPrice - currentPrice;
+        const maxDist = position.maxFavorableTicks * tickSize;
+        
+        // Trigger if:
+        // 1. We reached at least 60% of the way to TP1
+        // 2. We have dropped >50% from our maximum reached profit
+        if (maxDist >= tpDist * 0.6 && currentDist <= maxDist * 0.5) {
+          const buffer = 1 * tickSize;
+          const newSl = isBuy ? entryPrice + buffer : entryPrice - buffer;
+          const isImprovement = isBuy ? newSl > position.sl : newSl < position.sl;
+          
+          if (isImprovement) {
+            position.breakEvenHit = true;
+            position.sl = newSl;
+            this.log(`🛡️ Profit Protection: Trade ${id} reversed after reaching 60% of TP1. Moving SL to Break-Even (${newSl})`, "SUCCESS");
+            if (position.transactionId) {
+              this.editStopLoss(position.transactionId, newSl);
+            }
+          }
+        }
+      }
+
       const maxLossPerTrade = this.settings.risk?.maxRiskTomanPerTrade;
       if (maxLossPerTrade && currentPnlToman <= -Math.abs(maxLossPerTrade)) {
         this.log(`🚨 Maximum Loss Per Trade Reached! Closing position ${id}. PnL: ${currentPnlToman}`, "ERROR");
@@ -2386,10 +2411,10 @@ ${analysisText}
       if (!position.tp1Hit) {
         if ((isBuy && currentPrice >= position.tp1) || (!isBuy && currentPrice <= position.tp1)) {
           position.tp1Hit = true;
-          this.log(`🎯 Target 1 Hit at ${currentPrice}! Moving SL to Entry and targeting TP2: ${position.tp2}`, "SUCCESS");
+          this.log(`🎯 Target 1 Hit at ${currentPrice}! Moving SL to Protected Entry and targeting TP2: ${position.tp2}`, "SUCCESS");
           
-          // Smart Profit Saving: Move SL to Entry + small buffer
-          const buffer = 2 * tickSize;
+          // Smart Profit Saving: Move SL to Entry + 5 ticks buffer (instead of 2)
+          const buffer = 5 * tickSize;
           const newSl = isBuy ? entryPrice + buffer : entryPrice - buffer;
           position.sl = newSl;
           
@@ -2587,56 +2612,50 @@ ${analysisText}
         }
       }
 
-      // Continuous Trailing Stop Logic (Tick-based)
-      const trailingCfg = this.settings.targetsTicks?.trailing;
-      const hqCfg = this.settings.strategy?.highQuality;
+    // Continuous Trailing Stop Logic (ATR-based for Precision)
+    const trailingCfg = this.settings.targetsTicks?.trailing;
+    const hqCfg = this.settings.strategy?.highQuality;
+    const effectiveTrailing = (position.isHQ && hqCfg?.trailing?.enabled) ? hqCfg.trailing : trailingCfg;
+
+    if (effectiveTrailing?.enabled) {
+      const currentDist = isBuy ? currentPrice - entryPrice : entryPrice - currentPrice;
+      const activateDist = (effectiveTrailing.activateAfterTicks || 10) * tickSize;
       
-      // Use HQ Trailing if trade is HQ
-      const effectiveTrailing = (position.isHQ && hqCfg?.trailing?.enabled) ? hqCfg.trailing : trailingCfg;
-
-      if (effectiveTrailing?.enabled) {
-        const currentDist = isBuy ? currentPrice - entryPrice : entryPrice - currentPrice;
-        const activateDist = (effectiveTrailing.activateAfterTicks || 8) * tickSize;
+      if (currentDist >= activateDist) {
+        // Use ATR for volatility-adjusted trailing distance
+        // Fallback to trailTicks if ATR is not available
+        const atr = this.strategy.indicators.atr || (5 * tickSize);
+        const atrMultiplier = 1.5; // Give price 1.5x ATR room to breathe
         
-        if (currentDist >= activateDist) {
-          // Smart Trailing: Tighten trail distance as targets are hit
-          let trailTicks = effectiveTrailing.trailTicks || 4;
-          if (position.tp2Hit) {
-            trailTicks = Math.max(1, Math.round(trailTicks * 0.5)); // 50% tighter after TP2
-          } else if (position.tp1Hit) {
-            trailTicks = Math.max(2, Math.round(trailTicks * 0.75)); // 25% tighter after TP1
-          }
+        let trailDist = Math.max(atr * atrMultiplier, (effectiveTrailing.trailTicks || 5) * tickSize);
+        
+        // Only start tightening AFTER TP2 is hit to allow for major runs
+        if (position.tp2Hit) {
+          trailDist = trailDist * 0.7; // Tighten only at the end
+        } else if (position.tp1Hit) {
+          trailDist = trailDist * 0.9; // Slight tightening
+        }
 
-          const trailDist = trailTicks * tickSize;
-          const newSl = isBuy ? currentPrice - trailDist : currentPrice + trailDist;
-          
-          // Only move SL if it's an improvement
-          const isImprovement = isBuy ? newSl > position.sl : newSl < position.sl;
-          
-          if (isImprovement) {
-            const now = Date.now();
-            if (!position.lastSlUpdate || now - position.lastSlUpdate > 5000) {
-              position.sl = newSl;
-              position.lastSlUpdate = now;
-              this.log(`${position.isHQ ? 'HQ ' : ''}Trailing Stop moved to ${newSl} (Profit: ${currentDist/tickSize} ticks)`, "SUCCESS");
-              
-              if (position.transactionId) {
-                this.editStopLoss(position.transactionId, newSl);
-                
-                // Smart TP Management: If we are trailing, ensure TP is always ahead
-                const tpBuffer = (this.settings.targetsTicks?.tpTicks || 15) * tickSize;
-                const minTp = isBuy ? currentPrice + tpBuffer : currentPrice - tpBuffer;
-                const tpNeedsMoving = isBuy ? position.tp3 < minTp : position.tp3 > minTp;
-                
-                if (tpNeedsMoving) {
-                  position.tp3 = minTp;
-                  this.editTakeProfit(position.transactionId, minTp);
-                }
-              }
+        const newSl = isBuy ? currentPrice - trailDist : currentPrice + trailDist;
+        
+        // Only move SL if it's a significant improvement (at least 2 ticks) to avoid frequent API calls
+        const moveThreshold = 2 * tickSize;
+        const isImprovement = isBuy ? (newSl > position.sl + moveThreshold) : (newSl < position.sl - moveThreshold);
+        
+        if (isImprovement) {
+          const now = Date.now();
+          if (!position.lastSlUpdate || now - position.lastSlUpdate > 5000) {
+            position.sl = Math.round(newSl);
+            position.lastSlUpdate = now;
+            this.log(`📈 Voltality-Adjusted Trailing: SL moved to ${position.sl} (Distance: ${(trailDist/tickSize).toFixed(1)} ticks)`, "SUCCESS");
+            
+            if (position.transactionId) {
+              this.editStopLoss(position.transactionId, position.sl);
             }
           }
         }
       }
+    }
 
       // HQ Mode: Early Break-Even (Save Profit)
       if (position.isHQ && hqCfg?.breakEven?.enabled && !position.breakEvenHit) {

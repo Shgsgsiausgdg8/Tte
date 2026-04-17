@@ -95,17 +95,16 @@ export class Strategy {
     const now = Date.now();
 
     // Adjust parameters for High Quality Mode
-    let effectiveMinScore = this.minSignalScore;
-    let effectiveCooldown = this.cooldown;
+    let effectiveMinScore = Math.max(this.minSignalScore, 5); // Minimum score is now 5 for Sniper Mode
+    let effectiveCooldown = Math.max(this.cooldown, 3 * 60 * 1000); // Minimum 3 minutes between ANY signals to prevent spam
 
     if (this.highQualityMode) {
-      // Slightly increase requirements
-      effectiveMinScore = Math.max(effectiveMinScore + 1, 3); // Require at least score 3
-      effectiveCooldown = Math.max(effectiveCooldown, 15 * 60 * 1000); // At least 15 mins cooldown between signals
+      effectiveMinScore = Math.max(effectiveMinScore + 2, 7); // Seek 'Diamond' signals only (Score 7+)
+      effectiveCooldown = Math.max(effectiveCooldown, 10 * 60 * 1000); 
     }
 
     if (!dryRun && now - this.lastSignalTime < effectiveCooldown) {
-      return { signal: null, reason: 'Cooldown active' };
+      return { signal: null, reason: 'Cooldown active (Sniper Mode)' };
     }
 
     if (!dryRun && openPositionsCount >= (this.config.risk?.maxOpenPositions ?? 2)) {
@@ -420,9 +419,16 @@ export class Strategy {
     const bullishPattern = patterns.some(p => p.type === 'BULLISH');
     const bearishPattern = patterns.some(p => p.type === 'BEARISH');
 
-    // 7. MTF Trend Check
+    // 7. MTF Trend Check (MANDATORY IN SNIPER MODE)
     const mtf = this.getMTFStatus(priceHistory);
-    const mtfConfirmed = !mtf || mtf.status !== 'CONFIRMED' || mtf.trend === (trendUp ? 'BUY' : 'SELL');
+    if (!mtf || mtf.status !== 'CONFIRMED') {
+      return { signal: null, reason: 'MTF Data not ready (Mandatory for precision)' };
+    }
+    
+    // Hard Filter: If MTF trend does not match our current trend, discard immediately
+    const mtfTrend = mtf.trend;
+    if (trendUp && mtfTrend !== 'BUY') return { signal: null, reason: 'MTF Trend Conflict (1m: BUY, 5m: SELL)' };
+    if (trendDown && mtfTrend !== 'SELL') return { signal: null, reason: 'MTF Trend Conflict (1m: SELL, 5m: BUY)' };
 
     // 8. Momentum Filter (Explosive Move Detection)
     const roc = ((price - prevClose) / prevClose) * 10000; // in basis points
@@ -432,105 +438,74 @@ export class Strategy {
     const explosiveDown = roc < -momentumThreshold;
 
     if (trendUp && nearSlowForBuy) {
-      // Base signal: RSI Pullback
       if (rsi <= rsiOversold) {
         type = 'BUY';
         score += 2;
         reasons.push(`RSI Pullback (${rsi.toFixed(1)})`);
-      }
-      
-      // Momentum Reversal
-      if (!type && rsi < 55 && momentumUp && price >= emaFast && closes[closes.length - 2] < emaFast) {
+      } else if (rsi < 55 && momentumUp && price >= emaFast && closes[closes.length - 2] < emaFast) {
         type = 'BUY';
         score += 1;
         reasons.push('Momentum Reversal (Crossed Fast EMA)');
       }
-      
-      // EMA Cross Up
-      if (!type && emaFast > emaSlow && closes[closes.length - 2] <= emaSlow && rsi > 40 && rsi < 60) {
-        type = 'BUY';
-        score += 1;
-        reasons.push('EMA Cross Up Confirmation');
-      }
-
-      if (type) {
-        reasons.push('Trend Up (EMA Fast > Slow)');
-        if (momentumUp) { score += 1; reasons.push('Green Candle'); }
-        
-        // Add scores for new filters if enabled
-        if (scalpCfg.useVolumeFilter && volumeConfirmed) { score += 1; reasons.push('Volume Confirmation'); }
-        if (scalpCfg.useAdxFilter && trendStrong) { score += 1; reasons.push(`Trend Strength (ADX: ${adx.toFixed(0)})`); }
-        if (scalpCfg.useStochFilter && stochBuy) { score += 1; reasons.push('Stochastic Oversold Cross'); }
-        if (scalpCfg.useMacdFilter && macdBuy) { score += 1; reasons.push('MACD Momentum Up'); }
-        if (scalpCfg.useBbFilter && bbBuy) { score += 1; reasons.push('BB Lower Half'); }
-        if (scalpCfg.useCandleFilter && bullishPattern) { score += 1; reasons.push('Bullish Candle Pattern'); }
-        
-        // Advanced scores
-        if (scalpCfg.useDivergenceFilter && divergence === 'BULLISH') { score += 3; reasons.push('Bullish RSI Divergence'); }
-        if (scalpCfg.useOrderBlockFilter && orderBlock === 'DEMAND') { score += 2; reasons.push('Demand Zone (Order Block)'); }
-        if (scalpCfg.useSessionFilter && !inSession) { score -= 5; reasons.push('Outside Trading Session'); }
-
-        if (scalpCfg.useMomentumFilter) {
-          if (explosiveUp) { score += 2; reasons.push('Explosive Momentum Up'); }
-          else { score -= 1; reasons.push('Weak Momentum'); }
-        }
-
-        if (scalpCfg.useMtfFilter) {
-          if (mtfConfirmed) { score += 1; reasons.push(`MTF Trend Alignment (${mtf?.timeframe || '5M'})`); }
-          else { score -= 2; reasons.push(`MTF Trend Conflict (${mtf?.timeframe || '5M'})`); }
-        }
-      }
     } else if (trendDown && nearSlowForSell) {
-      // Base signal: RSI Pullback
       if (rsi >= rsiOverbought) {
         type = 'SELL';
         score += 2;
         reasons.push(`RSI Pullback (${rsi.toFixed(1)})`);
-      }
-      
-      // Momentum Reversal
-      if (!type && rsi > 45 && momentumDown && price <= emaFast && closes[closes.length - 2] > emaFast) {
+      } else if (rsi > 45 && momentumDown && price <= emaFast && closes[closes.length - 2] > emaFast) {
         type = 'SELL';
         score += 1;
         reasons.push('Momentum Reversal (Crossed Fast EMA)');
       }
-      
-      // EMA Cross Down
-      if (!type && emaFast < emaSlow && closes[closes.length - 2] >= emaSlow && rsi > 40 && rsi < 60) {
-        type = 'SELL';
-        score += 1;
-        reasons.push('EMA Cross Down Confirmation');
-      }
-
-      if (type) {
-        reasons.push('Trend Down (EMA Fast < Slow)');
-        if (momentumDown) { score += 1; reasons.push('Red Candle'); }
-        
-        // Add scores for new filters if enabled
-        if (scalpCfg.useVolumeFilter && volumeConfirmed) { score += 1; reasons.push('Volume Confirmation'); }
-        if (scalpCfg.useAdxFilter && trendStrong) { score += 1; reasons.push(`Trend Strength (ADX: ${adx.toFixed(0)})`); }
-        if (scalpCfg.useStochFilter && stochSell) { score += 1; reasons.push('Stochastic Overbought Cross'); }
-        if (scalpCfg.useMacdFilter && macdSell) { score += 1; reasons.push('MACD Momentum Down'); }
-        if (scalpCfg.useBbFilter && bbSell) { score += 1; reasons.push('BB Upper Half'); }
-        if (scalpCfg.useCandleFilter && bearishPattern) { score += 1; reasons.push('Bearish Candle Pattern'); }
-
-        // Advanced scores
-        if (scalpCfg.useDivergenceFilter && divergence === 'BEARISH') { score += 3; reasons.push('Bearish RSI Divergence'); }
-        if (scalpCfg.useOrderBlockFilter && orderBlock === 'SUPPLY') { score += 2; reasons.push('Supply Zone (Order Block)'); }
-        if (scalpCfg.useSessionFilter && !inSession) { score -= 5; reasons.push('Outside Trading Session'); }
-
-        if (scalpCfg.useMomentumFilter) {
-          if (explosiveDown) { score += 2; reasons.push('Explosive Momentum Down'); }
-          else { score -= 1; reasons.push('Weak Momentum'); }
-        }
-
-        if (scalpCfg.useMtfFilter) {
-          if (mtfConfirmed) { score += 1; reasons.push(`MTF Trend Alignment (${mtf?.timeframe || '5M'})`); }
-          else { score -= 2; reasons.push(`MTF Trend Conflict (${mtf?.timeframe || '5M'})`); }
-        }
-      }
     }
 
+    if (!type) return { signal: null, reason: 'No trend/pullback base criteria met' };
+
+    // Apply scores for filters enabled in config
+    if (scalpCfg.useVolumeFilter && volumeConfirmed) { score += 1; reasons.push('Volume Confirmation'); }
+    if (scalpCfg.useAdxFilter && trendStrong) { score += 1; reasons.push(`Trend Strength (ADX: ${adx.toFixed(0)})`); }
+    if (scalpCfg.useStochFilter && (type === 'BUY' ? stochBuy : stochSell)) { score += 1; reasons.push('Stochastic Cross Confirmation'); }
+    if (scalpCfg.useMacdFilter && (type === 'BUY' ? macdBuy : macdSell)) { score += 1; reasons.push('MACD Momentum Confirmation'); }
+    if (scalpCfg.useBbFilter && (type === 'BUY' ? bbBuy : bbSell)) { score += 1; reasons.push('BB Channel Confirmation'); }
+    if (scalpCfg.useCandleFilter && (type === 'BUY' ? bullishPattern : bearishPattern)) { score += 1; reasons.push(`${type === 'BUY' ? 'Bullish' : 'Bearish'} Candle Pattern`); }
+    
+    // Advanced scores
+    if (scalpCfg.useDivergenceFilter && divergence === (type === 'BUY' ? 'BULLISH' : 'BEARISH')) { score += 3; reasons.push(`${type === 'BUY' ? 'Bullish' : 'Bearish'} RSI Divergence`); }
+    if (scalpCfg.useOrderBlockFilter && orderBlock === (type === 'BUY' ? 'DEMAND' : 'SUPPLY')) { score += 2; reasons.push(`${type === 'BUY' ? 'Demand' : 'Supply'} Zone (Order Block)`); }
+    if (scalpCfg.useSessionFilter && !inSession) { score -= 5; reasons.push('Outside Trading Session'); }
+
+    if (scalpCfg.useMomentumFilter) {
+      if ((type === 'BUY' && explosiveUp) || (type === 'SELL' && explosiveDown)) { score += 2; reasons.push('Explosive Momentum Confirmation'); }
+      else { score -= 1; reasons.push('Weak Momentum'); }
+    }
+
+    if (scalpCfg.useMtfFilter) {
+      score += 1;
+      reasons.push(`MTF Trend Alignment (${mtf?.timeframe || '5M'})`);
+    }
+
+    const regime = this.indicators.regime || 'RANGE';
+    // 1. Regime Filter: Reduce score in unstable or tight ranges
+    if (regime === 'RANGE') {
+      score -= 1;
+      reasons.push('Market in Range (Caution)');
+    }
+    
+    // 2. EMA Alignment (Strict)
+    const ema50 = this.calculateEMA(closes, 50);
+    const alignmentBuy = type === 'BUY' && price > emaSlow && price > ema50 && emaFast > emaSlow;
+    const alignmentSell = type === 'SELL' && price < emaSlow && price < ema50 && emaFast < emaSlow;
+
+    if (alignmentBuy || alignmentSell) {
+      score += 1;
+      reasons.push('EMA Alignment (Fast/Slow/50)');
+    }
+
+    // 3. RSI Zone Confirmation
+    if (type === 'BUY' && rsi < 40) { score += 1; reasons.push('RSI in Oversold Zone'); }
+    if (type === 'SELL' && rsi > 60) { score += 1; reasons.push('RSI in Overbought Zone'); }
+
+    // Final result
     if (type && score >= requiredScore) {
       return {
         signal: {
